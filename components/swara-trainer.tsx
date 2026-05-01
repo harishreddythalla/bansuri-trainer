@@ -117,6 +117,22 @@ type DebugLogEntry = {
   detail?: string;
 };
 
+type SequenceStepRecord = {
+  stepIndex: number;
+  repeatIndex: number;
+  target: SwaraTarget;
+  detected: DetectedSwara | null;
+  score: number;
+  holdMs: number | null;
+};
+
+type SequenceRunResult = {
+  kind: "success" | "failure";
+  message: string;
+  score: number | null;
+  detail?: string;
+};
+
 const allLessonSteps = foundationModules.flatMap((module) => module.steps);
 const firstStep = allLessonSteps[0];
 const FALLBACK_TARGET: SwaraTarget = { swara: "Sa", octave: "Madhya" };
@@ -139,6 +155,7 @@ const TREND_SAMPLE_MS = 40;
 const DEBUG_LOG_STORAGE_KEY = "bansuri.trainerDebugLog";
 const DEBUG_LOG_LIMIT = 900;
 const DEBUG_LOG_SINK_URL = "http://127.0.0.1:4010/log";
+const SEQUENCE_MIN_PRACTICE_SCORE = 72;
 
 function readStoredDebugLog() {
   if (
@@ -216,7 +233,48 @@ function summarizeSequencePath(step: SequenceLessonStep, maxSteps = 6) {
 }
 
 function sequenceWindowMs(step: SequenceLessonStep, currentStep: SequenceLessonStep["steps"][number]) {
-  return Math.max(step.sequenceRules.maxGapMs, currentStep.sustainTargetMs + 1100);
+  return Math.max(step.sequenceRules.maxGapMs + 700, currentStep.sustainTargetMs + 1200);
+}
+
+function averageScore(values: number[]) {
+  if (!values.length) {
+    return null;
+  }
+
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return Math.round(total / values.length);
+}
+
+function describeSequenceRecord(record: SequenceStepRecord) {
+  if (!record.detected) {
+    return `No stable ${formatTargetLabel(record.target)} landed`;
+  }
+
+  const scoreSummary = scoreAttempt({
+    target: record.target,
+    detected: record.detected,
+    sustainMs: Math.round(record.holdMs ?? 0),
+    stability: 0,
+    noise: 0,
+  }).summary;
+
+  return scoreSummary;
+}
+
+function summarizeSequenceFailure(records: SequenceStepRecord[], target: SwaraTarget, reason: string) {
+  const latest = [...records].reverse().find(Boolean);
+  const phraseScore = averageScore(records.map((record) => record.score));
+  if (!latest) {
+    return {
+      message: `Last run failed: ${reason}.`,
+      score: phraseScore,
+    };
+  }
+
+  return {
+    message: `Last run failed: ${reason}. ${describeSequenceRecord(latest)}.`,
+    score: phraseScore,
+  };
 }
 
 function isSequenceStep(step: LessonStep | null | undefined): step is SequenceLessonStep {
@@ -296,6 +354,7 @@ export function SwaraTrainer() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkpointNotice, setCheckpointNotice] = useState<string | null>(null);
+  const [sequenceRunResult, setSequenceRunResult] = useState<SequenceRunResult | null>(null);
   const [bonusTokens, setBonusTokens] = useState(0);
   const [celebrationPieces, setCelebrationPieces] = useState<Array<{ id: string; left: number; delay: number; duration: number; drift: number; hue: number }>>([]);
   const [sequenceStepDurationsMs, setSequenceStepDurationsMs] = useState<number[]>([]);
@@ -333,6 +392,7 @@ export function SwaraTrainer() {
   const sequenceTransitionUntilRef = useRef<number | null>(null);
   const sequenceHandoffRef = useRef<SequenceHandoff | null>(null);
   const sequenceCarryoverBlockRef = useRef<SequenceCarryoverBlock | null>(null);
+  const sequenceStepRecordsRef = useRef<Array<SequenceStepRecord | null>>([]);
   const sequenceStepDurationsRef = useRef<number[]>([]);
   const debugLogRef = useRef<DebugLogEntry[]>([]);
   const debugSessionIdRef = useRef(`session-${Date.now()}`);
@@ -520,9 +580,11 @@ export function SwaraTrainer() {
             repeatIndex: 0,
           }
         : null;
+    sequenceStepRecordsRef.current = [];
     sequenceStepDurationsRef.current = [];
     lastDebugNoteKeyRef.current = null;
     lastDebugStepRef.current = "";
+    setSequenceRunResult(null);
     setSequenceStepDurationsMs([]);
     setSequenceProgress({
       checkpointId: selectedStepId,
@@ -541,7 +603,7 @@ export function SwaraTrainer() {
     };
   }
 
-  function resetSequenceAttempt(step: SequenceLessonStep, repeatIndex: number) {
+  function resetSequenceAttempt(step: SequenceLessonStep, repeatIndex: number, result?: SequenceRunResult) {
     const resetProgress = {
       checkpointId: step.id,
       stepIndex: 0,
@@ -561,8 +623,35 @@ export function SwaraTrainer() {
     sequenceTransitionUntilRef.current = null;
     sequenceHandoffRef.current = null;
     sequenceCarryoverBlockRef.current = null;
+    sequenceStepRecordsRef.current = [];
     sequenceStepDurationsRef.current = [];
+    if (result) {
+      setSequenceRunResult(result);
+    }
     setSequenceStepDurationsMs([]);
+  }
+
+  function recordSequenceStepResult(params: {
+    step: SequenceLessonStep["steps"][number];
+    detected: DetectedSwara | null;
+    score: number;
+    holdMs: number | null;
+    stepIndex: number;
+    repeatIndex: number;
+    totalSteps: number;
+  }) {
+    const { step, detected, score, holdMs, stepIndex, repeatIndex, totalSteps } = params;
+    const nextRecords = [...sequenceStepRecordsRef.current];
+    const recordIndex = repeatIndex * totalSteps + stepIndex;
+    nextRecords[recordIndex] = {
+      stepIndex,
+      repeatIndex,
+      target: step.target,
+      detected,
+      score,
+      holdMs,
+    };
+    sequenceStepRecordsRef.current = nextRecords;
   }
 
   function pushDebugEvent(entry: Omit<DebugLogEntry, "sessionId" | "timestamp">) {
@@ -906,6 +995,11 @@ export function SwaraTrainer() {
         silenceAge >= SEQUENCE_BETWEEN_NOTES_TIMEOUT_MS &&
         !(sequenceTransitionUntilRef.current != null && now <= sequenceTransitionUntilRef.current)
       ) {
+        const result = summarizeSequenceFailure(
+          sequenceStepRecordsRef.current.filter((record): record is SequenceStepRecord => Boolean(record)),
+          liveTarget,
+          `timed out waiting for ${formatTargetLabel(liveTarget)}`,
+        );
         pushDebugEvent({
           event: "sequence_reset",
           checkpointId: liveSequenceStep.id,
@@ -913,9 +1007,13 @@ export function SwaraTrainer() {
           expectedTarget: formatTargetLabel(liveSequenceStep.steps[0].target),
           sequenceStepIndex: liveProgress.stepIndex,
           sequenceRepeatIndex: liveProgress.repeatIndex,
-          detail: "Silence timeout between compound notes",
+          detail: result.message,
         });
-        resetSequenceAttempt(liveSequenceStep, liveProgress.repeatIndex);
+        resetSequenceAttempt(liveSequenceStep, liveProgress.repeatIndex, {
+          kind: "failure",
+          message: result.message,
+          score: result.score,
+        });
         status = `Restart the phrase from ${formatTargetLabel(liveSequenceStep.steps[0].target)}.`;
       } else {
         status = shouldClear ? "Silence detected. Blow a note to begin." : "Holding the last tone briefly.";
@@ -986,13 +1084,12 @@ export function SwaraTrainer() {
       if (!activeSequenceReading) {
         // Carryover from the previous checkpoint is intentionally ignored until the note is re-articulated.
       } else {
+      const sequencePitchToleranceCents = Math.max(liveSequenceStep.pitchToleranceCents, 60);
       const expectedPitchMatches =
         activeSequenceReading.swara === liveTarget.swara &&
         activeSequenceReading.octave === liveTarget.octave &&
-        Math.abs(activeSequenceReading.centsOffset) <= liveSequenceStep.pitchToleranceCents;
+        Math.abs(activeSequenceReading.centsOffset) <= sequencePitchToleranceCents;
       const sustainReady = (sustainMs ?? 0) >= Math.min(sequenceStep.sustainTargetMs, SEQUENCE_MIN_HIT_MS);
-      const timedOut =
-        liveProgress.stepStartedAt != null && now - liveProgress.stepStartedAt > sequenceWindowMs(liveSequenceStep, sequenceStep);
       const lockAge = noteLockRef.current ? now - noteLockRef.current.startedAt : 0;
       const noteLockThresholdMs = SEQUENCE_NOTE_LOCK_MS;
       const inTransitionGrace =
@@ -1010,10 +1107,58 @@ export function SwaraTrainer() {
         Math.abs(activeSequenceReading.centsOffset) <= liveSequenceStep.pitchToleranceCents;
 
       if (expectedPitchMatches && sustainReady) {
+        const stepScore = scoreAttempt({
+          target: sequenceStep.target,
+          detected: activeSequenceReading,
+          sustainMs: Math.round(sustainMs ?? 0),
+          stability: Math.round(stability ?? 0),
+          noise: Math.round(hissPercent),
+        }).score;
+        recordSequenceStepResult({
+          step: sequenceStep,
+          detected: activeSequenceReading,
+          score: stepScore,
+          holdMs: sustainMs,
+          stepIndex: liveProgress.stepIndex,
+          repeatIndex: liveProgress.repeatIndex,
+          totalSteps: liveSequenceStep.steps.length,
+        });
         sequenceTransitionUntilRef.current = now + SEQUENCE_RELEASE_GRACE_MS;
         if (liveProgress.stepIndex >= liveSequenceStep.steps.length - 1) {
           if (liveProgress.repeatIndex + 1 >= liveSequenceStep.repeatCount) {
-            completeStep(liveSequenceStep, "auto");
+            const phraseScores = sequenceStepRecordsRef.current
+              .filter((record): record is SequenceStepRecord => Boolean(record))
+              .map((record) => record.score);
+            const phraseScore = averageScore(phraseScores);
+            const passThreshold = Math.max(liveSequenceStep.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
+            if (phraseScore != null && phraseScore >= passThreshold) {
+              setSequenceRunResult({
+                kind: "success",
+                message: `Phrase passed with ${phraseScore}/100.`,
+                score: phraseScore,
+              });
+              completeStep(liveSequenceStep, "auto");
+            } else {
+              const result = summarizeSequenceFailure(
+                sequenceStepRecordsRef.current.filter((record): record is SequenceStepRecord => Boolean(record)),
+                liveTarget,
+                `phrase score ${phraseScore ?? 0}/${passThreshold} was below the pass mark`,
+              );
+              pushDebugEvent({
+                event: "sequence_reset",
+                checkpointId: liveSequenceStep.id,
+                checkpointTitle: liveSequenceStep.title,
+                expectedTarget: formatTargetLabel(liveSequenceStep.steps[0].target),
+                sequenceStepIndex: liveProgress.stepIndex,
+                sequenceRepeatIndex: liveProgress.repeatIndex,
+                detail: result.message,
+              });
+              resetSequenceAttempt(liveSequenceStep, liveProgress.repeatIndex, {
+                kind: "failure",
+                message: result.message,
+                score: result.score,
+              });
+            }
           } else {
             pushDebugEvent({
               event: "sequence_advance",
@@ -1027,6 +1172,15 @@ export function SwaraTrainer() {
               rawFrequency: activeSequenceReading.frequency,
               centsOffset: activeSequenceReading.centsOffset,
               detail: "Completed phrase loop and restarted",
+            });
+            const phraseScores = sequenceStepRecordsRef.current
+              .filter((record): record is SequenceStepRecord => Boolean(record))
+              .map((record) => record.score);
+            const phraseScore = averageScore(phraseScores);
+            setSequenceRunResult({
+              kind: "success",
+              message: phraseScore != null ? `Loop complete with ${phraseScore}/100.` : "Loop complete.",
+              score: phraseScore,
             });
             const nextProgress = {
               checkpointId: liveSequenceStep.id,
@@ -1098,17 +1252,6 @@ export function SwaraTrainer() {
           visibleReadingRef.current = null;
           noteLockRef.current = null;
         }
-      } else if (timedOut) {
-        pushDebugEvent({
-          event: "sequence_reset",
-          checkpointId: liveSequenceStep.id,
-          checkpointTitle: liveSequenceStep.title,
-          expectedTarget: formatTargetLabel(liveSequenceStep.steps[0].target),
-          sequenceStepIndex: liveProgress.stepIndex,
-          sequenceRepeatIndex: liveProgress.repeatIndex,
-          detail: "Compound note sequence timed out",
-        });
-        resetSequenceAttempt(liveSequenceStep, liveProgress.repeatIndex);
       } else if (!expectedPitchMatches && lockAge >= noteLockThresholdMs && !inTransitionGrace) {
         if (isHandoffFromPreviousStep) {
           status = `Allowing ${formatTargetLabel(handoff.from)} to ring into ${formatTargetLabel(handoff.to)}`;
@@ -1381,7 +1524,7 @@ export function SwaraTrainer() {
       }`
     : `${checkpointFocus.label} · ${currentTargetFrequency.toFixed(1)} Hz`;
   const sequenceCoachText = sequenceDrill
-    ? `Play the phrase ${summarizeSequencePath(sequenceDrill)}. Hold ${formatTargetLabel(checkpointFocus.target)} for ${(checkpointFocus.sustainTargetMs / 1000).toFixed(1)}s before moving on.`
+    ? `Play the phrase ${summarizeSequencePath(sequenceDrill)}. Aim for clean swara order and steadier pitch; the final phrase score matters more than exact timing.`
     : "The detector now judges the checkpoint only when note, octave, pitch band, and sustain all agree.";
   const swaraReference = swaraTargets.map((entry) => ({
     ...entry,
@@ -1884,6 +2027,33 @@ export function SwaraTrainer() {
                 <div style={{ fontSize: 18, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.3 }}>
                   {analysis.detected ? result.summary : "Waiting for a stable flute tone."}
                 </div>
+                {sequenceDrill && sequenceRunResult ? (
+                  <div
+                    style={{
+                      borderRadius: 18,
+                      padding: "12px 14px",
+                      border:
+                        sequenceRunResult.kind === "success"
+                          ? "1px solid rgba(103,240,202,0.28)"
+                          : "1px solid rgba(255,142,142,0.28)",
+                      background:
+                        sequenceRunResult.kind === "success"
+                          ? "rgba(103,240,202,0.08)"
+                          : "rgba(255,142,142,0.08)",
+                      display: "grid",
+                      gap: 4,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 650 }}>
+                      {sequenceRunResult.message}
+                    </div>
+                    {sequenceRunResult.score != null ? (
+                      <div style={{ color: "var(--muted)", fontSize: 12 }}>
+                        Phrase score {sequenceRunResult.score}/100
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 <p className="section-copy" style={{ margin: 0, fontSize: 14 }}>
                   {sequenceCoachText}
                 </p>
