@@ -121,6 +121,21 @@ export function targetFrequencyFor(target: SwaraTarget, tonicFrequency: number) 
   return midiToFrequency(targetToMidi(target, tonicFrequency));
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+const noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
+
+function midiToNoteName(midi: number) {
+  const rounded = Math.round(midi);
+  return noteNames[((rounded % 12) + 12) % 12];
+}
+
+export function westernNoteForSwara(target: SwaraTarget, tonicFrequency: number) {
+  return midiToNoteName(targetToMidi(target, tonicFrequency));
+}
+
 function centsBetween(frequencyA: number, frequencyB: number) {
   return 1200 * Math.log2(frequencyA / frequencyB);
 }
@@ -305,6 +320,22 @@ export function fluteProfileForSelection(tonic: TonicName, register: FluteRegist
   return fluteProfiles.find((profile) => profile.tonic === tonic && profile.register === register) ?? defaultFluteProfile;
 }
 
+export function isPlayableSwaraForProfile(profile: FluteProfile, target: SwaraTarget) {
+  if (target.octave !== "Mandra") {
+    return true;
+  }
+
+  if (profile.register === "Bass") {
+    return true;
+  }
+
+  if (profile.register === "Medium") {
+    return target.swara === "Pa" || target.swara === "Da" || target.swara === "Ni";
+  }
+
+  return false;
+}
+
 function harmonicSupport(frequency: number, spectrum: Uint8Array, sampleRate: number) {
   if (!spectrum.length || !Number.isFinite(frequency) || frequency <= 0) {
     return 0;
@@ -349,6 +380,73 @@ function overtonePenalty(frequency: number, spectrum: Uint8Array, sampleRate: nu
   }
 
   return Math.max(0, (octavePeak * 0.65 + doubleOctavePeak * 0.35 - fundamentalPeak) / 255);
+}
+
+export function estimateNoiseLevel(params: {
+  spectrum: Uint8Array;
+  frequency: number;
+  confidence: number;
+  energy: number;
+  stability?: number | null;
+  sampleRate: number;
+}) {
+  const { spectrum, frequency, confidence, energy, stability, sampleRate } = params;
+
+  if (!spectrum.length) {
+    const confidencePenalty = (1 - clamp(confidence, 0, 1)) * 100;
+    const energyPenalty = energy < 18 ? 18 : 0;
+    return clamp(confidencePenalty + energyPenalty, 0, 100);
+  }
+
+  const binWidth = sampleRate / (spectrum.length * 2);
+  const fundamentalBin = frequency > 0 ? Math.round(frequency / binWidth) : 0;
+  const secondBin = frequency > 0 ? Math.round((frequency * 2) / binWidth) : 0;
+  const thirdBin = frequency > 0 ? Math.round((frequency * 3) / binWidth) : 0;
+
+  const splitIndex = Math.max(4, Math.floor(spectrum.length * 0.22));
+  const lowBand = average(spectrum.slice(0, splitIndex));
+  const midBand = average(spectrum.slice(splitIndex, Math.max(splitIndex + 1, Math.floor(spectrum.length * 0.62))));
+  const highBand = average(spectrum.slice(Math.floor(spectrum.length * 0.62)));
+  const totalBand = average(spectrum);
+
+  const fundamentalPeak = samplePeakAround(spectrum, fundamentalBin, 2);
+  const secondPeak = samplePeakAround(spectrum, secondBin, 2);
+  const thirdPeak = samplePeakAround(spectrum, thirdBin, 2);
+  const harmonicPeak = Math.max(secondPeak, thirdPeak);
+
+  const broadbandRatio = (midBand + highBand) / Math.max(1, totalBand * 2);
+  const spectralSpread = Math.max(0, highBand - lowBand) / 255;
+  const harmonicLeakage = clamp(harmonicPeak / Math.max(1, fundamentalPeak), 0, 2);
+  const weakFundamental = fundamentalPeak < 24 ? 24 - fundamentalPeak : 0;
+  const instabilityPenalty = stability != null ? clamp((70 - stability) / 70, 0, 1) * 28 : 0;
+  const confidencePenalty = (1 - clamp(confidence, 0, 1)) * 28;
+  const energyPenalty = energy < 18 ? (18 - energy) * 1.3 : 0;
+  const airyFloor = lowBand < 18 ? (18 - lowBand) * 0.8 : 0;
+
+  const raw =
+    broadbandRatio * 34 +
+    spectralSpread * 24 +
+    harmonicLeakage * 22 +
+    weakFundamental * 0.9 +
+    instabilityPenalty +
+    confidencePenalty +
+    energyPenalty +
+    airyFloor;
+
+  return clamp(raw, 0, 100);
+}
+
+function average(values: Uint8Array) {
+  if (!values.length) {
+    return 0;
+  }
+
+  let sum = 0;
+  for (let index = 0; index < values.length; index += 1) {
+    sum += values[index];
+  }
+
+  return sum / values.length;
 }
 
 function samplePeakAround(spectrum: Uint8Array, center: number, radius: number) {

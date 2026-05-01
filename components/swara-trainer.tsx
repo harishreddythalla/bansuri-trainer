@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { foundationModules } from "@/data/lesson-plan";
 import {
   defaultFluteProfile,
+  classifySwara,
   detectPitch,
+  estimateNoiseLevel,
   fluteProfileForSelection,
   fluteRegisterOptions,
   resolveSwaraReading,
@@ -12,6 +14,8 @@ import {
   swaraTargets,
   tonicOptions,
   targetFrequencyFor,
+  isPlayableSwaraForProfile,
+  westernNoteForSwara,
   type FluteProfile,
   type FluteRegister,
   type DetectedSwara,
@@ -35,6 +39,7 @@ type TrendPoint = {
 
 type AnalysisState = {
   detected: DetectedSwara | null;
+  rawFrequency: number | null;
   energy: number | null;
   noise: number | null;
   stability: number | null;
@@ -47,15 +52,17 @@ type AnalysisState = {
 
 const allLessonSteps = foundationModules.flatMap((module) => module.steps);
 const firstStep = allLessonSteps[0];
-const UI_REFRESH_MS = 320;
+const UI_REFRESH_MS = 160;
 const SILENCE_HOLD_MS = 320;
 const NOTE_LOCK_MS = 320;
-const AUTO_CLEAR_HOLD_MS = 650;
-const TARGET_ZONE_CENTS = 18;
+const AUTO_CLEAR_HOLD_MS = 140;
+const TARGET_ZONE_CENTS = 20;
+const TARGET_RELEASE_CENTS = 28;
+const TARGET_HOLD_GRACE_MS = 220;
 const ACTIVE_CONFIDENCE = 0.45;
 const ACTIVE_ENERGY = 0.012;
-const TREND_WINDOW_MS = 15000;
-const TREND_SAMPLE_MS = 85;
+const TREND_WINDOW_MS = 30000;
+const TREND_SAMPLE_MS = 40;
 
 export function SwaraTrainer() {
   const [selectedStepId, setSelectedStepId] = useState<string>(firstStep?.id ?? "");
@@ -67,8 +74,11 @@ export function SwaraTrainer() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkpointNotice, setCheckpointNotice] = useState<string | null>(null);
+  const [bonusTokens, setBonusTokens] = useState(0);
+  const [celebrationPieces, setCelebrationPieces] = useState<Array<{ id: string; left: number; delay: number; duration: number; drift: number; hue: number }>>([]);
   const [analysis, setAnalysis] = useState<AnalysisState>({
     detected: null,
+    rawFrequency: null,
     energy: null,
     noise: null,
     stability: null,
@@ -85,6 +95,7 @@ export function SwaraTrainer() {
   const streamRef = useRef<MediaStream | null>(null);
   const frameRef = useRef<number | null>(null);
   const sustainStartRef = useRef<number | null>(null);
+  const sustainGraceSinceRef = useRef<number | null>(null);
   const recentCentsRef = useRef<number[]>([]);
   const previousReadingRef = useRef<DetectedSwara | null>(null);
   const lastUiCommitRef = useRef(0);
@@ -96,6 +107,7 @@ export function SwaraTrainer() {
   const autoClearArmedRef = useRef<{ stepId: string; startedAt: number } | null>(null);
   const autoClearDoneRef = useRef<string | null>(null);
   const checkpointNoticeTimerRef = useRef<number | null>(null);
+  const celebrationTimerRef = useRef<number | null>(null);
   const smoothedMetricsRef = useRef({
     score: 0,
     centsOffset: 0,
@@ -118,6 +130,7 @@ export function SwaraTrainer() {
   const targetRef = useRef<SwaraTarget>(selectedStep?.target ?? target);
   const analysisRef = useRef<AnalysisState>({
     detected: null,
+    rawFrequency: null,
     energy: null,
     noise: null,
     stability: null,
@@ -206,6 +219,7 @@ export function SwaraTrainer() {
 
   function resetLiveState() {
     sustainStartRef.current = null;
+    sustainGraceSinceRef.current = null;
     recentCentsRef.current = [];
     previousReadingRef.current = null;
     visibleReadingRef.current = null;
@@ -283,6 +297,7 @@ export function SwaraTrainer() {
     setRunning(false);
     setAnalysis({
       detected: null,
+      rawFrequency: null,
       energy: null,
       noise: null,
       stability: null,
@@ -312,7 +327,8 @@ export function SwaraTrainer() {
 
     const energy = rms(buffer);
     const pitch = detectPitch(buffer, audioContext.sampleRate);
-    const detected = resolveSwaraReading({
+    const rawReading = classifySwara(pitch.frequency, fluteProfile.saFrequency, pitch.confidence);
+    const harmonicReading = resolveSwaraReading({
       frequency: pitch.frequency,
       tonicFrequency: fluteProfile.saFrequency,
       confidence: pitch.confidence,
@@ -321,10 +337,11 @@ export function SwaraTrainer() {
       spectrum,
       sampleRate: audioContext.sampleRate,
     });
+    const detected = rawReading ?? harmonicReading;
 
     const isActiveCandidate = Boolean(detected && pitch.confidence >= ACTIVE_CONFIDENCE && energy >= ACTIVE_ENERGY);
     const energyPercent = Math.min(100, energy * 5000);
-    const hissPercent = estimateHissLevel(spectrum, pitch.confidence, energyPercent);
+    let hissPercent = 0;
 
     let sustainMs: number | null = null;
     let stability: number | null = null;
@@ -357,20 +374,49 @@ export function SwaraTrainer() {
             Math.abs(visibleReading.centsOffset) <= TARGET_ZONE_CENTS,
         );
 
+      const noteIsInReleaseZone =
+        Boolean(
+          visibleReading &&
+            visibleReading.swara === liveTarget.swara &&
+            visibleReading.octave === liveTarget.octave &&
+            Math.abs(visibleReading.centsOffset) <= TARGET_RELEASE_CENTS,
+        );
+
       if (noteIsOnTarget) {
         if (!sustainStartRef.current) {
           sustainStartRef.current = now;
         }
 
+        sustainGraceSinceRef.current = null;
         sustainMs = now - sustainStartRef.current;
+      } else if (noteIsInReleaseZone && sustainStartRef.current) {
+        if (!sustainGraceSinceRef.current) {
+          sustainGraceSinceRef.current = now;
+        }
+
+        if (now - sustainGraceSinceRef.current <= TARGET_HOLD_GRACE_MS) {
+          sustainMs = now - sustainStartRef.current;
+        } else {
+          sustainStartRef.current = null;
+          sustainGraceSinceRef.current = null;
+        }
       } else {
         sustainStartRef.current = null;
+        sustainGraceSinceRef.current = null;
       }
 
       const centsToTrack = visibleReading?.centsOffset ?? detected.centsOffset;
       recentCentsRef.current = [...recentCentsRef.current.slice(-24), centsToTrack];
       const variance = stdDev(recentCentsRef.current);
       stability = Math.max(0, 100 - variance * 2.8);
+      hissPercent = estimateNoiseLevel({
+        spectrum,
+        frequency: pitch.frequency,
+        confidence: pitch.confidence,
+        energy: energyPercent,
+        stability,
+        sampleRate: audioContext.sampleRate,
+      });
       status = visibleReading
         ? noteIsOnTarget
           ? `Locked ${visibleReading.octave} ${visibleReading.swara}`
@@ -396,11 +442,20 @@ export function SwaraTrainer() {
 
       const silenceAge = now - silenceSinceRef.current;
       const shouldClear = silenceAge > SILENCE_HOLD_MS;
+      hissPercent = estimateNoiseLevel({
+        spectrum,
+        frequency: pitch.frequency,
+        confidence: pitch.confidence,
+        energy: energyPercent,
+        stability: 0,
+        sampleRate: audioContext.sampleRate,
+      });
 
       if (shouldClear) {
         visibleReading = null;
         visibleReadingRef.current = null;
         sustainStartRef.current = null;
+        sustainGraceSinceRef.current = null;
         recentCentsRef.current = [];
         noteLockRef.current = null;
       }
@@ -474,6 +529,7 @@ export function SwaraTrainer() {
       lastUiCommitRef.current = now;
       const nextAnalysis = {
         detected: visibleReading,
+        rawFrequency: pitch.frequency > 0 ? pitch.frequency : null,
         energy: visibleReading ? Math.round(smooth.energy) : null,
         noise: visibleReading ? Math.round(smooth.noise) : null,
         stability: visibleReading ? Math.round(smooth.stability) : null,
@@ -527,9 +583,13 @@ export function SwaraTrainer() {
 
   function completeStep(step: LessonStep, source: "manual" | "auto") {
     setCompletedStepIds((current) => (current.includes(step.id) ? current : [...current, step.id]));
+    setBonusTokens((current) => current + 1);
 
     if (checkpointNoticeTimerRef.current !== null) {
       window.clearTimeout(checkpointNoticeTimerRef.current);
+    }
+    if (celebrationTimerRef.current !== null) {
+      window.clearTimeout(celebrationTimerRef.current);
     }
 
     const currentIndex = allLessonSteps.findIndex((lessonStep) => lessonStep.id === step.id);
@@ -544,6 +604,21 @@ export function SwaraTrainer() {
       setCheckpointNotice(null);
       checkpointNoticeTimerRef.current = null;
     }, 2200);
+
+    setCelebrationPieces(
+      Array.from({ length: 28 }, (_, index) => ({
+        id: `${step.id}-${Date.now()}-${index}`,
+        left: Math.random() * 100,
+        delay: Math.random() * 180,
+        duration: 900 + Math.random() * 600,
+        drift: -70 + Math.random() * 140,
+        hue: [103, 117, 255, 47][index % 4],
+      })),
+    );
+    celebrationTimerRef.current = window.setTimeout(() => {
+      setCelebrationPieces([]);
+      celebrationTimerRef.current = null;
+    }, 1800);
 
     playSuccessChime();
 
@@ -565,9 +640,12 @@ export function SwaraTrainer() {
       return;
     }
 
-    const audioContext = new window.AudioContext();
+    const existingContext = audioContextRef.current;
+    const audioContext = existingContext ?? new window.AudioContext();
+    void audioContext.resume().catch(() => {});
+
     const master = audioContext.createGain();
-    master.gain.value = 0.0001;
+    master.gain.value = 0.18;
     master.connect(audioContext.destination);
 
     const playTone = (frequency: number, startTime: number, duration: number, amplitude: number) => {
@@ -585,12 +663,14 @@ export function SwaraTrainer() {
     };
 
     const now = audioContext.currentTime;
-    playTone(784, now, 0.16, 0.14);
-    playTone(988, now + 0.11, 0.2, 0.11);
+    playTone(784, now, 0.16, 0.6);
+    playTone(988, now + 0.11, 0.2, 0.42);
 
-    window.setTimeout(() => {
-      audioContext.close().catch(() => {});
-    }, 450);
+    if (!existingContext) {
+      window.setTimeout(() => {
+        audioContext.close().catch(() => {});
+      }, 450);
+    }
   }
 
   function resetPath() {
@@ -609,12 +689,27 @@ export function SwaraTrainer() {
   const nextModules = currentModuleIndex >= 0 ? foundationModules.slice(currentModuleIndex + 1, currentModuleIndex + 3) : [];
   const currentStepIndex = allLessonSteps.findIndex((step) => step.id === selectedStepId);
   const nextSteps = currentStepIndex >= 0 ? allLessonSteps.slice(currentStepIndex + 1, currentStepIndex + 4) : [];
+  const recentClears = allLessonSteps.filter((step) => completedStepIds.includes(step.id)).slice(-3).reverse();
   const overallProgress = allLessonSteps.length
     ? Math.round((completedStepIds.length / allLessonSteps.length) * 100)
     : 0;
   const selectedStepNumber = currentStepIndex >= 0 ? currentStepIndex + 1 : 0;
   const currentTargetFrequency = targetFrequencyFor(target, fluteProfile.saFrequency);
   const currentCheckpointCleared = completedStepIds.includes(selectedStepId);
+  const detectedIsCorrect =
+    Boolean(
+      analysis.detected &&
+        selectedStep &&
+        analysis.detected.swara === selectedStep.target.swara &&
+        analysis.detected.octave === selectedStep.target.octave,
+    );
+  const goalProgress = scoreValue != null && selectedStep
+    ? clamp(scoreValue / Math.max(1, selectedStep.minimumScore), 0, 1)
+    : 0;
+  const sustainProgress =
+    analysis.sustainMs != null && selectedStep
+      ? clamp(analysis.sustainMs / Math.max(1, selectedStep.sustainTargetMs), 0, 1)
+      : 0;
   const tonicLabel = fluteProfile.tonicLabel;
   const swaraReference = swaraTargets.map((entry) => ({
     ...entry,
@@ -623,6 +718,39 @@ export function SwaraTrainer() {
 
   return (
     <main className="shell" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
+      <style>{`
+        @keyframes confetti-fall {
+          0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
+          100% { transform: translate3d(var(--drift), 180px, 0) rotate(540deg); opacity: 0; }
+        }
+        @keyframes confetti-pop {
+          0% { transform: scale(0.65); opacity: 0; }
+          20% { transform: scale(1.05); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
+      {celebrationPieces.length ? (
+        <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9999, overflow: "hidden" }}>
+          {celebrationPieces.map((piece) => (
+            <span
+              key={piece.id}
+              style={{
+                position: "absolute",
+                top: "18%",
+                left: `${piece.left}%`,
+                width: 10,
+                height: 16,
+                borderRadius: 5,
+                background: `hsl(${piece.hue} 100% 72%)`,
+                boxShadow: `0 0 14px hsla(${piece.hue}, 100%, 72%, 0.9)`,
+                transform: "translate3d(0, 0, 0)",
+                animation: `confetti-pop 220ms ease-out ${piece.delay}ms both, confetti-fall ${piece.duration}ms ease-out ${piece.delay}ms forwards`,
+                ["--drift" as string]: `${piece.drift}px`,
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
       <div
         className="glass"
         style={{
@@ -813,15 +941,15 @@ export function SwaraTrainer() {
           ) : null}
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1.7fr) minmax(320px, 0.85fr)",
-            gap: 14,
-            alignItems: "start",
-            minHeight: "calc(100vh - 260px)",
-          }}
-        >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.95fr) minmax(280px, 0.72fr)",
+          gap: 12,
+          alignItems: "start",
+          minHeight: "calc(100vh - 260px)",
+        }}
+      >
           <section style={{ minWidth: 0, display: "grid", gap: 12 }}>
             {checkpointNotice ? (
               <div
@@ -841,6 +969,14 @@ export function SwaraTrainer() {
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.3 }}>
                   {checkpointNotice}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <span className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
+                    Bonus +1 token
+                  </span>
+                  <span className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
+                    Total tokens {bonusTokens}
+                  </span>
                 </div>
               </div>
             ) : null}
@@ -863,7 +999,7 @@ export function SwaraTrainer() {
                   gap: 12,
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ display: "grid", gap: 12 }}>
                   <div>
                     <div className="pill">Live target</div>
                     <div style={{ marginTop: 10, fontSize: 28, fontWeight: 750, letterSpacing: "-0.05em" }}>
@@ -873,34 +1009,42 @@ export function SwaraTrainer() {
                       {selectedStep?.title ?? "Current checkpoint"} · {currentTargetFrequency.toFixed(1)} Hz
                     </div>
                   </div>
-
-                  <div style={{ textAlign: "right" }}>
-                    <div className="pill">Detected</div>
-                    <div style={{ marginTop: 10, fontSize: 28, fontWeight: 750, letterSpacing: "-0.05em" }}>
-                      {analysis.detected ? `${analysis.detected.octave} ${analysis.detected.swara}` : "—"}
-                    </div>
-                    <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 14 }}>
-                      {analysis.detected ? `${analysis.detected.frequency.toFixed(1)} Hz · ${signedCents(analysis.centsOffset ?? 0)}¢` : "Waiting for stable tone"}
-                    </div>
-                  </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
-                  <LiveStat label="Score" value={scoreValue != null ? `${scoreValue}` : "—"} tone="high" />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
                   <LiveStat
+                    label="Detected"
+                    value={analysis.detected ? `${analysis.detected.octave} ${analysis.detected.swara}` : "—"}
+                    detail={
+                      analysis.detected
+                        ? `${analysis.rawFrequency != null ? `${analysis.rawFrequency.toFixed(1)} Hz` : "Raw pitch"} · ${signedCents(analysis.centsOffset ?? 0)}¢`
+                        : "Waiting for stable tone"
+                    }
+                    background={
+                      analysis.detected
+                        ? detectedIsCorrect
+                          ? "linear-gradient(180deg, rgba(103,240,202,0.24), rgba(103,240,202,0.08))"
+                          : "linear-gradient(180deg, rgba(255,99,99,0.22), rgba(255,99,99,0.08))"
+                        : "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(117,184,255,0.05))"
+                    }
+                  />
+                  <MiniProgressPanel
+                    label="Goal"
+                    value={scoreValue != null ? `${scoreValue}` : "—"}
+                    caption={selectedStep ? `Need ${selectedStep.minimumScore}+` : "Need a checkpoint"}
+                    progress={goalProgress * 100}
+                    target={selectedStep?.minimumScore ?? null}
+                    active={Boolean(analysis.detected)}
+                    mode="goal"
+                  />
+                  <MiniProgressPanel
                     label="Sustain"
                     value={analysis.sustainMs != null ? `${(analysis.sustainMs / 1000).toFixed(1)}s` : "—"}
-                    tone="high"
-                  />
-                  <LiveStat
-                    label="Voicing"
-                    value={analysis.confidence != null ? `${Math.round((analysis.confidence ?? 0) * 100)}%` : "—"}
-                    tone="center"
-                  />
-                  <LiveStat
-                    label="Noise"
-                    value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : "—"}
-                    tone="low"
+                    caption={selectedStep ? `Target ${(selectedStep.sustainTargetMs / 1000).toFixed(1)}s` : "Target sustain"}
+                    progress={sustainProgress * 100}
+                    target={selectedStep?.sustainTargetMs ?? null}
+                    active={Boolean(analysis.detected)}
+                    mode="sustain"
                   />
                 </div>
               </div>
@@ -917,21 +1061,25 @@ export function SwaraTrainer() {
               >
                 <div className="pill">Coach feedback</div>
                 <div style={{ fontSize: 18, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.3 }}>
-                  {analysis.detected ? result.summary : "Silent input is hidden until a stable flute tone appears."}
+                  {analysis.detected ? result.summary : "Waiting for a stable flute tone."}
                 </div>
                 <p className="section-copy" style={{ margin: 0, fontSize: 14 }}>
-                  The detector now judges the checkpoint only when note, octave, target zone, and sustain all agree.
+                  The detector now judges the checkpoint only when note, octave, pitch band, and sustain all agree.
                 </p>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
-                    Goal {selectedStep ? `${selectedStep.minimumScore}+` : "—"}
-                  </span>
-                  <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
-                    Sustain {selectedStep ? `${(selectedStep.sustainTargetMs / 1000).toFixed(1)}s` : "—"}
-                  </span>
-                  <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
+                  <span className="pill" style={{ padding: "6px 12px", fontSize: 11, width: "fit-content" }}>
                     {currentCheckpointCleared ? "Cleared" : "In progress"}
                   </span>
+                  {currentCheckpointCleared ? (
+                    <>
+                      <span className="pill" style={{ padding: "6px 12px", fontSize: 11, width: "fit-content" }}>
+                        Bonus +1 token
+                      </span>
+                      <span className="pill" style={{ padding: "6px 12px", fontSize: 11, width: "fit-content" }}>
+                        Total tokens {bonusTokens}
+                      </span>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -948,25 +1096,14 @@ export function SwaraTrainer() {
               style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}
             >
               <MetricCard
-                label="Current checkpoint"
-                value={`${target.octave} ${target.swara}`}
-                subvalue={`${target.swara} · ${target.octave} · ${currentTargetFrequency.toFixed(1)} Hz`}
-                hint={selectedStep ? selectedStep.title : "Current goal"}
-                trend={analysis.trend}
-                sparkMetric="centsOffset"
-                range={[-60, 60]}
-                sparkMode="center"
-                highlight
-              />
-              <MetricCard
-                label="Detected"
+                label="Mapped note"
                 value={analysis.detected ? `${analysis.detected.octave} ${analysis.detected.swara}` : null}
                 subvalue={
                   analysis.detected
-                    ? `${analysis.detected.swara} swara · ${analysis.detected.octave} octave`
-                    : "Waiting for voiced note"
+                    ? `${analysis.rawFrequency != null ? `${analysis.rawFrequency.toFixed(1)} Hz raw` : "Raw pitch"}`
+                    : "—"
                 }
-                hint={analysis.detected ? `${analysis.detected.frequency.toFixed(1)} Hz` : "Silent input hidden"}
+                hint={analysis.detected ? "Mapped from the current raw pitch" : "—"}
                 trend={analysis.trend}
                 sparkMetric="centsOffset"
                 range={[-60, 60]}
@@ -975,8 +1112,8 @@ export function SwaraTrainer() {
               <MetricCard
                 label="Pitch Offset"
                 value={analysis.detected ? `${signedCents(analysis.centsOffset ?? 0)}¢` : null}
-                subvalue={analysis.detected ? describePitchOffset(analysis.centsOffset ?? 0) : "Hidden while silent"}
-                hint={analysis.detected ? "Cent deviation" : "No live reading"}
+                subvalue=""
+                hint=""
                 trend={analysis.trend}
                 sparkMetric="centsOffset"
                 range={[-60, 60]}
@@ -985,7 +1122,7 @@ export function SwaraTrainer() {
               <MetricCard
                 label="Attempt Score"
                 value={scoreValue != null ? `${scoreValue}` : null}
-                subvalue={analysis.detected ? (masteryReady ? "Checkpoint clearable" : "Keep practicing") : "Hidden while silent"}
+                subvalue={analysis.detected ? (masteryReady ? "Checkpoint clearable" : "Keep practicing") : "—"}
                 hint="Mastery"
                 trend={analysis.trend}
                 sparkMetric="score"
@@ -993,19 +1130,9 @@ export function SwaraTrainer() {
                 sparkMode="high"
               />
               <MetricCard
-                label="Sustain"
-                value={analysis.sustainMs != null ? `${(analysis.sustainMs / 1000).toFixed(1)}s` : null}
-                subvalue={selectedStep ? `Target ${(selectedStep.sustainTargetMs / 1000).toFixed(1)}s` : "Target sustain"}
-                hint={analysis.detected ? "Current hold" : "Hidden while silent"}
-                trend={analysis.trend}
-                sparkMetric="sustainMs"
-                range={[0, selectedStep?.sustainTargetMs ?? 3000]}
-                sparkMode="high"
-              />
-              <MetricCard
                 label="Stability"
                 value={analysis.stability != null ? `${Math.round(analysis.stability)}` : null}
-                subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "Hidden while silent"}
+                subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "—"}
                 hint="Less wobble is better"
                 trend={analysis.trend}
                 sparkMetric="stability"
@@ -1015,7 +1142,7 @@ export function SwaraTrainer() {
               <MetricCard
                 label="Voicing"
                 value={analysis.confidence != null ? `${Math.round((analysis.confidence ?? 0) * 100)}%` : null}
-                subvalue={analysis.detected ? describeConfidence(analysis.confidence ?? 0) : "Hidden while silent"}
+                subvalue={analysis.detected ? describeConfidence(analysis.confidence ?? 0) : "—"}
                 hint="Tone clarity"
                 trend={analysis.trend}
                 sparkMetric="confidence"
@@ -1023,9 +1150,9 @@ export function SwaraTrainer() {
                 sparkMode="high"
               />
               <MetricCard
-                label="Hiss / noise"
+                label="Noise"
                 value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : null}
-                subvalue={analysis.detected ? "Lower is cleaner" : "Hidden while silent"}
+                subvalue={analysis.detected ? "Lower is cleaner" : "—"}
                 hint="Air / finger leak noise"
                 trend={analysis.trend}
                 sparkMetric="noise"
@@ -1035,7 +1162,7 @@ export function SwaraTrainer() {
               <MetricCard
                 label="Input Energy"
                 value={analysis.energy != null ? `${Math.round(analysis.energy)}` : null}
-                subvalue={analysis.detected ? describeEnergy(analysis.energy ?? 0) : "Hidden while silent"}
+                subvalue={analysis.detected ? describeEnergy(analysis.energy ?? 0) : "—"}
                 hint="Blow strength"
                 trend={analysis.trend}
                 sparkMetric="energy"
@@ -1048,104 +1175,32 @@ export function SwaraTrainer() {
           <aside
             style={{
               display: "grid",
-              gap: 12,
+              gap: 10,
               alignSelf: "start",
               position: "sticky",
-              top: 14,
+              top: 12,
             }}
           >
-            <div
-              className="glass"
-              style={{
-                borderRadius: 28,
-                padding: 16,
-                background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
-                display: "grid",
-                gap: 12,
-              }}
-            >
-              <div className="pill">Journey</div>
-              <div style={{ fontSize: 26, fontWeight: 750, letterSpacing: "-0.05em" }}>{overallProgress}%</div>
-              <div style={{ color: "var(--muted)", fontSize: 13.5, lineHeight: 1.5 }}>
-                {completedStepIds.length} of {allLessonSteps.length} checkpoints cleared
-              </div>
-              <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                <div
-                  style={{
-                    width: `${clamp(overallProgress, 0, 100)}%`,
-                    height: "100%",
-                    borderRadius: 999,
-                    background: "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))",
-                  }}
-                />
-              </div>
-              <div style={{ display: "grid", gap: 8 }}>
-                <div>
-                  <div style={{ color: "var(--muted)", fontSize: 12 }}>Current checkpoint</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em" }}>
-                    {selectedStep?.title ?? "Choose a checkpoint"}
-                  </div>
-                  <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
-                    Step {selectedStepNumber || 1} · {target.octave} {target.swara} · {currentTargetFrequency.toFixed(1)} Hz
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ color: "var(--muted)", fontSize: 12 }}>Module</div>
-                  <div style={{ fontSize: 16, fontWeight: 650, letterSpacing: "-0.03em" }}>
-                    {currentModule?.title ?? "Foundation"}
-                  </div>
-                  <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
-                    {currentModule?.description ?? "Start with the first breath and clean Sa."}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ color: "var(--muted)", fontSize: 12 }}>Next steps</div>
-                  <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
-                    {nextSteps.length ? (
-                      nextSteps.map((step, index) => (
-                        <div key={step.id} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <span
-                            className="pill"
-                            style={{
-                              padding: "4px 10px",
-                              fontSize: 11,
-                              minWidth: 28,
-                              justifyContent: "center",
-                            }}
-                          >
-                            {index + 1}
-                          </span>
-                          <span style={{ color: "var(--text)", fontSize: 13, lineHeight: 1.35 }}>{step.title}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ color: "var(--muted)", fontSize: 13 }}>No more steps in this path.</div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ color: "var(--muted)", fontSize: 12 }}>Next modules</div>
-                  <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
-                    {nextModules.length ? (
-                      nextModules.map((module) => (
-                        <div key={module.id} style={{ color: "var(--text)", fontSize: 13, lineHeight: 1.35 }}>
-                          {module.title}
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ color: "var(--muted)", fontSize: 13 }}>You are at the end of the preview path.</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <JourneySummary
+              overallProgress={overallProgress}
+              completedCount={completedStepIds.length}
+              totalCount={allLessonSteps.length}
+              currentStepTitle={selectedStep?.title ?? "Choose a checkpoint"}
+              currentStepNumber={selectedStepNumber || 1}
+              currentTargetLabel={`${target.octave} ${target.swara}`}
+              currentTargetFrequency={currentTargetFrequency}
+              currentModuleTitle={currentModule?.title ?? "Foundation"}
+              currentModuleDescription={currentModule?.description ?? "Start with the first breath and clean Sa."}
+              recentClears={recentClears}
+              nextSteps={nextSteps}
+              nextModules={nextModules}
+            />
 
             <SwaraReferencePanel
               tonicLabel={tonicLabel}
               registerLabel={fluteProfile.registerLabel}
+              tonicFrequency={fluteProfile.saFrequency}
+              profile={fluteProfile}
               rows={swaraReference}
             />
           </aside>
@@ -1168,6 +1223,15 @@ function MetricCard(props: {
 }) {
   const points = filterTrendWindow(props.trend);
   const latestTimestamp = points.at(-1)?.timestamp ?? Date.now();
+  const latestPoint = [...points].reverse().find((point) => point[props.sparkMetric] != null);
+  const latestValue = latestPoint ? latestPoint[props.sparkMetric] : null;
+  const normalizedValue =
+    latestValue != null
+      ? clamp((latestValue - props.range[0]) / (props.range[1] - props.range[0]), 0, 1) * 100
+      : null;
+  const showLinearMeter = props.label !== "Current checkpoint" && props.label !== "Mapped note" && props.sparkMetric !== "centsOffset";
+  const showDial = props.sparkMetric === "centsOffset" && props.label === "Pitch Offset";
+  const showTextDetails = props.label !== "Pitch Offset";
   const sparkline = points
     .map((point) => {
       const rawValue = point[props.sparkMetric];
@@ -1207,24 +1271,198 @@ function MetricCard(props: {
         <div style={{ marginTop: 8, fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em" }}>
           {props.value ?? "—"}
         </div>
-        <div style={{ marginTop: 4, color: "var(--muted)", lineHeight: 1.45, fontSize: 12.5 }}>
-          {props.subvalue}
-        </div>
-        <div style={{ marginTop: 8, color: "var(--muted)", lineHeight: 1.45, fontSize: 12.5 }}>
-          {props.hint}
-        </div>
+        {showTextDetails ? (
+          <>
+            <div style={{ marginTop: 4, color: "var(--muted)", lineHeight: 1.45, fontSize: 12.5 }}>
+              {props.subvalue}
+            </div>
+            <div style={{ marginTop: 8, color: "var(--muted)", lineHeight: 1.45, fontSize: 12.5 }}>
+              {props.hint}
+            </div>
+          </>
+        ) : null}
+        {showDial ? (
+          <PitchOffsetDial value={latestValue as number | null} />
+        ) : showLinearMeter ? (
+          <div
+            style={{
+              marginTop: 10,
+              height: 10,
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.08)",
+              overflow: "hidden",
+              position: "relative",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  props.sparkMetric === "noise"
+                    ? "linear-gradient(90deg, rgba(103,240,202,0.88), rgba(255,189,89,0.72), rgba(255,99,99,0.9))"
+                    : "linear-gradient(90deg, rgba(117,184,255,0.18), rgba(103,240,202,0.9))",
+                opacity: 0.45,
+              }}
+            />
+            {normalizedValue != null ? (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  left: 0,
+                  right: `${100 - normalizedValue}%`,
+                  borderRadius: 999,
+                  background:
+                    props.sparkMetric === "noise"
+                      ? "rgba(255,99,99,0.95)"
+                      : "rgba(103,240,202,0.95)",
+                  boxShadow: "0 0 16px rgba(103,240,202,0.28)",
+                }}
+              />
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </article>
   );
 }
 
-function LiveStat(props: { label: string; value: string; tone: "center" | "high" | "low" }) {
+function JourneySummary(props: {
+  overallProgress: number;
+  completedCount: number;
+  totalCount: number;
+  currentStepTitle: string;
+  currentStepNumber: number;
+  currentTargetLabel: string;
+  currentTargetFrequency: number;
+  currentModuleTitle: string;
+  currentModuleDescription: string;
+  recentClears: Array<{ id: string; title: string }>;
+  nextSteps: Array<{ id: string; title: string }>;
+  nextModules: Array<{ id: string; title: string }>;
+}) {
+  return (
+    <div
+      className="glass"
+      style={{
+        borderRadius: 24,
+        padding: 14,
+        background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+        display: "grid",
+        gap: 12,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "grid", gap: 6 }}>
+          <div className="pill">Journey</div>
+          <div style={{ fontSize: 24, fontWeight: 750, letterSpacing: "-0.05em" }}>{props.overallProgress}%</div>
+          <div style={{ color: "var(--muted)", fontSize: 13.5, lineHeight: 1.5 }}>
+            {props.completedCount} of {props.totalCount} checkpoints cleared
+          </div>
+        </div>
+        <div className="pill" style={{ alignSelf: "start", padding: "6px 12px", fontSize: 11 }}>
+          Step {props.currentStepNumber}
+        </div>
+      </div>
+
+      <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+        <div
+          style={{
+            width: `${clamp(props.overallProgress, 0, 100)}%`,
+            height: "100%",
+            borderRadius: 999,
+            background: "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+        <JourneyTile
+          label="Cleared"
+          title={`${props.completedCount}`}
+          detail={props.recentClears.length ? props.recentClears.map((step) => step.title).join(" · ") : "No clears yet"}
+          tone="muted"
+        />
+        <JourneyTile
+          label="Current"
+          title={props.currentStepTitle}
+          detail={`${props.currentTargetLabel} · ${props.currentTargetFrequency.toFixed(1)} Hz`}
+          tone="accent"
+        />
+        <JourneyTile
+          label="Ahead"
+          title={props.nextSteps[0]?.title ?? "Path complete"}
+          detail={props.nextSteps.length > 1 ? props.nextSteps.slice(1).map((step) => step.title).join(" · ") : "Next checkpoint"}
+          tone="success"
+        />
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        <div style={{ color: "var(--muted)", fontSize: 12 }}>Module flow</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
+            Current: {props.currentModuleTitle}
+          </span>
+          {props.nextModules.length ? (
+            props.nextModules.map((module) => (
+              <span key={module.id} className="pill" style={{ padding: "6px 12px", fontSize: 11, opacity: 0.85 }}>
+                Next: {module.title}
+              </span>
+            ))
+          ) : (
+            <span className="pill" style={{ padding: "6px 12px", fontSize: 11, opacity: 0.7 }}>
+              End of path
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        <div style={{ color: "var(--muted)", fontSize: 12 }}>Recent clears</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {props.recentClears.length ? (
+            props.recentClears.map((step) => (
+              <span key={step.id} className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
+                {step.title}
+              </span>
+            ))
+          ) : (
+            <span className="pill" style={{ padding: "6px 12px", fontSize: 11, opacity: 0.7 }}>
+              None yet
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 8 }}>
+        <div style={{ color: "var(--muted)", fontSize: 12 }}>Up next</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {props.nextSteps.length ? (
+            props.nextSteps.map((step, index) => (
+              <span key={step.id} className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
+                {index + 1}. {step.title}
+              </span>
+            ))
+          ) : (
+            <span className="pill" style={{ padding: "6px 12px", fontSize: 11, opacity: 0.7 }}>
+              No remaining checkpoints
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function JourneyTile(props: { label: string; title: string; detail: string; tone: "muted" | "accent" | "success" }) {
   const background =
-    props.tone === "center"
-      ? "linear-gradient(180deg, rgba(103,240,202,0.12), rgba(103,240,202,0.04))"
-      : props.tone === "high"
-        ? "linear-gradient(180deg, rgba(117,184,255,0.14), rgba(117,184,255,0.05))"
-        : "linear-gradient(180deg, rgba(255,189,89,0.14), rgba(255,189,89,0.05))";
+    props.tone === "accent"
+      ? "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(117,184,255,0.05))"
+      : props.tone === "success"
+        ? "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(103,240,202,0.05))"
+        : "rgba(255,255,255,0.03)";
 
   return (
     <div
@@ -1233,10 +1471,178 @@ function LiveStat(props: { label: string; value: string; tone: "center" | "high"
         padding: 12,
         border: "1px solid rgba(255,255,255,0.08)",
         background,
+        display: "grid",
+        gap: 6,
+        minHeight: 92,
+      }}
+    >
+      <div style={{ color: "var(--muted)", fontSize: 11.5, letterSpacing: "0.02em" }}>{props.label}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.2 }}>{props.title}</div>
+      <div style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.35 }}>{props.detail}</div>
+    </div>
+  );
+}
+
+function LiveStat(props: { label: string; value: string; detail?: string; background?: string }) {
+  return (
+    <div
+      style={{
+        borderRadius: 18,
+        padding: 12,
+        border: "1px solid rgba(255,255,255,0.08)",
+        background: props.background ?? "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(117,184,255,0.05))",
       }}
     >
       <div style={{ color: "var(--muted)", fontSize: 12 }}>{props.label}</div>
       <div style={{ marginTop: 6, fontSize: 22, fontWeight: 700, letterSpacing: "-0.04em" }}>{props.value}</div>
+      {props.detail ? (
+        <div style={{ marginTop: 4, color: "var(--muted)", fontSize: 11.5, lineHeight: 1.35 }}>{props.detail}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function PitchOffsetDial(props: { value: number | null }) {
+  const value = props.value ?? 0;
+  const clamped = clamp(value, -60, 60);
+  const angle = (clamped / 60) * 75;
+  const tickMarks = [-40, -20, 0, 20, 40];
+
+  return (
+    <div style={{ marginTop: 6, display: "grid", gap: 4 }}>
+      <div style={{ position: "relative", height: 44 }}>
+        <svg viewBox="0 0 180 90" width="100%" height="100%" aria-hidden="true">
+          <defs>
+            <linearGradient id="offsetDial" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgba(255,99,99,0.85)" />
+              <stop offset="50%" stopColor="rgba(103,240,202,0.9)" />
+              <stop offset="100%" stopColor="rgba(255,99,99,0.85)" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M 26 72 A 64 64 0 0 1 154 72"
+            fill="none"
+            stroke="rgba(255,255,255,0.08)"
+            strokeWidth="14"
+            strokeLinecap="round"
+          />
+          <path
+            d="M 26 72 A 64 64 0 0 1 154 72"
+            fill="none"
+            stroke="url(#offsetDial)"
+            strokeWidth="14"
+            strokeLinecap="round"
+            opacity="0.72"
+          />
+          {tickMarks.map((tick) => {
+            const tickAngle = ((tick / 60) * 75 * Math.PI) / 180;
+            const outer = { x: 90 + Math.cos(tickAngle) * 60, y: 72 + Math.sin(tickAngle) * 60 };
+            const inner = { x: 90 + Math.cos(tickAngle) * 52, y: 72 + Math.sin(tickAngle) * 52 };
+            return (
+              <line
+                key={tick}
+                x1={inner.x}
+                y1={inner.y}
+                x2={outer.x}
+                y2={outer.y}
+                stroke="rgba(255,255,255,0.42)"
+                strokeWidth="1.5"
+              />
+            );
+          })}
+          <g transform={`rotate(${angle} 90 72)`}>
+            <line x1="90" y1="72" x2="90" y2="24" stroke="rgba(255,255,255,0.96)" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="90" y1="72" x2="90" y2="29" stroke="rgba(255,255,255,0.38)" strokeWidth="6" strokeLinecap="round" />
+          </g>
+          <circle cx="90" cy="72" r="4.5" fill="rgba(255,255,255,0.96)" />
+        </svg>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)", fontSize: 11.5 }}>
+        <span>-60¢</span>
+        <span>0¢</span>
+        <span>+60¢</span>
+      </div>
+    </div>
+  );
+}
+
+function MiniProgressPanel(props: {
+  label: string;
+  value: string;
+  caption: string;
+  progress: number;
+  target: number | null;
+  active: boolean;
+  mode: "goal" | "sustain";
+}) {
+  const bounded = clamp(props.progress, 0, 100);
+  const complete = bounded >= 96;
+  const background = props.active
+    ? complete
+      ? "linear-gradient(180deg, rgba(103,240,202,0.22), rgba(103,240,202,0.07))"
+      : bounded >= 60
+        ? "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(103,240,202,0.1))"
+        : "linear-gradient(180deg, rgba(255,99,99,0.18), rgba(117,184,255,0.08))"
+    : "linear-gradient(180deg, rgba(117,184,255,0.18), rgba(117,184,255,0.05))";
+
+  const fill = props.active
+    ? complete
+      ? "linear-gradient(90deg, rgba(103,240,202,0.9), rgba(103,240,202,0.98))"
+      : bounded >= 60
+        ? "linear-gradient(90deg, rgba(117,184,255,0.7), rgba(103,240,202,0.92))"
+        : "linear-gradient(90deg, rgba(255,99,99,0.82), rgba(117,184,255,0.72))"
+    : "linear-gradient(90deg, rgba(117,184,255,0.25), rgba(117,184,255,0.95))";
+
+  return (
+    <div
+      style={{
+        borderRadius: 18,
+        padding: 12,
+        border: "1px solid rgba(255,255,255,0.08)",
+        background,
+        display: "grid",
+        gap: 8,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+        <div style={{ color: "var(--muted)", fontSize: 12 }}>{props.label}</div>
+        {props.target != null ? (
+          <div className="pill" style={{ padding: "4px 10px", fontSize: 10.5 }}>
+            Target {props.mode === "sustain" ? `${(props.target / 1000).toFixed(1)}s` : props.target}
+          </div>
+        ) : null}
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.04em" }}>{props.value}</div>
+          <div style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.4 }}>{props.caption}</div>
+      <div
+        style={{
+          position: "relative",
+          height: 10,
+          borderRadius: 999,
+          background: "rgba(255,255,255,0.08)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${bounded}%`,
+            height: "100%",
+            borderRadius: 999,
+            background: fill,
+            boxShadow: bounded > 0 ? "0 0 18px rgba(103,240,202,0.22)" : "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%)",
+            opacity: 0.4,
+            pointerEvents: "none",
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -1244,12 +1650,13 @@ function LiveStat(props: { label: string; value: string; tone: "center" | "high"
 function SwaraReferencePanel(props: {
   tonicLabel: string;
   registerLabel: string;
+  tonicFrequency: number;
+  profile: FluteProfile;
   rows: Array<SwaraTarget & { frequency: number }>;
 }) {
-  const grouped = ["Mandra", "Madhya", "Tara"].map((octave) => ({
-    octave,
-    rows: props.rows.filter((row) => row.octave === octave),
-  }));
+  const swaraOrder: SwaraTarget["swara"][] = ["Sa", "Re", "Ga", "Ma", "Pa", "Da", "Ni"];
+  const octaveOrder: SwaraTarget["octave"][] = ["Mandra", "Madhya", "Tara"];
+  const rowsByKey = new Map(props.rows.map((row) => [`${row.swara}-${row.octave}`, row] as const));
 
   return (
     <details
@@ -1264,41 +1671,105 @@ function SwaraReferencePanel(props: {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div>
             <div className="pill">Swara reference</div>
-            <div style={{ marginTop: 10, fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em" }}>
-              All 3 octaves for {props.tonicLabel} {props.registerLabel}
+            <div style={{ marginTop: 10, fontSize: 17, fontWeight: 700, letterSpacing: "-0.03em" }}>
+              {props.tonicLabel} {props.registerLabel} Swara Frequency Map
+            </div>
+            <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12.5, lineHeight: 1.45 }}>
+              A compact map of the playable swaras across the three octaves for the selected flute.
             </div>
           </div>
           <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>Open</span>
         </div>
       </summary>
 
-      <div style={{ display: "grid", gap: 12, marginTop: 14 }}>
-        {grouped.map((group) => (
-          <div key={group.octave} style={{ display: "grid", gap: 8 }}>
-            <div style={{ color: "var(--muted)", fontSize: 12 }}>{group.octave} octave</div>
-            <div style={{ display: "grid", gap: 6 }}>
-              {group.rows.map((row) => (
-                <div
-                  key={`${row.octave}-${row.swara}`}
+      <div style={{ marginTop: 12 }}>
+        <table
+          style={{
+            width: "100%",
+            tableLayout: "fixed",
+            borderCollapse: "separate",
+            borderSpacing: 0,
+            fontSize: 12.5,
+          }}
+        >
+          <thead>
+            <tr>
+              {["Swara", "Western Note", "Mandra", "Madhya", "Tara"].map((heading) => (
+                <th
+                  key={heading}
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "64px 1fr auto",
-                    gap: 10,
-                    alignItems: "center",
-                    padding: "8px 10px",
-                    borderRadius: 14,
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    textAlign: "left",
+                    padding: "8px 6px",
+                    color: "var(--muted)",
+                    fontWeight: 600,
+                    fontSize: 10.5,
+                    letterSpacing: "0.03em",
+                    textTransform: "uppercase",
+                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  <span style={{ fontWeight: 700 }}>{row.swara}</span>
-                  <span style={{ color: "var(--muted)", fontSize: 13 }}>{row.octave}</span>
-                  <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 13 }}>{row.frequency.toFixed(1)} Hz</span>
-                </div>
+                  {heading}
+                </th>
               ))}
-            </div>
+            </tr>
+          </thead>
+          <tbody>
+            {swaraOrder.map((swara) => {
+              const westernNote = westernNoteForSwara({ swara, octave: "Madhya" }, props.tonicFrequency);
+
+              return (
+                <tr key={swara}>
+                  <td
+                    style={{
+                      padding: "10px 6px",
+                      fontWeight: 700,
+                      borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    {swara}
+                  </td>
+                  <td
+                    style={{
+                      padding: "10px 6px",
+                      color: "var(--muted)",
+                      borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {westernNote}
+                  </td>
+                  {octaveOrder.map((octave) => {
+                    const row = rowsByKey.get(`${swara}-${octave}`);
+                    const playable = row ? isPlayableSwaraForProfile(props.profile, row) : false;
+
+                    return (
+                      <td
+                        key={octave}
+                        style={{
+                          padding: "10px 6px",
+                          fontVariantNumeric: "tabular-nums",
+                          borderBottom: "1px solid rgba(255,255,255,0.06)",
+                          color: row && playable ? "var(--text)" : "var(--muted)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {row && playable ? `${row.frequency.toFixed(1)} Hz` : "—"}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <div style={{ marginTop: 8, display: "grid", gap: 6, color: "var(--muted)", fontSize: 11.5, lineHeight: 1.45 }}>
+          <div>Frequencies are shown on the A=440 Hz standard for the selected flute profile.</div>
+          <div>Legend: dash (—) means not practical or not reliable on this flute size.</div>
+          <div>
+            Medium flutes typically lose the lower Sa/Re/Ga/Ma band; Pa, Da, and Ni are the practical Mandra notes.
           </div>
-        ))}
+        </div>
       </div>
     </details>
   );
@@ -1435,17 +1906,21 @@ function SignalTrace(props: {
   target: SwaraTarget;
   silent: boolean;
 }) {
-  const width = 640;
-  const height = 88;
-  const middle = height / 2;
+  const width = 860;
+  const height = 132;
   const minCents = -60;
   const maxCents = 60;
-  const usableWidth = width - 48;
-  const leftPad = 24;
+  const usableWidth = width - 24;
+  const leftPad = 12;
   const points = filterTrendWindow(props.points);
   const latestTimestamp = points.at(-1)?.timestamp ?? Date.now();
-
-  const path = points
+  const centsToY = (cents: number) => height - 24 - clamp((cents - minCents) / (maxCents - minCents), 0, 1) * (height - 48);
+  const highReleaseY = centsToY(TARGET_RELEASE_CENTS);
+  const highLockY = centsToY(TARGET_ZONE_CENTS);
+  const lowLockY = centsToY(-TARGET_ZONE_CENTS);
+  const lowReleaseY = centsToY(-TARGET_RELEASE_CENTS);
+  const centerY = centsToY(0);
+  const curvePoints = points
     .map((point) => {
       if (point.centsOffset == null) {
         return null;
@@ -1454,10 +1929,10 @@ function SignalTrace(props: {
       const x = leftPad + clamp(1 - (latestTimestamp - point.timestamp) / TREND_WINDOW_MS, 0, 1) * usableWidth;
       const normalized = clamp((point.centsOffset - minCents) / (maxCents - minCents), 0, 1);
       const y = height - 24 - normalized * (height - 48);
-      return `${x},${y}`;
+      return { x, y, active: point.active };
     })
-    .filter(Boolean)
-    .join(" ");
+    .filter(Boolean) as Array<{ x: number; y: number; active: boolean }>;
+  const path = buildSmoothPolyline(curvePoints);
 
   const latest = [...points].reverse().find((point) => point.centsOffset != null);
 
@@ -1474,11 +1949,11 @@ function SignalTrace(props: {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
           <div className="pill">Signal trace</div>
-          <div style={{ marginTop: 8, fontSize: 17, fontWeight: 650 }}>Pitch movement over the last 15 seconds</div>
+          <div style={{ marginTop: 8, fontSize: 17, fontWeight: 650 }}>Pitch movement over the last 30 seconds</div>
           <div style={{ marginTop: 6, color: "var(--muted)", lineHeight: 1.45, fontSize: 13 }}>
             {props.silent
               ? "Silence is hidden here until a stable tone returns."
-              : `Tracking ${props.detected?.octave ?? props.target.octave} ${props.detected?.swara ?? props.target.swara} against the target center line.`}
+              : `Tracking ${props.detected?.octave ?? props.target.octave} ${props.detected?.swara ?? props.target.swara} against the same pitch band used for sustain.`}
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -1494,45 +1969,40 @@ function SignalTrace(props: {
           borderRadius: 24,
           background: "rgba(255,255,255,0.04)",
           border: "1px solid rgba(255,255,255,0.08)",
-          padding: 10,
+          padding: 6,
         }}
       >
-        <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="112" aria-hidden="true">
-          <rect x="0" y="0" width={width} height={height * 0.28} fill="rgba(255, 99, 99, 0.08)" />
-          <rect x="0" y={height * 0.28} width={width} height={height * 0.44} fill="rgba(103,240,202,0.08)" />
-          <rect x="0" y={height * 0.72} width={width} height={height * 0.28} fill="rgba(255, 189, 89, 0.08)" />
-          <line x1="24" y1={middle} x2={width - 24} y2={middle} stroke="rgba(255,255,255,0.22)" strokeDasharray="6 6" />
-          <line x1="24" y1="24" x2="24" y2={height - 24} stroke="rgba(255,255,255,0.06)" />
+        <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="132" aria-hidden="true">
+          <rect x="0" y="0" width={width} height={highReleaseY} fill="rgba(255, 99, 99, 0.08)" />
+          <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill="rgba(255, 189, 89, 0.12)" />
+          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(103,240,202,0.15)" />
+          <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill="rgba(255, 189, 89, 0.12)" />
+          <rect x="0" y={lowReleaseY} width={width} height={height - lowReleaseY} fill="rgba(255, 99, 99, 0.08)" />
+          <line x1="12" y1={centerY} x2={width - 12} y2={centerY} stroke="rgba(255,255,255,0.22)" strokeDasharray="6 6" />
+          <line x1="12" y1={highLockY} x2={width - 12} y2={highLockY} stroke="rgba(255,255,255,0.1)" />
+          <line x1="12" y1={lowLockY} x2={width - 12} y2={lowLockY} stroke="rgba(255,255,255,0.1)" />
+          <line x1="12" y1="24" x2="12" y2={height - 24} stroke="rgba(255,255,255,0.06)" />
           <line x1={width / 2} y1="24" x2={width / 2} y2={height - 24} stroke="rgba(117,184,255,0.18)" />
 
-          {points.map((point, index) => {
-            if (point.centsOffset == null) {
-              return null;
-            }
-
-            const x = leftPad + clamp(1 - (latestTimestamp - point.timestamp) / TREND_WINDOW_MS, 0, 1) * usableWidth;
-            const normalized = clamp((point.centsOffset - minCents) / (maxCents - minCents), 0, 1);
-            const y = height - 24 - normalized * (height - 48);
-            const opacity = point.active ? 0.95 : 0.4;
-
-            return (
-              <circle
-                key={`${point.timestamp}-${index}`}
-                cx={x}
-                cy={y}
-                r={point.active ? 4.5 : 3}
-                fill="rgba(103,240,202,0.9)"
-                opacity={opacity}
-              />
-            );
-          })}
+          {curvePoints.map((point, index) => (
+            <circle
+              key={`${point.x}-${point.y}-${index}`}
+              cx={point.x}
+              cy={point.y}
+              r={point.active ? 2.4 : 1.4}
+              fill="rgba(103,240,202,0.9)"
+              opacity={point.active ? 0.9 : 0.32}
+              stroke="rgba(8,18,31,0.65)"
+              strokeWidth={0.6}
+            />
+          ))}
 
           {path ? (
-            <polyline
-              points={path}
+            <path
+              d={path}
               fill="none"
               stroke="url(#signalGradient)"
-              strokeWidth="3"
+              strokeWidth="2.6"
               strokeLinejoin="round"
               strokeLinecap="round"
             />
@@ -1545,12 +2015,14 @@ function SignalTrace(props: {
             </linearGradient>
           </defs>
 
-          <text x="8" y="16" fill="rgba(255,255,255,0.6)" fontSize="10">High</text>
-          <text x="8" y={height / 2 + 4} fill="rgba(255,255,255,0.76)" fontSize="10">Target zone</text>
-          <text x="8" y={height - 8} fill="rgba(255,255,255,0.6)" fontSize="10">Low</text>
-          <text x="width - 42" y={height - 8} fill="rgba(255,255,255,0.6)" fontSize="10">Now</text>
-          <text x="24" y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">15s ago</text>
-          <text x={width / 2 - 16} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">~7s</text>
+          <text x="8" y="15" fill="rgba(255,255,255,0.6)" fontSize="10" textAnchor="start">High</text>
+          <text x="8" y={centerY + 4} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="start">Target zone</text>
+          <text x="8" y={height - 8} fill="rgba(255,255,255,0.6)" fontSize="10" textAnchor="start">Low</text>
+          <text x={width - 8} y={highLockY - 4} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="end">+20¢</text>
+          <text x={width - 8} y={lowLockY + 12} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="end">-20¢</text>
+          <text x={width - 8} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10" textAnchor="end">Now</text>
+          <text x="12" y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">30s ago</text>
+          <text x={width / 2 - 16} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">~12s</text>
         </svg>
       </div>
 
@@ -1566,6 +2038,35 @@ function SignalTrace(props: {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function buildSmoothPolyline(points: Array<{ x: number; y: number; active: boolean }>) {
+  if (!points.length) {
+    return "";
+  }
+
+  if (points.length === 1) {
+    const point = points[0];
+    return `M ${point.x} ${point.y}`;
+  }
+
+  let path = `M ${points[0].x} ${points[0].y}`;
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    const previous = points[index - 1] ?? current;
+    const after = points[index + 2] ?? next;
+
+    const cp1x = current.x + (next.x - previous.x) / 6;
+    const cp1y = current.y + (next.y - previous.y) / 6;
+    const cp2x = next.x - (after.x - current.x) / 6;
+    const cp2y = next.y - (after.y - current.y) / 6;
+
+    path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${next.x} ${next.y}`;
+  }
+
+  return path;
 }
 
 function filterTrendWindow(points: TrendPoint[]) {
@@ -1585,25 +2086,6 @@ function rms(buffer: Float32Array) {
   }
 
   return Math.sqrt(sum / buffer.length);
-}
-
-function estimateHissLevel(spectrum: Uint8Array, confidence: number, energy: number) {
-  if (!spectrum.length) {
-    return Math.max(0, Math.min(100, (1 - confidence) * 100));
-  }
-
-  const splitIndex = Math.max(4, Math.floor(spectrum.length * 0.3));
-  const highStart = Math.max(splitIndex, Math.floor(spectrum.length * 0.65));
-
-  const lowBand = average(spectrum.slice(0, splitIndex));
-  const highBand = average(spectrum.slice(highStart));
-  const totalBand = average(spectrum);
-
-  const highRatio = highBand / Math.max(1, totalBand);
-  const spread = Math.max(0, highBand - lowBand) / 255;
-  const quietPenalty = energy < 14 ? 12 : 0;
-
-  return clamp(highRatio * 70 + spread * 45 + (1 - confidence) * 30 + quietPenalty, 0, 100);
 }
 
 function average(values: Uint8Array) {
