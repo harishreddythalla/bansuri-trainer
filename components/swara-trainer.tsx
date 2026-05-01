@@ -942,12 +942,49 @@ export function SwaraTrainer() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1.95fr) minmax(280px, 0.72fr)",
+          gridTemplateColumns: "minmax(280px, 0.82fr) minmax(0, 1.9fr)",
           gap: 12,
           alignItems: "start",
           minHeight: "calc(100vh - 260px)",
         }}
       >
+          <aside
+            style={{
+              display: "grid",
+              gap: 10,
+              alignSelf: "start",
+              position: "sticky",
+              top: 12,
+            }}
+          >
+            <JourneySummary
+              overallProgress={overallProgress}
+              completedCount={completedStepIds.length}
+              totalCount={allLessonSteps.length}
+              completedStepIds={completedStepIds}
+              currentStepTitle={selectedStep?.title ?? "Choose a checkpoint"}
+              modules={foundationModules.map((module) => ({
+                id: module.id,
+                title: module.title,
+                description: module.description,
+                steps: module.steps.map((step) => ({
+                  id: step.id,
+                  title: step.title,
+                })),
+                completedCount: module.steps.filter((step) => completedStepIds.includes(step.id)).length,
+                isCurrent: module.id === currentModule?.id,
+              }))}
+            />
+
+            <SwaraReferencePanel
+              tonicLabel={tonicLabel}
+              registerLabel={fluteProfile.registerLabel}
+              tonicFrequency={fluteProfile.saFrequency}
+              profile={fluteProfile}
+              rows={swaraReference}
+            />
+          </aside>
+
           <section style={{ minWidth: 0, display: "grid", gap: 12 }}>
             {checkpointNotice ? (
               <div
@@ -1169,49 +1206,6 @@ export function SwaraTrainer() {
               />
             </div>
           </section>
-
-          <aside
-            style={{
-              display: "grid",
-              gap: 10,
-              alignSelf: "start",
-              position: "sticky",
-              top: 12,
-            }}
-          >
-            <JourneySummary
-              overallProgress={overallProgress}
-              completedCount={completedStepIds.length}
-              totalCount={allLessonSteps.length}
-              completedStepIds={completedStepIds}
-              currentStepTitle={selectedStep?.title ?? "Choose a checkpoint"}
-              currentStepNumber={selectedStepNumber || 1}
-              currentTargetLabel={`${target.octave} ${target.swara}`}
-              currentTargetFrequency={currentTargetFrequency}
-              currentModuleTitle={currentModule?.title ?? "Foundation"}
-              currentModuleDescription={currentModule?.description ?? "Start with the first breath and clean Sa."}
-              recentClears={recentClears}
-              modules={foundationModules.map((module) => ({
-                id: module.id,
-                title: module.title,
-                description: module.description,
-                steps: module.steps.map((step) => ({
-                  id: step.id,
-                  title: step.title,
-                })),
-                completedCount: module.steps.filter((step) => completedStepIds.includes(step.id)).length,
-                isCurrent: module.id === currentModule?.id,
-              }))}
-            />
-
-            <SwaraReferencePanel
-              tonicLabel={tonicLabel}
-              registerLabel={fluteProfile.registerLabel}
-              tonicFrequency={fluteProfile.saFrequency}
-              profile={fluteProfile}
-              rows={swaraReference}
-            />
-          </aside>
         </div>
       </div>
     </main>
@@ -1343,12 +1337,6 @@ function JourneySummary(props: {
   totalCount: number;
   completedStepIds: string[];
   currentStepTitle: string;
-  currentStepNumber: number;
-  currentTargetLabel: string;
-  currentTargetFrequency: number;
-  currentModuleTitle: string;
-  currentModuleDescription: string;
-  recentClears: Array<{ id: string; title: string }>;
   modules: Array<{
     id: string;
     title: string;
@@ -1359,13 +1347,8 @@ function JourneySummary(props: {
   }>;
 }) {
   const currentModule = props.modules.find((module) => module.isCurrent) ?? props.modules[0] ?? null;
-  const nextCheckpoint =
-    currentModule?.steps.find((step) => !props.completedStepIds.includes(step.id)) ??
-    props.modules
-      .slice((currentModule ? props.modules.findIndex((module) => module.id === currentModule.id) : -1) + 1)
-      .flatMap((module) => module.steps)
-      .find((step) => !props.completedStepIds.includes(step.id)) ??
-    null;
+  const currentIndex = currentModule ? props.modules.findIndex((module) => module.id === currentModule.id) : -1;
+  const currentModuleNumber = currentIndex >= 0 ? currentIndex + 1 : 0;
 
   return (
     <div
@@ -1378,16 +1361,11 @@ function JourneySummary(props: {
         gap: 12,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "grid", gap: 6 }}>
-          <div className="pill">Journey</div>
-          <div style={{ fontSize: 24, fontWeight: 750, letterSpacing: "-0.05em" }}>{props.overallProgress}%</div>
-          <div style={{ color: "var(--muted)", fontSize: 13.5, lineHeight: 1.5 }}>
-            {props.completedCount} of {props.totalCount} checkpoints cleared
-          </div>
-        </div>
-        <div className="pill" style={{ alignSelf: "start", padding: "6px 12px", fontSize: 11 }}>
-          Step {props.currentStepNumber}
+      <div style={{ display: "grid", gap: 6 }}>
+        <div className="pill">Journey</div>
+        <div style={{ fontSize: 24, fontWeight: 750, letterSpacing: "-0.05em" }}>{props.overallProgress}%</div>
+        <div style={{ color: "var(--muted)", fontSize: 13.5, lineHeight: 1.5 }}>
+          {props.completedCount} of {props.totalCount} checkpoints cleared
         </div>
       </div>
 
@@ -1399,27 +1377,6 @@ function JourneySummary(props: {
             borderRadius: 999,
             background: "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))",
           }}
-        />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
-        <JourneyTile
-          label="Cleared"
-          title={`${props.completedCount}`}
-          detail={props.recentClears.length ? props.recentClears.map((step) => step.title).join(" · ") : "No clears yet"}
-          tone="muted"
-        />
-        <JourneyTile
-          label="Current"
-          title={props.currentStepTitle}
-          detail={`${props.currentTargetLabel} · ${props.currentTargetFrequency.toFixed(1)} Hz`}
-          tone="accent"
-        />
-        <JourneyTile
-          label="Ahead"
-          title={nextCheckpoint?.title ?? "Path complete"}
-          detail={currentModule ? `In ${currentModule.title}` : "Next checkpoint"}
-          tone="success"
         />
       </div>
 
@@ -1445,17 +1402,25 @@ function JourneySummary(props: {
                     <div style={{ display: "grid", gap: 3, minWidth: 0 }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <span className="pill" style={{ padding: "5px 10px", fontSize: 10.5 }}>
-                          {module.isCurrent ? "Current" : module.completedCount > 0 ? "In progress" : "Upcoming"}
+                          Module {props.modules.findIndex((entry) => entry.id === module.id) + 1}
                         </span>
-                        <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.03em" }}>{module.title}</span>
+                        <span
+                          style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.03em" }}
+                          title={module.description}
+                        >
+                          {module.title}
+                        </span>
                       </div>
                       <div style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.4 }}>
                         {module.completedCount} of {module.steps.length} checkpoints cleared
                       </div>
+                      {module.isCurrent ? (
+                        <div style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.45, maxWidth: 320 }}>
+                          {module.description}
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="pill" style={{ padding: "6px 10px", fontSize: 10.5 }}>
-                      {module.steps.length}
-                    </div>
+                    <div className="pill" style={{ padding: "6px 10px", fontSize: 10.5 }}>{module.steps.length} steps</div>
                   </div>
                   <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                     <div
@@ -1472,13 +1437,11 @@ function JourneySummary(props: {
                 </div>
               </summary>
               <div style={{ padding: "0 12px 12px" }}>
-                <div style={{ color: "var(--muted)", fontSize: 11.5, marginBottom: 8, lineHeight: 1.4 }}>
-                  {module.description}
-                </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {module.steps.map((step) => {
                     const isDone = props.completedStepIds.includes(step.id);
                     const isCurrentStep = module.isCurrent && step.title === props.currentStepTitle;
+                    const tone = isCurrentStep ? "current" : isDone ? "done" : "upcoming";
 
                     return (
                       <span
@@ -1487,12 +1450,13 @@ function JourneySummary(props: {
                         style={{
                           padding: "6px 10px",
                           fontSize: 10.5,
-                          background: isCurrentStep
-                            ? "linear-gradient(180deg, rgba(103,240,202,0.2), rgba(103,240,202,0.08))"
-                            : isDone
-                              ? "rgba(117,184,255,0.12)"
-                              : "rgba(255,255,255,0.04)",
-                          borderColor: isCurrentStep ? "rgba(103,240,202,0.28)" : undefined,
+                          background:
+                            tone === "current"
+                              ? "linear-gradient(180deg, rgba(103,240,202,0.2), rgba(103,240,202,0.08))"
+                              : tone === "done"
+                                ? "rgba(117,184,255,0.12)"
+                                : "rgba(255,255,255,0.04)",
+                          borderColor: tone === "current" ? "rgba(103,240,202,0.28)" : undefined,
                         }}
                       >
                         {isDone ? "✓ " : "• "}
