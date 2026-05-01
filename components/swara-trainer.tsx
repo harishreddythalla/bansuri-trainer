@@ -686,9 +686,7 @@ export function SwaraTrainer() {
     module.steps.some((step) => step.id === selectedStepId),
   );
   const currentModule = currentModuleIndex >= 0 ? foundationModules[currentModuleIndex] : null;
-  const nextModules = currentModuleIndex >= 0 ? foundationModules.slice(currentModuleIndex + 1, currentModuleIndex + 3) : [];
   const currentStepIndex = allLessonSteps.findIndex((step) => step.id === selectedStepId);
-  const nextSteps = currentStepIndex >= 0 ? allLessonSteps.slice(currentStepIndex + 1, currentStepIndex + 4) : [];
   const recentClears = allLessonSteps.filter((step) => completedStepIds.includes(step.id)).slice(-3).reverse();
   const overallProgress = allLessonSteps.length
     ? Math.round((completedStepIds.length / allLessonSteps.length) * 100)
@@ -1185,6 +1183,7 @@ export function SwaraTrainer() {
               overallProgress={overallProgress}
               completedCount={completedStepIds.length}
               totalCount={allLessonSteps.length}
+              completedStepIds={completedStepIds}
               currentStepTitle={selectedStep?.title ?? "Choose a checkpoint"}
               currentStepNumber={selectedStepNumber || 1}
               currentTargetLabel={`${target.octave} ${target.swara}`}
@@ -1192,8 +1191,17 @@ export function SwaraTrainer() {
               currentModuleTitle={currentModule?.title ?? "Foundation"}
               currentModuleDescription={currentModule?.description ?? "Start with the first breath and clean Sa."}
               recentClears={recentClears}
-              nextSteps={nextSteps}
-              nextModules={nextModules}
+              modules={foundationModules.map((module) => ({
+                id: module.id,
+                title: module.title,
+                description: module.description,
+                steps: module.steps.map((step) => ({
+                  id: step.id,
+                  title: step.title,
+                })),
+                completedCount: module.steps.filter((step) => completedStepIds.includes(step.id)).length,
+                isCurrent: module.id === currentModule?.id,
+              }))}
             />
 
             <SwaraReferencePanel
@@ -1333,6 +1341,7 @@ function JourneySummary(props: {
   overallProgress: number;
   completedCount: number;
   totalCount: number;
+  completedStepIds: string[];
   currentStepTitle: string;
   currentStepNumber: number;
   currentTargetLabel: string;
@@ -1340,9 +1349,24 @@ function JourneySummary(props: {
   currentModuleTitle: string;
   currentModuleDescription: string;
   recentClears: Array<{ id: string; title: string }>;
-  nextSteps: Array<{ id: string; title: string }>;
-  nextModules: Array<{ id: string; title: string }>;
+  modules: Array<{
+    id: string;
+    title: string;
+    description: string;
+    steps: Array<{ id: string; title: string }>;
+    completedCount: number;
+    isCurrent: boolean;
+  }>;
 }) {
+  const currentModule = props.modules.find((module) => module.isCurrent) ?? props.modules[0] ?? null;
+  const nextCheckpoint =
+    currentModule?.steps.find((step) => !props.completedStepIds.includes(step.id)) ??
+    props.modules
+      .slice((currentModule ? props.modules.findIndex((module) => module.id === currentModule.id) : -1) + 1)
+      .flatMap((module) => module.steps)
+      .find((step) => !props.completedStepIds.includes(step.id)) ??
+    null;
+
   return (
     <div
       className="glass"
@@ -1393,63 +1417,93 @@ function JourneySummary(props: {
         />
         <JourneyTile
           label="Ahead"
-          title={props.nextSteps[0]?.title ?? "Path complete"}
-          detail={props.nextSteps.length > 1 ? props.nextSteps.slice(1).map((step) => step.title).join(" · ") : "Next checkpoint"}
+          title={nextCheckpoint?.title ?? "Path complete"}
+          detail={currentModule ? `In ${currentModule.title}` : "Next checkpoint"}
           tone="success"
         />
       </div>
 
-      <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ color: "var(--muted)", fontSize: 12 }}>Module flow</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
-            Current: {props.currentModuleTitle}
-          </span>
-          {props.nextModules.length ? (
-            props.nextModules.map((module) => (
-              <span key={module.id} className="pill" style={{ padding: "6px 12px", fontSize: 11, opacity: 0.85 }}>
-                Next: {module.title}
-              </span>
-            ))
-          ) : (
-            <span className="pill" style={{ padding: "6px 12px", fontSize: 11, opacity: 0.7 }}>
-              End of path
-            </span>
-          )}
-        </div>
-      </div>
+      <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ color: "var(--muted)", fontSize: 12 }}>Module map</div>
+        <div style={{ display: "grid", gap: 8 }}>
+          {props.modules.map((module) => (
+            <details
+              key={module.id}
+              open={module.isCurrent}
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: module.isCurrent
+                  ? "linear-gradient(180deg, rgba(117,184,255,0.12), rgba(103,240,202,0.06))"
+                  : "rgba(255,255,255,0.03)",
+                overflow: "hidden",
+              }}
+            >
+              <summary style={{ cursor: "pointer", listStyle: "none", padding: 12 }}>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                    <div style={{ display: "grid", gap: 3, minWidth: 0 }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <span className="pill" style={{ padding: "5px 10px", fontSize: 10.5 }}>
+                          {module.isCurrent ? "Current" : module.completedCount > 0 ? "In progress" : "Upcoming"}
+                        </span>
+                        <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.03em" }}>{module.title}</span>
+                      </div>
+                      <div style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.4 }}>
+                        {module.completedCount} of {module.steps.length} checkpoints cleared
+                      </div>
+                    </div>
+                    <div className="pill" style={{ padding: "6px 10px", fontSize: 10.5 }}>
+                      {module.steps.length}
+                    </div>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: `${module.steps.length ? (module.completedCount / module.steps.length) * 100 : 0}%`,
+                        height: "100%",
+                        borderRadius: 999,
+                        background: module.isCurrent
+                          ? "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))"
+                          : "linear-gradient(90deg, rgba(255,99,99,0.72), rgba(117,184,255,0.88))",
+                      }}
+                    />
+                  </div>
+                </div>
+              </summary>
+              <div style={{ padding: "0 12px 12px" }}>
+                <div style={{ color: "var(--muted)", fontSize: 11.5, marginBottom: 8, lineHeight: 1.4 }}>
+                  {module.description}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {module.steps.map((step) => {
+                    const isDone = props.completedStepIds.includes(step.id);
+                    const isCurrentStep = module.isCurrent && step.title === props.currentStepTitle;
 
-      <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ color: "var(--muted)", fontSize: 12 }}>Recent clears</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {props.recentClears.length ? (
-            props.recentClears.map((step) => (
-              <span key={step.id} className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
-                {step.title}
-              </span>
-            ))
-          ) : (
-            <span className="pill" style={{ padding: "6px 12px", fontSize: 11, opacity: 0.7 }}>
-              None yet
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gap: 8 }}>
-        <div style={{ color: "var(--muted)", fontSize: 12 }}>Up next</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {props.nextSteps.length ? (
-            props.nextSteps.map((step, index) => (
-              <span key={step.id} className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
-                {index + 1}. {step.title}
-              </span>
-            ))
-          ) : (
-            <span className="pill" style={{ padding: "6px 12px", fontSize: 11, opacity: 0.7 }}>
-              No remaining checkpoints
-            </span>
-          )}
+                    return (
+                      <span
+                        key={step.id}
+                        className="pill"
+                        style={{
+                          padding: "6px 10px",
+                          fontSize: 10.5,
+                          background: isCurrentStep
+                            ? "linear-gradient(180deg, rgba(103,240,202,0.2), rgba(103,240,202,0.08))"
+                            : isDone
+                              ? "rgba(117,184,255,0.12)"
+                              : "rgba(255,255,255,0.04)",
+                          borderColor: isCurrentStep ? "rgba(103,240,202,0.28)" : undefined,
+                        }}
+                      >
+                        {isDone ? "✓ " : "• "}
+                        {step.title}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </details>
+          ))}
         </div>
       </div>
     </div>
