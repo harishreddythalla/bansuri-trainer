@@ -1,13 +1,15 @@
 import { PitchDetector } from "pitchy";
 
-export type SwaraName = "Sa" | "Re" | "Ga" | "Ma" | "Pa" | "Da" | "Ni";
-export type OctaveName = "Mandra" | "Madhya" | "Tara";
+export type SwaraName = "Sa" | "Re" | "Ga" | "Ma" | "Pa" | "Dha" | "Ni";
+export type OctaveName = "Mandra" | "Madhya" | "Taar";
+export type NoteState = "Shuddha" | "Komal" | "Teevra";
 export type TonicName = "C" | "C#" | "D" | "D#" | "E" | "F" | "F#" | "G" | "G#" | "A" | "A#" | "B";
 export type FluteRegister = "Bass" | "Medium" | "Small";
 
 export type SwaraTarget = {
   swara: SwaraName;
   octave: OctaveName;
+  state?: NoteState;
 };
 
 export type DetectedSwara = SwaraTarget & {
@@ -45,7 +47,7 @@ const swaraSteps = [
   { swara: "Ga", step: 4 },
   { swara: "Ma", step: 5 },
   { swara: "Pa", step: 7 },
-  { swara: "Da", step: 9 },
+  { swara: "Dha", step: 9 },
   { swara: "Ni", step: 11 },
 ] as const;
 
@@ -90,7 +92,7 @@ export const fluteProfiles: FluteProfile[] = registerDefinitions.flatMap((regist
 
 export const defaultFluteProfile = fluteProfiles.find((profile) => profile.id === "c-medium") ?? fluteProfiles[0];
 
-export const swaraTargets: SwaraTarget[] = ["Mandra", "Madhya", "Tara"].flatMap((octave) =>
+export const swaraTargets: SwaraTarget[] = ["Mandra", "Madhya", "Taar"].flatMap((octave) =>
   swaraSteps.map(({ swara }) => ({
     swara,
     octave: octave as OctaveName,
@@ -112,9 +114,11 @@ function midiToFrequency(midi: number) {
 function targetToMidi(target: SwaraTarget, tonicFrequency: number) {
   const tonicMidi = frequencyToMidi(tonicFrequency);
   const step = swaraSteps.find((item) => item.swara === target.swara)?.step ?? 0;
-  const octaveOffset = target.octave === "Mandra" ? -1 : target.octave === "Tara" ? 1 : 0;
+  const octaveOffset = target.octave === "Mandra" ? -1 : target.octave === "Taar" ? 1 : 0;
+  const noteStateOffset =
+    target.state === "Komal" ? -1 : target.state === "Teevra" ? 1 : 0;
 
-  return tonicMidi + octaveOffset * 12 + step;
+  return tonicMidi + octaveOffset * 12 + step + noteStateOffset;
 }
 
 export function targetFrequencyFor(target: SwaraTarget, tonicFrequency: number) {
@@ -201,7 +205,7 @@ export function classifySwara(
       if (!bestMatch || Math.abs(centsOffset) < Math.abs(bestMatch.centsOffset)) {
         bestMatch = {
           swara,
-          octave: octaveOffset === -1 ? "Mandra" : octaveOffset === 0 ? "Madhya" : "Tara",
+          octave: octaveOffset === -1 ? "Mandra" : octaveOffset === 0 ? "Madhya" : "Taar",
           midi: targetMidi,
           centsOffset,
         };
@@ -216,6 +220,7 @@ export function classifySwara(
   return {
     swara: bestMatch.swara,
     octave: bestMatch.octave,
+    state: "Shuddha",
     frequency,
     centsOffset: bestMatch.centsOffset,
     confidence,
@@ -330,7 +335,7 @@ export function isPlayableSwaraForProfile(profile: FluteProfile, target: SwaraTa
   }
 
   if (profile.register === "Medium") {
-    return target.swara === "Pa" || target.swara === "Da" || target.swara === "Ni";
+    return target.swara === "Pa" || target.swara === "Dha" || target.swara === "Ni";
   }
 
   return false;

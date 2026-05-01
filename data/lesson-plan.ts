@@ -1,12 +1,49 @@
-import type { OctaveName, SwaraName, SwaraTarget } from "@/lib/swara";
+import { curriculumTracks, type CurriculumCheckpoint, type CurriculumModule } from "@/data/curriculum";
+import type { SwaraTarget } from "@/lib/swara";
+
+type LegacySequenceStep = {
+  target: SwaraTarget;
+  sustainTargetMs: number;
+  isAnchor?: boolean;
+};
 
 export type LessonStep = {
   id: string;
   title: string;
-  target: SwaraTarget;
+  type: CurriculumCheckpoint["type"];
+  target?: SwaraTarget;
   sustainTargetMs: number;
   minimumScore: number;
+  pitchToleranceCents: number;
+  lockBandCents: number;
+  releaseBandCents: number;
+  noiseMax: number;
+  stabilityMin: number;
+  requiredConsecutiveClears: number;
+  allowedProfiles: string[];
+  unavailableBehavior: "hide" | "disable" | "show_dash";
   coaching: string;
+  commonMistakes: string[];
+  stage?: "active" | "planned";
+  checkpointGroupId: string;
+  checkpointGroupTitle: string;
+  repeatCount?: number;
+  steps?: LegacySequenceStep[];
+  sequenceRules?: {
+    maxGapMs: number;
+    requireStrictTempo: boolean;
+    resetMode: "loop";
+  };
+  ragaRules?: {
+    allowedSwaras?: Array<"Sa" | "Re" | "Ga" | "Ma" | "Pa" | "Dha" | "Ni">;
+    arohana?: LegacySequenceStep[];
+    avarohana?: LegacySequenceStep[];
+    pakad?: LegacySequenceStep[][];
+    vadi?: "Sa" | "Re" | "Ga" | "Ma" | "Pa" | "Dha" | "Ni";
+    samvadi?: "Sa" | "Re" | "Ga" | "Ma" | "Pa" | "Dha" | "Ni";
+    nyas?: Array<"Sa" | "Re" | "Ga" | "Ma" | "Pa" | "Dha" | "Ni">;
+    forbiddenPhrases?: string[];
+  };
 };
 
 export type LessonModule = {
@@ -16,61 +53,95 @@ export type LessonModule = {
   steps: LessonStep[];
 };
 
-function step(
-  id: string,
-  title: string,
-  swara: SwaraName,
-  octave: OctaveName,
-  sustainTargetMs: number,
-  minimumScore: number,
-  coaching: string,
-): LessonStep {
+function flattenModule(module: CurriculumModule): LessonModule {
   return {
-    id,
-    title,
-    target: { swara, octave },
-    sustainTargetMs,
-    minimumScore,
-    coaching,
+    id: module.id,
+    title: module.title,
+    description: module.description,
+    steps: module.checkpointGroups.flatMap((group) =>
+      group.checkpoints.map((checkpoint) => {
+        if (checkpoint.type === "sequence") {
+          return {
+            id: checkpoint.id,
+            title: checkpoint.title,
+            type: checkpoint.type,
+            sustainTargetMs: Math.round(checkpoint.steps[0]?.sustainTargetMs ?? 0),
+            minimumScore: checkpoint.minimumScore,
+            pitchToleranceCents: checkpoint.pitchToleranceCents,
+            lockBandCents: checkpoint.lockBandCents,
+            releaseBandCents: checkpoint.releaseBandCents,
+            noiseMax: checkpoint.noiseMax,
+            stabilityMin: checkpoint.stabilityMin,
+            requiredConsecutiveClears: checkpoint.requiredConsecutiveClears,
+            allowedProfiles: checkpoint.allowedProfiles,
+            unavailableBehavior: checkpoint.unavailableBehavior,
+            coaching: checkpoint.coaching,
+            commonMistakes: checkpoint.commonMistakes,
+            stage: checkpoint.stage,
+            checkpointGroupId: group.id,
+            checkpointGroupTitle: group.title,
+            repeatCount: checkpoint.repeatCount,
+            steps: checkpoint.steps.map((step) => ({
+              target: step.target,
+              sustainTargetMs: step.sustainTargetMs,
+              isAnchor: step.isAnchor,
+            })),
+            sequenceRules: checkpoint.sequenceRules,
+            ragaRules: checkpoint.ragaRules
+              ? {
+                  allowedSwaras: checkpoint.ragaRules.allowedSwaras,
+                  arohana: checkpoint.ragaRules.arohana?.map((step) => ({
+                    target: step.target,
+                    sustainTargetMs: step.sustainTargetMs,
+                    isAnchor: step.isAnchor,
+                  })),
+                  avarohana: checkpoint.ragaRules.avarohana?.map((step) => ({
+                    target: step.target,
+                    sustainTargetMs: step.sustainTargetMs,
+                    isAnchor: step.isAnchor,
+                  })),
+                  pakad: checkpoint.ragaRules.pakad?.map((phrase) =>
+                    phrase.map((step) => ({
+                      target: step.target,
+                      sustainTargetMs: step.sustainTargetMs,
+                      isAnchor: step.isAnchor,
+                    })),
+                  ),
+                  vadi: checkpoint.ragaRules.vadi,
+                  samvadi: checkpoint.ragaRules.samvadi,
+                  nyas: checkpoint.ragaRules.nyas,
+                  forbiddenPhrases: checkpoint.ragaRules.forbiddenPhrases,
+                }
+              : undefined,
+          } satisfies LessonStep;
+        }
+
+        return {
+          id: checkpoint.id,
+          title: checkpoint.title,
+          type: checkpoint.type,
+          target: "target" in checkpoint ? checkpoint.target : undefined,
+          sustainTargetMs: Math.round(
+            "sustainSeconds" in checkpoint ? checkpoint.sustainSeconds * 1000 : 0,
+          ),
+          minimumScore: checkpoint.minimumScore,
+          pitchToleranceCents: checkpoint.pitchToleranceCents,
+          lockBandCents: checkpoint.lockBandCents,
+          releaseBandCents: checkpoint.releaseBandCents,
+          noiseMax: checkpoint.noiseMax,
+          stabilityMin: checkpoint.stabilityMin,
+          requiredConsecutiveClears: checkpoint.requiredConsecutiveClears,
+          allowedProfiles: checkpoint.allowedProfiles,
+          unavailableBehavior: checkpoint.unavailableBehavior,
+          coaching: checkpoint.coaching,
+          commonMistakes: checkpoint.commonMistakes,
+          stage: checkpoint.stage,
+          checkpointGroupId: group.id,
+          checkpointGroupTitle: group.title,
+        } satisfies LessonStep;
+      }),
+    ),
   };
 }
 
-export const foundationModules: LessonModule[] = [
-  {
-    id: "first-breath",
-    title: "First Breath",
-    description: "Start with tone production and settle a clean, sustained Madhya Sa.",
-    steps: [
-      step(
-        "madhya-sa-1",
-        "Center and hold your first Sa",
-        "Sa",
-        "Madhya",
-        2400,
-        65,
-        "Keep the embouchure relaxed, find a clean Sa, and hold it steadily before moving on.",
-      ),
-    ],
-  },
-  {
-    id: "seven-swaras",
-    title: "Seven Swaras",
-    description: "Move across the basic swaras before attempting full patterns.",
-    steps: [
-      step("madhya-re", "Find Re", "Re", "Madhya", 2200, 72, "Lift fingers gently and avoid jumping sharp."),
-      step("madhya-ga", "Find Ga", "Ga", "Madhya", 2200, 72, "Let the note settle before pushing more air."),
-      step("madhya-ma", "Find Ma", "Ma", "Madhya", 2200, 74, "Seal the holes fully to reduce airy leakage."),
-      step("madhya-pa", "Find Pa", "Pa", "Madhya", 2200, 74, "Listen for a centered tone before sustaining."),
-    ],
-  },
-  {
-    id: "octave-anchors",
-    title: "Octave Anchors",
-    description: "Build confidence in each register using anchor notes.",
-    steps: [
-      step("mandra-ni", "Drop into Mandra Ni", "Ni", "Mandra", 2400, 76, "Relax the airstream and let the register fall naturally."),
-      step("madhya-sa-3", "Return to Madhya Sa", "Sa", "Madhya", 3000, 80, "Reset to center with a clean, stable attack."),
-      step("tara-pa", "Reach Tara Pa", "Pa", "Tara", 1800, 78, "Use focused air support, but do not force the sound."),
-    ],
-  },
-];
+export const foundationModules: LessonModule[] = curriculumTracks[0].modules.map(flattenModule);

@@ -7,6 +7,7 @@
     "build": "next build",
     "build:pages": "BASE_PATH=/bansuri-trainer next build",
     "start": "next start",
+    "debug:log-sink": "node scripts/debug-log-sink.mjs",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },

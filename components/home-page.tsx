@@ -178,7 +178,7 @@ export function HomePage() {
           </h2>
           <p className="section-copy" style={{ maxWidth: 720, margin: 0 }}>
             This first build focuses on the most important loop: detect a played note through the
-            mic, map it to Sa/Re/Ga/Ma/Pa/Da/Ni, classify octave, score sustain and stability,
+            mic, map it to Sa/Re/Ga/Ma/Pa/Dha/Ni, classify octave, score sustain and stability,
             then coach the learner forward.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
