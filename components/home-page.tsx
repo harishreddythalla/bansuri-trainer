@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { dailyPlan, learningTracks } from "@/data/course";
+import { FluteFinder } from "@/components/flute-finder";
 
 export function HomePage() {
   return (
@@ -75,6 +76,10 @@ export function HomePage() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="shell" style={{ paddingTop: 28 }}>
+        <FluteFinder />
       </section>
 
       <section className="shell" id="roadmap" style={{ paddingTop: 28 }}>

@@ -3,16 +3,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { foundationModules } from "@/data/lesson-plan";
 import {
+  defaultFluteProfile,
   detectPitch,
+  fluteProfileForSelection,
+  fluteRegisterOptions,
   resolveSwaraReading,
   scoreAttempt,
   swaraTargets,
   tonicOptions,
   targetFrequencyFor,
+  type FluteProfile,
+  type FluteRegister,
   type DetectedSwara,
   type SwaraTarget,
+  type TonicName,
 } from "@/lib/swara";
 import type { LessonStep } from "@/data/lesson-plan";
+import { FluteFinder, readStoredFluteProfile, storeFluteProfile } from "@/components/flute-finder";
 
 type TrendPoint = {
   score: number | null;
@@ -54,7 +61,8 @@ export function SwaraTrainer() {
   const [selectedStepId, setSelectedStepId] = useState<string>(firstStep?.id ?? "");
   const [completedStepIds, setCompletedStepIds] = useState<string[]>([]);
   const [target, setTarget] = useState<SwaraTarget>(firstStep?.target ?? { swara: "Sa", octave: "Madhya" });
-  const [tonic, setTonic] = useState<number>(261.63);
+  const [selectedTonic, setSelectedTonic] = useState<TonicName>(defaultFluteProfile.tonic);
+  const [selectedRegister, setSelectedRegister] = useState<FluteRegister>(defaultFluteProfile.register);
   const [controlsOpen, setControlsOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +109,10 @@ export function SwaraTrainer() {
   const selectedStep = useMemo(
     () => allLessonSteps.find((step) => step.id === selectedStepId) ?? firstStep,
     [selectedStepId],
+  );
+  const fluteProfile = useMemo(
+    () => fluteProfileForSelection(selectedTonic, selectedRegister),
+    [selectedRegister, selectedTonic],
   );
   const selectedStepRef = useRef<LessonStep | null>(selectedStep ?? null);
   const targetRef = useRef<SwaraTarget>(selectedStep?.target ?? target);
@@ -164,6 +176,12 @@ export function SwaraTrainer() {
   }, []);
 
   useEffect(() => {
+    const storedProfile = readStoredFluteProfile();
+    setSelectedTonic(storedProfile.tonic);
+    setSelectedRegister(storedProfile.register);
+  }, []);
+
+  useEffect(() => {
     if (selectedStep) {
       setTarget(selectedStep.target);
       resetLiveState();
@@ -177,6 +195,10 @@ export function SwaraTrainer() {
   useEffect(() => {
     targetRef.current = target;
   }, [target]);
+
+  useEffect(() => {
+    storeFluteProfile(fluteProfile);
+  }, [fluteProfile]);
 
   useEffect(() => {
     analysisRef.current = analysis;
@@ -292,7 +314,7 @@ export function SwaraTrainer() {
     const pitch = detectPitch(buffer, audioContext.sampleRate);
     const detected = resolveSwaraReading({
       frequency: pitch.frequency,
-      tonicFrequency: tonic,
+      tonicFrequency: fluteProfile.saFrequency,
       confidence: pitch.confidence,
       target: liveStep?.target,
       previous: previousReadingRef.current,
@@ -591,12 +613,12 @@ export function SwaraTrainer() {
     ? Math.round((completedStepIds.length / allLessonSteps.length) * 100)
     : 0;
   const selectedStepNumber = currentStepIndex >= 0 ? currentStepIndex + 1 : 0;
-  const currentTargetFrequency = targetFrequencyFor(target, tonic);
+  const currentTargetFrequency = targetFrequencyFor(target, fluteProfile.saFrequency);
   const currentCheckpointCleared = completedStepIds.includes(selectedStepId);
-  const tonicLabel = tonicOptions.find((option) => option.frequency === tonic)?.label ?? `${tonic.toFixed(1)} Hz`;
+  const tonicLabel = fluteProfile.tonicLabel;
   const swaraReference = swaraTargets.map((entry) => ({
     ...entry,
-    frequency: targetFrequencyFor(entry, tonic),
+    frequency: targetFrequencyFor(entry, fluteProfile.saFrequency),
   }));
 
   return (
@@ -625,8 +647,8 @@ export function SwaraTrainer() {
               Guided swara trainer
             </h1>
             <p className="section-copy" style={{ maxWidth: 840, marginBottom: 0 }}>
-              Choose a tonic, clear each guided checkpoint, and keep the feedback visible without
-              needing to scroll while playing.
+              Set the actual flute tonic and register first, then clear each guided checkpoint with
+              live pitch, octave, sustain, and tone feedback on one screen.
             </p>
           </div>
           <div className="pill">{analysis.status}</div>
@@ -652,6 +674,7 @@ export function SwaraTrainer() {
           >
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <span className="pill">Tonic {tonicLabel}</span>
+              <span className="pill">Register {fluteProfile.registerLabel}</span>
               <span className="pill">Step {selectedStepNumber || 1}</span>
               <span className="pill">Target {target.octave} {target.swara}</span>
               <span className="pill">{currentTargetFrequency.toFixed(1)} Hz</span>
@@ -684,9 +707,28 @@ export function SwaraTrainer() {
             >
               <label className="label">
                 Tonic / Sa
-                <select className="select" value={tonic} onChange={(event) => setTonic(Number(event.target.value))}>
+                <select
+                  className="select"
+                  value={selectedTonic}
+                  onChange={(event) => setSelectedTonic(event.target.value as TonicName)}
+                >
                   {tonicOptions.map((option) => (
-                    <option key={option.label} value={option.frequency}>
+                    <option key={option.tonic} value={option.tonic}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="label">
+                Flute register
+                <select
+                  className="select"
+                  value={selectedRegister}
+                  onChange={(event) => setSelectedRegister(event.target.value as FluteRegister)}
+                >
+                  {fluteRegisterOptions.map((option) => (
+                    <option key={option.register} value={option.register}>
                       {option.label}
                     </option>
                   ))}
@@ -722,6 +764,25 @@ export function SwaraTrainer() {
                 Reset path
               </button>
 
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: 16,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(255,255,255,0.03)",
+                  display: "grid",
+                  gap: 6,
+                }}
+              >
+                <div style={{ color: "var(--muted)", fontSize: 12 }}>Current flute</div>
+                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.03em" }}>
+                  {fluteProfile.tonicLabel} {fluteProfile.registerLabel}
+                </div>
+                <div style={{ color: "var(--muted)", fontSize: 13 }}>
+                  Sa baseline {fluteProfile.saFrequency.toFixed(1)} Hz
+                </div>
+              </div>
+
               {error ? (
                 <div
                   style={{
@@ -738,6 +799,17 @@ export function SwaraTrainer() {
                 </div>
               ) : null}
             </div>
+          ) : null}
+
+          {controlsOpen ? (
+            <FluteFinder
+              compact
+              title="Not sure which flute you have?"
+              onDetected={(profile: FluteProfile) => {
+                setSelectedTonic(profile.tonic);
+                setSelectedRegister(profile.register);
+              }}
+            />
           ) : null}
         </div>
 
@@ -1071,7 +1143,11 @@ export function SwaraTrainer() {
               </div>
             </div>
 
-            <SwaraReferencePanel tonicLabel={tonicLabel} rows={swaraReference} />
+            <SwaraReferencePanel
+              tonicLabel={tonicLabel}
+              registerLabel={fluteProfile.registerLabel}
+              rows={swaraReference}
+            />
           </aside>
         </div>
       </div>
@@ -1167,6 +1243,7 @@ function LiveStat(props: { label: string; value: string; tone: "center" | "high"
 
 function SwaraReferencePanel(props: {
   tonicLabel: string;
+  registerLabel: string;
   rows: Array<SwaraTarget & { frequency: number }>;
 }) {
   const grouped = ["Mandra", "Madhya", "Tara"].map((octave) => ({
@@ -1188,7 +1265,7 @@ function SwaraReferencePanel(props: {
           <div>
             <div className="pill">Swara reference</div>
             <div style={{ marginTop: 10, fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em" }}>
-              All 3 octaves for tonic {props.tonicLabel}
+              All 3 octaves for {props.tonicLabel} {props.registerLabel}
             </div>
           </div>
           <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>Open</span>

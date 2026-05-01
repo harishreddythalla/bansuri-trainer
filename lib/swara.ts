@@ -2,6 +2,8 @@ import { PitchDetector } from "pitchy";
 
 export type SwaraName = "Sa" | "Re" | "Ga" | "Ma" | "Pa" | "Da" | "Ni";
 export type OctaveName = "Mandra" | "Madhya" | "Tara";
+export type TonicName = "C" | "C#" | "D" | "D#" | "E" | "F" | "F#" | "G" | "G#" | "A" | "A#" | "B";
+export type FluteRegister = "Bass" | "Medium" | "Small";
 
 export type SwaraTarget = {
   swara: SwaraName;
@@ -20,6 +22,23 @@ export type PitchReading = {
   confidence: number;
 };
 
+export type FluteProfile = {
+  id: string;
+  tonic: TonicName;
+  tonicLabel: string;
+  register: FluteRegister;
+  registerLabel: string;
+  saFrequency: number;
+  saOctave: number;
+  description: string;
+};
+
+export type FluteMatch = {
+  profile: FluteProfile;
+  centsOffset: number;
+  frequency: number;
+};
+
 const swaraSteps = [
   { swara: "Sa", step: 0 },
   { swara: "Re", step: 2 },
@@ -30,16 +49,46 @@ const swaraSteps = [
   { swara: "Ni", step: 11 },
 ] as const;
 
-export const tonicOptions = [
-  { label: "C", frequency: 261.63 },
-  { label: "C♯ / D♭", frequency: 277.18 },
-  { label: "D", frequency: 293.66 },
-  { label: "D♯ / E♭", frequency: 311.13 },
-  { label: "E", frequency: 329.63 },
-  { label: "F", frequency: 349.23 },
-  { label: "F♯ / G♭", frequency: 369.99 },
-  { label: "G", frequency: 392.0 },
-] as const;
+const tonicDefinitions: Array<{ tonic: TonicName; label: string; semitone: number }> = [
+  { tonic: "C", label: "C", semitone: 0 },
+  { tonic: "C#", label: "C# / Db", semitone: 1 },
+  { tonic: "D", label: "D", semitone: 2 },
+  { tonic: "D#", label: "D# / Eb", semitone: 3 },
+  { tonic: "E", label: "E", semitone: 4 },
+  { tonic: "F", label: "F", semitone: 5 },
+  { tonic: "F#", label: "F# / Gb", semitone: 6 },
+  { tonic: "G", label: "G", semitone: 7 },
+  { tonic: "G#", label: "G# / Ab", semitone: 8 },
+  { tonic: "A", label: "A", semitone: 9 },
+  { tonic: "A#", label: "A# / Bb", semitone: 10 },
+  { tonic: "B", label: "B", semitone: 11 },
+];
+
+const registerDefinitions: Array<{ register: FluteRegister; label: string; saOctave: number; description: string }> = [
+  { register: "Bass", label: "Bass", saOctave: 4, description: "Long bansuri, lower Sa register" },
+  { register: "Medium", label: "Medium", saOctave: 5, description: "Common learner murali range" },
+  { register: "Small", label: "Small", saOctave: 6, description: "Short soprano / anup range" },
+];
+
+export const tonicOptions = tonicDefinitions.map(({ tonic, label }) => ({ tonic, label }));
+export const fluteRegisterOptions = registerDefinitions.map(({ register, label }) => ({ register, label }));
+export const fluteProfiles: FluteProfile[] = registerDefinitions.flatMap((registerDefinition) =>
+  tonicDefinitions.map((tonicDefinition) => {
+    const saFrequency = midiToFrequency(noteMidi(tonicDefinition.semitone, registerDefinition.saOctave));
+    return {
+      id: `${tonicDefinition.tonic}-${registerDefinition.register}`.toLowerCase(),
+      tonic: tonicDefinition.tonic,
+      tonicLabel: tonicDefinition.label,
+      register: registerDefinition.register,
+      registerLabel: registerDefinition.label,
+      saFrequency,
+      saOctave: registerDefinition.saOctave,
+      description: `${tonicDefinition.label} ${registerDefinition.label} · Sa ~ ${saFrequency.toFixed(1)} Hz`,
+    };
+  }),
+);
+
+export const defaultFluteProfile = fluteProfiles.find((profile) => profile.id === "c-medium") ?? fluteProfiles[0];
 
 export const swaraTargets: SwaraTarget[] = ["Mandra", "Madhya", "Tara"].flatMap((octave) =>
   swaraSteps.map(({ swara }) => ({
@@ -47,6 +96,10 @@ export const swaraTargets: SwaraTarget[] = ["Mandra", "Madhya", "Tara"].flatMap(
     octave: octave as OctaveName,
   })),
 );
+
+function noteMidi(semitone: number, octave: number) {
+  return 12 * (octave + 1) + semitone;
+}
 
 function frequencyToMidi(frequency: number) {
   return 69 + 12 * Math.log2(frequency / 440);
@@ -168,10 +221,10 @@ export function resolveSwaraReading(params: {
 
   const candidates = [
     { frequency, scalePenalty: 0 },
-    { frequency: frequency / 2, scalePenalty: 10 },
-    { frequency: frequency / 4, scalePenalty: 24 },
-    { frequency: frequency * 2, scalePenalty: 34 },
-    { frequency: frequency * 4, scalePenalty: 56 },
+    { frequency: frequency / 2, scalePenalty: 8 },
+    { frequency: frequency / 4, scalePenalty: 22 },
+    { frequency: frequency * 2, scalePenalty: 36 },
+    { frequency: frequency * 4, scalePenalty: 60 },
   ].filter((candidate) => Number.isFinite(candidate.frequency) && candidate.frequency > 0);
 
   let bestReading: DetectedSwara | null = null;
@@ -187,7 +240,8 @@ export function resolveSwaraReading(params: {
     let score = candidate.scalePenalty + Math.abs(reading.centsOffset) * 0.08;
 
     if (spectrum && sampleRate) {
-      score -= harmonicSupport(candidate.frequency, spectrum, sampleRate) * 0.22;
+      score -= harmonicSupport(candidate.frequency, spectrum, sampleRate) * 0.28;
+      score += overtonePenalty(candidate.frequency, spectrum, sampleRate) * 10;
     }
 
     if (target) {
@@ -196,9 +250,9 @@ export function resolveSwaraReading(params: {
       }
 
       if (reading.octave === target.octave) {
-        score -= 6;
+        score -= 8;
       } else {
-        score += 6;
+        score += 7;
       }
     }
 
@@ -218,6 +272,39 @@ export function resolveSwaraReading(params: {
   return bestReading;
 }
 
+export function detectClosestFluteProfile(frequency: number): FluteMatch | null {
+  if (!Number.isFinite(frequency) || frequency <= 0) {
+    return null;
+  }
+
+  let bestMatch: FluteMatch | null = null;
+
+  for (const profile of fluteProfiles) {
+    const centsOffset = centsBetween(frequency, profile.saFrequency);
+    if (!bestMatch || Math.abs(centsOffset) < Math.abs(bestMatch.centsOffset)) {
+      bestMatch = {
+        profile,
+        centsOffset,
+        frequency,
+      };
+    }
+  }
+
+  return bestMatch;
+}
+
+export function fluteProfileById(profileId: string | null | undefined) {
+  if (!profileId) {
+    return null;
+  }
+
+  return fluteProfiles.find((profile) => profile.id === profileId) ?? null;
+}
+
+export function fluteProfileForSelection(tonic: TonicName, register: FluteRegister) {
+  return fluteProfiles.find((profile) => profile.tonic === tonic && profile.register === register) ?? defaultFluteProfile;
+}
+
 function harmonicSupport(frequency: number, spectrum: Uint8Array, sampleRate: number) {
   if (!spectrum.length || !Number.isFinite(frequency) || frequency <= 0) {
     return 0;
@@ -226,9 +313,9 @@ function harmonicSupport(frequency: number, spectrum: Uint8Array, sampleRate: nu
   const binWidth = sampleRate / (spectrum.length * 2);
   const harmonics = [
     { multiplier: 1, weight: 1 },
-    { multiplier: 2, weight: 0.82 },
-    { multiplier: 3, weight: 0.58 },
-    { multiplier: 4, weight: 0.42 },
+    { multiplier: 2, weight: 0.8 },
+    { multiplier: 3, weight: 0.56 },
+    { multiplier: 4, weight: 0.38 },
   ];
 
   let support = 0;
@@ -245,6 +332,23 @@ function harmonicSupport(frequency: number, spectrum: Uint8Array, sampleRate: nu
   }
 
   return support / 255;
+}
+
+function overtonePenalty(frequency: number, spectrum: Uint8Array, sampleRate: number) {
+  if (!spectrum.length || !Number.isFinite(frequency) || frequency <= 0) {
+    return 0;
+  }
+
+  const binWidth = sampleRate / (spectrum.length * 2);
+  const fundamentalPeak = samplePeakAround(spectrum, Math.round(frequency / binWidth), 2);
+  const octavePeak = samplePeakAround(spectrum, Math.round((frequency * 2) / binWidth), 2);
+  const doubleOctavePeak = samplePeakAround(spectrum, Math.round((frequency * 4) / binWidth), 2);
+
+  if (fundamentalPeak <= 0) {
+    return 0;
+  }
+
+  return Math.max(0, (octavePeak * 0.65 + doubleOctavePeak * 0.35 - fundamentalPeak) / 255);
 }
 
 function samplePeakAround(spectrum: Uint8Array, center: number, radius: number) {
