@@ -16,6 +16,7 @@ const DETECT_HOLD_MS = 2200;
 const TOLERANCE_CENTS = 45;
 
 export const FLUTE_PROFILE_STORAGE_KEY = "bansuri.selectedFluteProfileId";
+const canUsePersistentStorage = process.env.NODE_ENV === "production";
 
 type FinderState = {
   status: string;
@@ -29,6 +30,10 @@ type FinderState = {
 };
 
 export function readStoredFluteProfile() {
+  if (!canUsePersistentStorage) {
+    return defaultFluteProfile;
+  }
+
   try {
     if (typeof window === "undefined") {
       return defaultFluteProfile;
@@ -46,6 +51,10 @@ export function readStoredFluteProfile() {
 }
 
 export function storeFluteProfile(profile: FluteProfile) {
+  if (!canUsePersistentStorage) {
+    return;
+  }
+
   try {
     if (typeof window === "undefined") {
       return;

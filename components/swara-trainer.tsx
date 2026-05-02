@@ -174,7 +174,7 @@ type PitchDifficultyConfig = {
 const allLessonSteps = foundationModules.flatMap((module) => module.steps);
 const firstStep = allLessonSteps[0];
 const FALLBACK_TARGET: SwaraTarget = { swara: "Sa", octave: "Madhya" };
-const UI_REFRESH_MS = 160;
+const UI_REFRESH_MS = 40;
 const SILENCE_HOLD_MS = 320;
 const NOTE_LOCK_MS = 320;
 const SEQUENCE_NOTE_LOCK_MS = 150;
@@ -194,6 +194,7 @@ const PITCH_DIFFICULTY_STORAGE_KEY = "bansuri.pitchDifficulty";
 const DEBUG_LOG_LIMIT = 900;
 const DEBUG_LOG_SINK_URL = "http://127.0.0.1:4010/log";
 const SEQUENCE_MIN_PRACTICE_SCORE = 72;
+const canUsePersistentStorage = process.env.NODE_ENV === "production";
 
 const pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; description: string }> = [
   { value: "easy", label: "Easy", description: "Wider pitch band" },
@@ -202,6 +203,10 @@ const pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; des
 ];
 
 function readStoredPitchDifficulty(): PitchDifficulty {
+  if (!canUsePersistentStorage) {
+    return "medium";
+  }
+
   try {
     if (typeof window === "undefined") {
       return "medium";
@@ -220,6 +225,10 @@ function readStoredPitchDifficulty(): PitchDifficulty {
 }
 
 function storePitchDifficulty(value: PitchDifficulty) {
+  if (!canUsePersistentStorage) {
+    return;
+  }
+
   try {
     if (typeof window === "undefined") {
       return;
@@ -270,6 +279,10 @@ function pitchDifficultyConfig(difficulty: PitchDifficulty): PitchDifficultyConf
 }
 
 function readStoredDebugLog() {
+  if (!canUsePersistentStorage) {
+    return [] as DebugLogEntry[];
+  }
+
   try {
     if (typeof window === "undefined") {
       return [] as DebugLogEntry[];
@@ -293,6 +306,10 @@ function readStoredDebugLog() {
 }
 
 function writeStoredDebugLog(entries: DebugLogEntry[]) {
+  if (!canUsePersistentStorage) {
+    return;
+  }
+
   try {
     if (typeof window === "undefined") {
       return;
@@ -576,6 +593,7 @@ export function SwaraTrainer() {
   const [selectedTonic, setSelectedTonic] = useState<TonicName>(defaultFluteProfile.tonic);
   const [selectedRegister, setSelectedRegister] = useState<FluteRegister>(defaultFluteProfile.register);
   const [pitchDifficulty, setPitchDifficulty] = useState<PitchDifficulty>("medium");
+  const [pitchFullscreen, setPitchFullscreen] = useState(false);
   const [controlsOpen, setControlsOpen] = useState(false);
   const [leftRailOpen, setLeftRailOpen] = useState(false);
   const [running, setRunning] = useState(false);
@@ -629,6 +647,8 @@ export function SwaraTrainer() {
   const sequenceLiveScoreRef = useRef<number | null>(null);
   const debugLogRef = useRef<DebugLogEntry[]>([]);
   const debugSessionIdRef = useRef(`session-${Date.now()}`);
+  const pitchFullscreenRef = useRef<HTMLDivElement | null>(null);
+  const autoStartAttemptedRef = useRef(false);
   const lastDebugNoteKeyRef = useRef<string | null>(null);
   const lastDebugStepRef = useRef<string>("");
   const checkpointNoticeTimerRef = useRef<number | null>(null);
@@ -739,6 +759,15 @@ export function SwaraTrainer() {
   }, []);
 
   useEffect(() => {
+    if (autoStartAttemptedRef.current) {
+      return;
+    }
+
+    autoStartAttemptedRef.current = true;
+    void startAnalysis();
+  }, []);
+
+  useEffect(() => {
     if (selectedStep) {
       resetLiveState(selectedStep);
     }
@@ -764,6 +793,36 @@ export function SwaraTrainer() {
   useEffect(() => {
     storePitchDifficulty(pitchDifficulty);
   }, [pitchDifficulty]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    if (pitchFullscreen) {
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [pitchFullscreen]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const handleFullscreenChange = () => {
+      setPitchFullscreen(document.fullscreenElement === pitchFullscreenRef.current);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   useEffect(() => {
     analysisRef.current = analysis;
@@ -1058,6 +1117,29 @@ export function SwaraTrainer() {
       status: "Waiting to start microphone analysis.",
       trend: [],
     });
+  }
+
+  async function togglePitchFullscreen(force?: boolean) {
+    const nextValue = force ?? !pitchFullscreen;
+
+    if (nextValue) {
+      try {
+        await pitchFullscreenRef.current?.requestFullscreen?.();
+      } catch {
+        // best-effort browser fullscreen
+      }
+      setPitchFullscreen(true);
+      return;
+    }
+
+    try {
+      if (typeof document !== "undefined" && document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      // best-effort browser fullscreen
+    }
+    setPitchFullscreen(false);
   }
 
   function tick() {
@@ -2034,12 +2116,6 @@ export function SwaraTrainer() {
             </div>
 
             <div className="trainer-setup-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <button className="button button-primary" onClick={() => void startAnalysis()} disabled={running}>
-                Start mic
-              </button>
-              <button className="button button-secondary" onClick={stopAnalysis} disabled={!running}>
-                Stop
-              </button>
               <button className="button button-primary" onClick={markStepComplete} disabled={!masteryReady}>
                 Clear checkpoint
               </button>
@@ -2588,81 +2664,192 @@ export function SwaraTrainer() {
 
               <div
                 className="trainer-pitch-card glass"
-                style={{
-                  borderRadius: 24,
-                  padding: 14,
-                  background: "rgba(255,255,255,0.04)",
-                  display: "grid",
-                  gap: 12,
-                }}
+                ref={pitchFullscreenRef}
+                style={
+                  pitchFullscreen
+                    ? {
+                        position: "fixed",
+                        inset: 0,
+                        zIndex: 80,
+                        borderRadius: 0,
+                        padding: 16,
+                        background: "rgba(8,16,28,0.96)",
+                        display: "grid",
+                        gap: 14,
+                        overflow: "auto",
+                        boxShadow: "0 32px 120px rgba(0,0,0,0.5)",
+                      }
+                    : {
+                        borderRadius: 24,
+                        padding: 14,
+                        background: "rgba(255,255,255,0.04)",
+                        display: "grid",
+                        gap: 12,
+                      }
+                }
               >
-                <div className="trainer-pitch-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.45fr) minmax(280px, 0.75fr)", gap: 12, alignItems: "stretch" }}>
-                  <div className="trainer-signal-column" style={{ display: "grid", gap: 12, minHeight: 330 }}>
-                    <SignalTrace
-                      className="trainer-signal-trace"
-                      points={analysis.trend}
-                      detected={analysis.detected}
-                      target={checkpointFocus.target}
-                      pitchToleranceCents={pitchZoneCents}
-                      pitchReleaseCents={pitchReleaseCents}
-                      height={182}
-                      pitchDifficulty={pitchDifficulty}
-                      pitchDifficultyOptions={pitchDifficultyOptions}
-                      onPitchDifficultyChange={setPitchDifficulty}
+                {pitchFullscreen ? (
+                  <>
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        position: "fixed",
+                        inset: 0,
+                        background: "rgba(2,6,12,0.34)",
+                        zIndex: 79,
+                      }}
+                      onClick={() => setPitchFullscreen(false)}
                     />
-                  </div>
+                    <div style={{ display: "grid", gap: 14, alignItems: "stretch", position: "relative", zIndex: 80 }}>
+                      <div className="trainer-signal-column" style={{ display: "grid", gap: 12, minHeight: 0 }}>
+                        <SignalTrace
+                          className="trainer-signal-trace"
+                          points={analysis.trend}
+                          detected={analysis.detected}
+                          target={checkpointFocus.target}
+                          pitchToleranceCents={pitchZoneCents}
+                          pitchReleaseCents={pitchReleaseCents}
+                          height={420}
+                          fullscreen
+                          running={running}
+                          pitchDifficulty={pitchDifficulty}
+                          pitchDifficultyOptions={pitchDifficultyOptions}
+                          onPitchDifficultyChange={setPitchDifficulty}
+                          onToggleFullscreen={() => void togglePitchFullscreen(false)}
+                          onToggleMic={() => (running ? stopAnalysis() : void startAnalysis())}
+                        />
+                      </div>
 
-                  <div
-                    className="trainer-metric-grid"
-                    style={{
-                      display: "grid",
-                      gap: 10,
-                      alignContent: "start",
-                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                    }}
-                  >
-                    <MetricCard
-                      label="Stability"
-                      value={analysis.stability != null ? `${Math.round(analysis.stability)}` : null}
-                      subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "—"}
-                      hint="Less wobble is better"
-                      trend={analysis.trend}
-                      sparkMetric="stability"
-                      range={[0, 100]}
-                      sparkMode="high"
-                    />
-                    <MetricCard
-                      label="Voicing"
-                      value={analysis.confidence != null ? `${Math.round((analysis.confidence ?? 0) * 100)}%` : null}
-                      subvalue={analysis.detected ? describeConfidence(analysis.confidence ?? 0) : "—"}
-                      hint="Tone clarity"
-                      trend={analysis.trend}
-                      sparkMetric="confidence"
-                      range={[0, 100]}
-                      sparkMode="high"
-                    />
-                    <MetricCard
-                      label="Noise"
-                      value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : null}
-                      subvalue={analysis.detected ? "Lower is cleaner" : "—"}
-                      hint="Air / finger leak noise"
-                      trend={analysis.trend}
-                      sparkMetric="noise"
-                      range={[0, 100]}
-                      sparkMode="low"
-                    />
-                    <MetricCard
-                      label="Input Energy"
-                      value={analysis.energy != null ? `${Math.round(analysis.energy)}` : null}
-                      subvalue={analysis.detected ? describeEnergy(analysis.energy ?? 0) : "—"}
-                      hint="Blow strength"
-                      trend={analysis.trend}
-                      sparkMetric="energy"
-                      range={[0, 100]}
-                      sparkMode="high"
-                    />
+                      <div
+                        className="trainer-metric-grid"
+                        style={{
+                          display: "grid",
+                          gap: 10,
+                          alignContent: "start",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                        }}
+                      >
+                        <LiveStat
+                          label="Current note"
+                          value={analysis.detected ? `${analysis.detected.octave} ${analysis.detected.swara}` : "—"}
+                          detail={
+                            analysis.detected
+                              ? `${analysis.rawFrequency != null ? `${analysis.rawFrequency.toFixed(1)} Hz` : "Raw pitch"} · ${signedCents(analysis.centsOffset ?? 0)}¢`
+                              : "Waiting for stable tone"
+                          }
+                          background={
+                            analysis.detected
+                              ? detectedIsCorrect
+                                ? "linear-gradient(180deg, rgba(103,240,202,0.24), rgba(103,240,202,0.08))"
+                                : "linear-gradient(180deg, rgba(255,99,99,0.22), rgba(255,99,99,0.08))"
+                              : "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(117,184,255,0.05))"
+                          }
+                        />
+                        <MetricCard
+                          label="Stability"
+                          value={analysis.stability != null ? `${Math.round(analysis.stability)}` : null}
+                          subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "—"}
+                          hint="Less wobble is better"
+                          trend={analysis.trend}
+                          sparkMetric="stability"
+                          range={[0, 100]}
+                          sparkMode="high"
+                        />
+                        <MetricCard
+                          label="Noise"
+                          value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : null}
+                          subvalue={analysis.detected ? "Lower is cleaner" : "—"}
+                          hint="Air / finger leak noise"
+                          trend={analysis.trend}
+                          sparkMetric="noise"
+                          range={[0, 100]}
+                          sparkMode="low"
+                        />
+                        <MiniProgressPanel
+                          label="Current hold"
+                          value={analysis.sustainMs != null ? `${(analysis.sustainMs / 1000).toFixed(1)}s` : "—"}
+                          caption={`Counts after ${(Math.max(checkpointFocus.sustainTargetMs, PRACTICE_HOLD_FLOOR_MS) / 1000).toFixed(1)}s`}
+                          progress={sustainProgress * 100}
+                          target={checkpointFocus.sustainTargetMs}
+                          active={Boolean(analysis.detected)}
+                          mode="sustain"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="trainer-pitch-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.45fr) minmax(280px, 0.75fr)", gap: 12, alignItems: "stretch" }}>
+                    <div className="trainer-signal-column" style={{ display: "grid", gap: 12, minHeight: 330 }}>
+                      <SignalTrace
+                        className="trainer-signal-trace"
+                        points={analysis.trend}
+                        detected={analysis.detected}
+                        target={checkpointFocus.target}
+                        pitchToleranceCents={pitchZoneCents}
+                        pitchReleaseCents={pitchReleaseCents}
+                        height={182}
+                        fullscreen={false}
+                        running={running}
+                        pitchDifficulty={pitchDifficulty}
+                        pitchDifficultyOptions={pitchDifficultyOptions}
+                        onPitchDifficultyChange={setPitchDifficulty}
+                        onToggleFullscreen={() => void togglePitchFullscreen(true)}
+                        onToggleMic={() => (running ? stopAnalysis() : void startAnalysis())}
+                      />
+                    </div>
+
+                    <div
+                      className="trainer-metric-grid"
+                      style={{
+                        display: "grid",
+                        gap: 10,
+                        alignContent: "start",
+                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                      }}
+                    >
+                      <MetricCard
+                        label="Stability"
+                        value={analysis.stability != null ? `${Math.round(analysis.stability)}` : null}
+                        subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "—"}
+                        hint="Less wobble is better"
+                        trend={analysis.trend}
+                        sparkMetric="stability"
+                        range={[0, 100]}
+                        sparkMode="high"
+                      />
+                      <MetricCard
+                        label="Voicing"
+                        value={analysis.confidence != null ? `${Math.round((analysis.confidence ?? 0) * 100)}%` : null}
+                        subvalue={analysis.detected ? describeConfidence(analysis.confidence ?? 0) : "—"}
+                        hint="Tone clarity"
+                        trend={analysis.trend}
+                        sparkMetric="confidence"
+                        range={[0, 100]}
+                        sparkMode="high"
+                      />
+                      <MetricCard
+                        label="Noise"
+                        value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : null}
+                        subvalue={analysis.detected ? "Lower is cleaner" : "—"}
+                        hint="Air / finger leak noise"
+                        trend={analysis.trend}
+                        sparkMetric="noise"
+                        range={[0, 100]}
+                        sparkMode="low"
+                      />
+                      <MetricCard
+                        label="Input Energy"
+                        value={analysis.energy != null ? `${Math.round(analysis.energy)}` : null}
+                        subvalue={analysis.detected ? describeEnergy(analysis.energy ?? 0) : "—"}
+                        hint="Blow strength"
+                        trend={analysis.trend}
+                        sparkMetric="energy"
+                        range={[0, 100]}
+                        sparkMode="high"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
             </div>
@@ -3455,12 +3642,16 @@ function SignalTrace(props: {
   pitchToleranceCents: number;
   pitchReleaseCents: number;
   height?: number;
+  fullscreen: boolean;
+  running: boolean;
   pitchDifficulty: PitchDifficulty;
   pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; description: string }>;
   onPitchDifficultyChange: (value: PitchDifficulty) => void;
+  onToggleFullscreen: () => void;
+  onToggleMic: () => void;
 }) {
-  const width = 860;
-  const height = props.height ?? 132;
+  const width = props.fullscreen ? 1440 : 860;
+  const height = props.height ?? (props.fullscreen ? 420 : 132);
   const [segmentationEnabled, setSegmentationEnabled] = useState(true);
   const minCents = -60;
   const maxCents = 60;
@@ -3468,6 +3659,8 @@ function SignalTrace(props: {
   const leftPad = 12;
   const points = filterTrendWindow(props.points);
   const latestTimestamp = points.at(-1)?.timestamp ?? Date.now();
+  const traceSilenceGapMs = 2000;
+  const traceResampleStepPx = props.fullscreen ? 2.4 : 3.4;
   const centsToY = (cents: number) => height - 24 - clamp((cents - minCents) / (maxCents - minCents), 0, 1) * (height - 48);
   const highReleaseY = centsToY(props.pitchReleaseCents);
   const highLockY = centsToY(props.pitchToleranceCents);
@@ -3475,14 +3668,20 @@ function SignalTrace(props: {
   const lowReleaseY = centsToY(-props.pitchReleaseCents);
   const centerY = centsToY(0);
 
-  // Build enriched curve points with swara info
-  const curvePoints = points
+  const tracePoints = points
     .map((point) => {
       if (point.centsOffset == null) return null;
       const x = leftPad + clamp(1 - (latestTimestamp - point.timestamp) / TREND_WINDOW_MS, 0, 1) * usableWidth;
       const normalized = clamp((point.centsOffset - minCents) / (maxCents - minCents), 0, 1);
       const y = height - 24 - normalized * (height - 48);
-      return { x, y, active: point.active, swara: point.swara, octave: point.octave, timestamp: point.timestamp };
+      return {
+        x,
+        y,
+        active: point.active,
+        swara: point.swara,
+        octave: point.octave,
+        timestamp: point.timestamp,
+      };
     })
     .filter(Boolean) as Array<{
     x: number;
@@ -3497,27 +3696,41 @@ function SignalTrace(props: {
     points: Array<{ x: number; y: number }>;
     swara: string | null;
     octave: string | null;
+    startTime: number;
+    endTime: number;
   };
   const segments: Segment[] = [];
-  const activeCurvePoints = curvePoints.filter((pt) => pt.active && pt.swara);
-  const segmentGapMs = 720;
-  let previousSegmentTimestamp = 0;
-  for (let i = 0; i < activeCurvePoints.length; i++) {
-    const pt = activeCurvePoints[i];
-    const prev = segments[segments.length - 1];
-    if (
-      prev &&
-      prev.swara === pt.swara &&
-      prev.octave === pt.octave &&
-      pt.timestamp - previousSegmentTimestamp <= segmentGapMs
-    ) {
-      prev.points.push({ x: pt.x, y: pt.y });
-    } else {
-      // Carry over last point from previous segment for continuity
-      const carry = prev ? [prev.points[prev.points.length - 1]] : [];
-      segments.push({ points: [...carry, { x: pt.x, y: pt.y }], swara: pt.swara, octave: pt.octave });
+  let currentSegment: Segment | null = null;
+  let previousActiveTimestamp: number | null = null;
+  for (const pt of tracePoints) {
+    if (!pt.active || pt.swara == null) {
+      currentSegment = null;
+      previousActiveTimestamp = null;
+      continue;
     }
-    previousSegmentTimestamp = pt.timestamp;
+
+    const shouldStartNewSegment =
+      currentSegment == null ||
+      currentSegment.swara !== pt.swara ||
+      currentSegment.octave !== pt.octave ||
+      (previousActiveTimestamp != null && pt.timestamp - previousActiveTimestamp > traceSilenceGapMs);
+
+    if (shouldStartNewSegment) {
+      const nextSegment: Segment = {
+        points: [{ x: pt.x, y: pt.y }],
+        swara: pt.swara,
+        octave: pt.octave,
+        startTime: pt.timestamp,
+        endTime: pt.timestamp,
+      };
+      segments.push(nextSegment);
+      currentSegment = nextSegment;
+    } else {
+      currentSegment!.points.push({ x: pt.x, y: pt.y });
+      currentSegment!.endTime = pt.timestamp;
+    }
+
+    previousActiveTimestamp = pt.timestamp;
   }
 
   const latest = [...points].reverse().find((point) => point.centsOffset != null);
@@ -3534,8 +3747,10 @@ function SignalTrace(props: {
   };
 
   const noteBands: NoteBand[] = [];
-  const sectionGapMs = 420;
-  const minBandDurationMs = 160;
+  const sectionGapMs = props.fullscreen ? 280 : 420;
+  const minBandDurationMs = props.fullscreen ? 70 : 160;
+
+  const activeCurvePoints = tracePoints.filter((pt) => pt.active && pt.swara);
 
   for (const pt of activeCurvePoints) {
     const swara = pt.swara ?? "Sa";
@@ -3598,6 +3813,52 @@ function SignalTrace(props: {
       <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <div className="pill" style={{ width: "fit-content" }}>Pitch tracker</div>
+          <button
+            type="button"
+            className="button"
+            aria-label={props.running ? "Mute microphone analysis" : "Unmute microphone analysis"}
+            title={props.running ? "Mute microphone analysis" : "Unmute microphone analysis"}
+            onClick={props.onToggleMic}
+            style={{
+              width: 28,
+              height: 28,
+              minWidth: 28,
+              minHeight: 28,
+              padding: 0,
+              borderRadius: 10,
+              display: "grid",
+              placeItems: "center",
+              border: props.running ? "1px solid rgba(103,240,202,0.34)" : "1px solid rgba(255,255,255,0.08)",
+              background: props.running
+                ? "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(103,240,202,0.06))"
+                : "rgba(255,255,255,0.04)",
+              color: props.running ? "rgba(219,255,247,0.98)" : "var(--muted)",
+            }}
+          >
+            <MicToggleIcon active={props.running} />
+          </button>
+          <button
+            type="button"
+            className="button"
+            aria-label={props.fullscreen ? "Exit fullscreen pitch view" : "Enter fullscreen pitch view"}
+            title={props.fullscreen ? "Exit fullscreen pitch view" : "Enter fullscreen pitch view"}
+            onClick={props.onToggleFullscreen}
+            style={{
+              width: 28,
+              height: 28,
+              minWidth: 28,
+              minHeight: 28,
+              padding: 0,
+              borderRadius: 10,
+              display: "grid",
+              placeItems: "center",
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.04)",
+              color: "var(--muted)",
+            }}
+          >
+            <FullscreenToggleIcon active={props.fullscreen} />
+          </button>
           <button
             type="button"
             className="button"
@@ -3676,48 +3937,46 @@ function SignalTrace(props: {
         </div>
       </div>
 
-      {segmentationEnabled ? (
-        <div
-          aria-hidden="true"
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            alignItems: "center",
-            marginTop: -2,
-            color: "rgba(255,255,255,0.62)",
-            fontSize: 10,
-          }}
-        >
-          <span style={{ opacity: 0.7 }}>Segmentation</span>
-          {noteLegend.map((note) => (
+      <div
+        aria-hidden="true"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          alignItems: "center",
+          marginTop: -2,
+          color: "rgba(255,255,255,0.62)",
+          fontSize: 10,
+        }}
+      >
+        <span style={{ opacity: 0.7 }}>Segmentation</span>
+        {noteLegend.map((note) => (
+          <span
+            key={note.swara}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              padding: "2px 6px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              lineHeight: 1,
+            }}
+          >
             <span
-              key={note.swara}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "2px 6px",
+                width: 6,
+                height: 6,
                 borderRadius: 999,
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                lineHeight: 1,
+                background: note.color.stroke,
+                boxShadow: `0 0 0 1px ${note.color.band}`,
               }}
-            >
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: 999,
-                  background: note.color.stroke,
-                  boxShadow: `0 0 0 1px ${note.color.band}`,
-                }}
-              />
-              {note.swara}
-            </span>
-          ))}
-        </div>
-      ) : null}
+            />
+            {note.swara}
+          </span>
+        ))}
+      </div>
 
       <div
         style={{
@@ -3739,7 +3998,7 @@ function SignalTrace(props: {
           {segmentationEnabled
             ? visibleNoteBands.map((band, index) => {
                 const bandWidth = Math.max(0, band.endX - band.startX);
-                const shouldLabel = bandWidth >= 36;
+                const shouldLabel = props.fullscreen || bandWidth >= 36;
                 const labelX = clamp(band.startX + 8, 16, width - 18);
                 return (
                   <g key={`${band.key}-${index}`}>
@@ -3752,7 +4011,7 @@ function SignalTrace(props: {
                       fill={band.color.band}
                       stroke={band.color.stroke}
                       strokeWidth={0.9}
-                      opacity={0.42}
+                      opacity={props.fullscreen ? 0.52 : 0.42}
                     />
                     {shouldLabel ? (
                       <text
@@ -3785,7 +4044,7 @@ function SignalTrace(props: {
           {segments.map((seg, si) => {
             if (seg.points.length < 2) return null;
             const color = seg.swara ? noteVisual(seg.swara, seg.octave).stroke : "rgba(103,240,202,0.7)";
-            const d = buildSmoothPolyline(seg.points.map((p) => ({ ...p, active: true })));
+            const d = buildSmoothPolyline(densifyTracePoints(seg.points, traceResampleStepPx).map((p) => ({ ...p, active: true })));
             return (
               <path
                 key={`seg-${si}`}
@@ -3796,12 +4055,13 @@ function SignalTrace(props: {
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 opacity={0.88}
+                shapeRendering="geometricPrecision"
               />
             );
           })}
 
           {!segmentationEnabled
-            ? curvePoints.map((point, index) => {
+            ? tracePoints.map((point, index) => {
                 if (!point.active || point.swara == null) return null;
                 const visual = noteVisual(point.swara, point.octave);
                 return (
@@ -3835,6 +4095,76 @@ function SignalTrace(props: {
         </svg>
       </div>
     </article>
+  );
+}
+
+function FullscreenToggleIcon({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+        <path
+          d="M4 1H1v3M10 1h3v3M13 10v3h-3M1 10v3h3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path
+        d="M4 1H1v3M10 1h3v3M13 10v3h-3M1 10v3h3M5 5l4 4M5 9h4V5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function MicToggleIcon({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+        <path
+          d="M7 8.8V12M4.2 6.6V7a2.8 2.8 0 0 0 5.6 0v-.4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.35"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <rect x="5" y="1.8" width="4" height="6.2" rx="2" fill="currentColor" />
+        <path
+          d="M3.3 7a3.7 3.7 0 0 0 7.4 0"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.25"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path
+        d="M7 8.8V12M4.2 6.6V7a2.8 2.8 0 0 0 5.6 0v-.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <rect x="5" y="1.8" width="4" height="6.2" rx="2" fill="currentColor" opacity="0.42" />
+      <path d="M2 2l10 10" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -3890,6 +4220,33 @@ function buildSmoothPolyline(points: Array<{ x: number; y: number; active: boole
   }
 
   return path;
+}
+
+function densifyTracePoints(points: Array<{ x: number; y: number }>, stepPx: number) {
+  if (points.length < 3) {
+    return points;
+  }
+
+  const densePoints: Array<{ x: number; y: number }> = [points[0]];
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    const distance = Math.max(1, Math.hypot(next.x - current.x, next.y - current.y));
+    const steps = Math.max(1, Math.ceil(distance / stepPx));
+
+    for (let step = 1; step < steps; step += 1) {
+      const progress = step / steps;
+      densePoints.push({
+        x: lerp(current.x, next.x, progress),
+        y: lerp(current.y, next.y, progress),
+      });
+    }
+
+    densePoints.push(next);
+  }
+
+  return densePoints;
 }
 
 function filterTrendWindow(points: TrendPoint[]) {
