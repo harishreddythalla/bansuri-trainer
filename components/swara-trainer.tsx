@@ -70,6 +70,15 @@ type SequenceCarryoverBlock = {
   repeatIndex: number;
 };
 
+type SequenceRearticulationGate = {
+  checkpointId: string;
+  stepIndex: number;
+  repeatIndex: number;
+  targetKey: string;
+  openedAt: number;
+  releaseSeenAt: number | null;
+};
+
 type CheckpointFocus = {
   target: SwaraTarget;
   sustainTargetMs: number;
@@ -133,6 +142,33 @@ type SequenceRunResult = {
   detail?: string;
 };
 
+type ClearedCheckpointState = {
+  stepId: string;
+  stepTitle: string;
+  nextStepId: string | null;
+  nextStepTitle: string | null;
+  source: "manual" | "auto";
+};
+
+type SequenceLoopHistoryEntry = {
+  repeatIndex: number;
+  kind: "success" | "failure";
+  score: number | null;
+  message: string;
+  stepScores: Array<number | null>;
+};
+
+type PitchDifficulty = "easy" | "medium" | "hard";
+
+type PitchDifficultyConfig = {
+  label: string;
+  description: string;
+  noteToleranceCents: number;
+  releaseToleranceCents: number;
+  sequenceToleranceCents: number;
+  scoreToleranceCents: number;
+};
+
 const allLessonSteps = foundationModules.flatMap((module) => module.steps);
 const firstStep = allLessonSteps[0];
 const FALLBACK_TARGET: SwaraTarget = { swara: "Sa", octave: "Madhya" };
@@ -141,21 +177,83 @@ const SILENCE_HOLD_MS = 320;
 const NOTE_LOCK_MS = 320;
 const SEQUENCE_NOTE_LOCK_MS = 150;
 const SEQUENCE_RELEASE_GRACE_MS = 380;
-const SEQUENCE_MIN_HIT_MS = 140;
+const PRACTICE_HOLD_FLOOR_MS = 2400;
 const SEQUENCE_BETWEEN_NOTES_TIMEOUT_MS = 1400;
 const SEQUENCE_HANDOFF_GRACE_MS = 650;
+const SEQUENCE_REARTICULATION_RELEASE_MS = 120;
 const AUTO_CLEAR_HOLD_MS = 140;
-const TARGET_ZONE_CENTS = 20;
-const TARGET_RELEASE_CENTS = 28;
 const TARGET_HOLD_GRACE_MS = 220;
 const ACTIVE_CONFIDENCE = 0.45;
 const ACTIVE_ENERGY = 0.012;
 const TREND_WINDOW_MS = 30000;
 const TREND_SAMPLE_MS = 40;
 const DEBUG_LOG_STORAGE_KEY = "bansuri.trainerDebugLog";
+const PITCH_DIFFICULTY_STORAGE_KEY = "bansuri.pitchDifficulty";
 const DEBUG_LOG_LIMIT = 900;
 const DEBUG_LOG_SINK_URL = "http://127.0.0.1:4010/log";
 const SEQUENCE_MIN_PRACTICE_SCORE = 72;
+
+const pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; description: string }> = [
+  { value: "easy", label: "Easy", description: "Wider pitch band" },
+  { value: "medium", label: "Medium", description: "Balanced trainer mode" },
+  { value: "hard", label: "Hard", description: "Tighter pitch band" },
+];
+
+function readStoredPitchDifficulty(): PitchDifficulty {
+  if (
+    typeof window === "undefined" ||
+    typeof window.localStorage?.getItem !== "function"
+  ) {
+    return "medium";
+  }
+
+  const stored = window.localStorage.getItem(PITCH_DIFFICULTY_STORAGE_KEY);
+  return stored === "easy" || stored === "medium" || stored === "hard" ? stored : "medium";
+}
+
+function storePitchDifficulty(value: PitchDifficulty) {
+  if (
+    typeof window === "undefined" ||
+    typeof window.localStorage?.setItem !== "function"
+  ) {
+    return;
+  }
+
+  window.localStorage.setItem(PITCH_DIFFICULTY_STORAGE_KEY, value);
+}
+
+function pitchDifficultyConfig(difficulty: PitchDifficulty): PitchDifficultyConfig {
+  switch (difficulty) {
+    case "easy":
+      return {
+        label: "Easy",
+        description: "Forgiving pitch band for practice",
+        noteToleranceCents: 40,
+        releaseToleranceCents: 56,
+        sequenceToleranceCents: 72,
+        scoreToleranceCents: 40,
+      };
+    case "hard":
+      return {
+        label: "Hard",
+        description: "Tighter pitch band for precision",
+        noteToleranceCents: 12,
+        releaseToleranceCents: 18,
+        sequenceToleranceCents: 48,
+        scoreToleranceCents: 12,
+      };
+    case "medium":
+    default:
+      return {
+        label: "Medium",
+        description: "Balanced pitch band",
+        noteToleranceCents: 20,
+        releaseToleranceCents: 28,
+        sequenceToleranceCents: 60,
+        scoreToleranceCents: 20,
+      };
+  }
+}
 
 function readStoredDebugLog() {
   if (
@@ -245,23 +343,55 @@ function averageScore(values: number[]) {
   return Math.round(total / values.length);
 }
 
-function describeSequenceRecord(record: SequenceStepRecord) {
+function buildLoopHistoryEntry(params: {
+  repeatIndex: number;
+  kind: "success" | "failure";
+  message: string;
+  records: SequenceStepRecord[];
+  totalSteps: number;
+}): SequenceLoopHistoryEntry {
+  return {
+    repeatIndex: params.repeatIndex,
+    kind: params.kind,
+    score: averageScore(params.records.map((record) => record.score)),
+    message: params.message,
+    stepScores: Array.from({ length: params.totalSteps }, (_, index) => {
+      const record = params.records.find((entry) => entry.stepIndex === index && entry.repeatIndex === params.repeatIndex) ?? null;
+      return record?.score ?? null;
+    }),
+  };
+}
+
+function noteKeyForTarget(target: SwaraTarget) {
+  return `${target.swara}-${target.octave}`;
+}
+
+function describeSequenceRecord(record: SequenceStepRecord, pitchToleranceCents: number, ragaGrammar: boolean) {
   if (!record.detected) {
     return `No stable ${formatTargetLabel(record.target)} landed`;
   }
 
-  const scoreSummary = scoreAttempt({
+  const scoreSummary = scoreSequenceStepAttempt({
     target: record.target,
     detected: record.detected,
     sustainMs: Math.round(record.holdMs ?? 0),
     stability: 0,
     noise: 0,
+    pitchToleranceCents,
+    sustainNormalizationMs: 650,
+    ragaGrammar,
   }).summary;
 
   return scoreSummary;
 }
 
-function summarizeSequenceFailure(records: SequenceStepRecord[], target: SwaraTarget, reason: string) {
+function summarizeSequenceFailure(
+  records: SequenceStepRecord[],
+  target: SwaraTarget,
+  reason: string,
+  pitchToleranceCents: number,
+  ragaGrammar: boolean,
+) {
   const latest = [...records].reverse().find(Boolean);
   const phraseScore = averageScore(records.map((record) => record.score));
   if (!latest) {
@@ -272,13 +402,86 @@ function summarizeSequenceFailure(records: SequenceStepRecord[], target: SwaraTa
   }
 
   return {
-    message: `Last run failed: ${reason}. ${describeSequenceRecord(latest)}.`,
+    message: `Last run failed: ${reason}. ${describeSequenceRecord(latest, pitchToleranceCents, ragaGrammar)}.`,
     score: phraseScore,
   };
 }
 
 function isSequenceStep(step: LessonStep | null | undefined): step is SequenceLessonStep {
   return Boolean(step && step.type === "sequence" && Array.isArray(step.steps) && typeof step.repeatCount === "number");
+}
+
+function isRagaGrammarSequence(step: SequenceLessonStep | null | undefined) {
+  return Boolean(step && (step.checkpointGroupId.startsWith("raga-") || step.ragaRules));
+}
+
+function scoreSequenceStepAttempt(params: {
+  target: SwaraTarget;
+  detected: DetectedSwara | null;
+  sustainMs: number;
+  stability: number;
+  noise: number;
+  pitchToleranceCents: number;
+  sustainNormalizationMs: number;
+  ragaGrammar: boolean;
+}) {
+  if (!params.ragaGrammar) {
+    return scoreAttempt({
+      target: params.target,
+      detected: params.detected,
+      sustainMs: params.sustainMs,
+      stability: params.stability,
+      noise: params.noise,
+      pitchToleranceCents: params.pitchToleranceCents,
+      sustainNormalizationMs: params.sustainNormalizationMs,
+    });
+  }
+
+  const { target, detected, sustainMs, stability, noise, pitchToleranceCents, sustainNormalizationMs } = params;
+  if (!detected) {
+    return {
+      score: 0,
+      summary: "No stable flute tone detected yet.",
+    };
+  }
+
+  const swaraScore = detected.swara === target.swara ? 100 : 0;
+  const octaveScore = detected.octave === target.octave ? 100 : 0;
+  const pitchWindow = Math.max(10, pitchToleranceCents * 1.5);
+  const pitchPenalty = Math.min(Math.abs(detected.centsOffset), pitchWindow * 2);
+  const pitchScore = Math.max(0, 100 - (pitchPenalty / (pitchWindow * 2)) * 100);
+  const sustainScore = Math.min(100, (sustainMs / sustainNormalizationMs) * 100);
+  const stabilityScore = Math.max(0, Math.min(100, stability));
+  const noiseScore = Math.max(0, Math.min(100, 100 - noise));
+
+  const score =
+    swaraScore * 0.42 +
+    octaveScore * 0.12 +
+    pitchScore * 0.26 +
+    sustainScore * 0.08 +
+    stabilityScore * 0.08 +
+    noiseScore * 0.04;
+
+  let summary = "Good phrase shape. Keep the contour steady.";
+
+  if (detected.swara !== target.swara) {
+    summary = `You played ${detected.swara} instead of ${target.swara}.`;
+  } else if (detected.octave !== target.octave) {
+    summary = `Correct swara, but the octave is ${detected.octave} instead of ${target.octave}.`;
+  } else if (Math.abs(detected.centsOffset) > pitchWindow * 1.4) {
+    summary = detected.centsOffset > 0 ? "A little high for the phrase." : "A little low for the phrase.";
+  } else if (Math.abs(detected.centsOffset) > pitchWindow * 0.8) {
+    summary = detected.centsOffset > 0 ? "Close, but still a touch high." : "Close, but still a touch low.";
+  } else if (sustainMs < sustainNormalizationMs * 0.7) {
+    summary = "Phrase contour is fine. Let the note settle a little longer.";
+  } else if (stability < 70) {
+    summary = "The phrase is right, but airflow stability still needs work.";
+  }
+
+  return {
+    score: Math.round(score),
+    summary,
+  };
 }
 
 function checkpointTargets(step: LessonStep | null | undefined, progress: SequenceProgress): CheckpointFocus {
@@ -350,14 +553,19 @@ export function SwaraTrainer() {
   });
   const [selectedTonic, setSelectedTonic] = useState<TonicName>(defaultFluteProfile.tonic);
   const [selectedRegister, setSelectedRegister] = useState<FluteRegister>(defaultFluteProfile.register);
+  const [pitchDifficulty, setPitchDifficulty] = useState<PitchDifficulty>(readStoredPitchDifficulty);
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [leftRailOpen, setLeftRailOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkpointNotice, setCheckpointNotice] = useState<string | null>(null);
+  const [clearedCheckpoint, setClearedCheckpoint] = useState<ClearedCheckpointState | null>(null);
   const [sequenceRunResult, setSequenceRunResult] = useState<SequenceRunResult | null>(null);
+  const [sequenceLoopHistory, setSequenceLoopHistory] = useState<SequenceLoopHistoryEntry[]>([]);
   const [bonusTokens, setBonusTokens] = useState(0);
   const [celebrationPieces, setCelebrationPieces] = useState<Array<{ id: string; left: number; delay: number; duration: number; drift: number; hue: number }>>([]);
   const [sequenceStepDurationsMs, setSequenceStepDurationsMs] = useState<number[]>([]);
+  const [sequenceLiveScore, setSequenceLiveScore] = useState<number | null>(null);
   const [debugStatus, setDebugStatus] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisState>({
     detected: null,
@@ -392,8 +600,11 @@ export function SwaraTrainer() {
   const sequenceTransitionUntilRef = useRef<number | null>(null);
   const sequenceHandoffRef = useRef<SequenceHandoff | null>(null);
   const sequenceCarryoverBlockRef = useRef<SequenceCarryoverBlock | null>(null);
+  const sequenceRearticulationGateRef = useRef<SequenceRearticulationGate | null>(null);
   const sequenceStepRecordsRef = useRef<Array<SequenceStepRecord | null>>([]);
   const sequenceStepDurationsRef = useRef<number[]>([]);
+  const sequenceLoopHistoryRef = useRef<SequenceLoopHistoryEntry[]>([]);
+  const sequenceLiveScoreRef = useRef<number | null>(null);
   const debugLogRef = useRef<DebugLogEntry[]>([]);
   const debugSessionIdRef = useRef(`session-${Date.now()}`);
   const lastDebugNoteKeyRef = useRef<string | null>(null);
@@ -419,6 +630,7 @@ export function SwaraTrainer() {
     () => fluteProfileForSelection(selectedTonic, selectedRegister),
     [selectedRegister, selectedTonic],
   );
+  const pitchConfig = useMemo(() => pitchDifficultyConfig(pitchDifficulty), [pitchDifficulty]);
   const selectedStepRef = useRef<LessonStep | null>(selectedStep ?? null);
   const targetRef = useRef<SwaraTarget>(selectedStep?.target ?? target);
   const analysisRef = useRef<AnalysisState>({
@@ -454,8 +666,9 @@ export function SwaraTrainer() {
         sustainMs: analysis.sustainMs ?? 0,
         stability: analysis.stability ?? 0,
         noise: analysis.noise ?? 100,
+        pitchToleranceCents: pitchConfig.scoreToleranceCents,
       }),
-    [analysis.detected, analysis.noise, analysis.stability, analysis.sustainMs, target],
+    [analysis.detected, analysis.noise, analysis.stability, analysis.sustainMs, pitchConfig.scoreToleranceCents, target],
   );
 
   const masteryReady = useMemo(() => {
@@ -476,9 +689,9 @@ export function SwaraTrainer() {
       selectedStep.target != null &&
       analysis.detected.swara === selectedStep.target.swara &&
       analysis.detected.octave === selectedStep.target.octave &&
-      Math.abs(analysis.detected.centsOffset) <= 20
+      Math.abs(analysis.detected.centsOffset) <= pitchConfig.noteToleranceCents
     );
-  }, [analysis.detected, analysis.sustainMs, result.score, selectedStep, sequenceProgress]);
+  }, [analysis.detected, analysis.sustainMs, pitchConfig.noteToleranceCents, result.score, selectedStep, sequenceProgress]);
 
   useEffect(() => {
     return () => {
@@ -523,6 +736,10 @@ export function SwaraTrainer() {
   }, [fluteProfile]);
 
   useEffect(() => {
+    storePitchDifficulty(pitchDifficulty);
+  }, [pitchDifficulty]);
+
+  useEffect(() => {
     analysisRef.current = analysis;
   }, [analysis]);
 
@@ -533,6 +750,14 @@ export function SwaraTrainer() {
   useEffect(() => {
     sequenceStepDurationsRef.current = sequenceStepDurationsMs;
   }, [sequenceStepDurationsMs]);
+
+  useEffect(() => {
+    sequenceLoopHistoryRef.current = sequenceLoopHistory;
+  }, [sequenceLoopHistory]);
+
+  useEffect(() => {
+    sequenceLiveScoreRef.current = sequenceLiveScore;
+  }, [sequenceLiveScore]);
 
   useEffect(() => {
     if (!selectedStep) {
@@ -549,6 +774,13 @@ export function SwaraTrainer() {
       detail: "User selected checkpoint",
     });
   }, [selectedStepId]);
+
+  useEffect(() => {
+    if (clearedCheckpoint && clearedCheckpoint.stepId !== selectedStepId) {
+      setClearedCheckpoint(null);
+      setCheckpointNotice(null);
+    }
+  }, [clearedCheckpoint, selectedStepId]);
 
   function noteKeyForReading(reading: DetectedSwara | null | undefined) {
     return reading ? `${reading.swara}-${reading.octave}` : null;
@@ -580,11 +812,14 @@ export function SwaraTrainer() {
             repeatIndex: 0,
           }
         : null;
+    sequenceRearticulationGateRef.current = null;
     sequenceStepRecordsRef.current = [];
     sequenceStepDurationsRef.current = [];
     lastDebugNoteKeyRef.current = null;
     lastDebugStepRef.current = "";
     setSequenceRunResult(null);
+    setSequenceLoopHistory([]);
+    setSequenceLiveScore(null);
     setSequenceStepDurationsMs([]);
     setSequenceProgress({
       checkpointId: selectedStepId,
@@ -623,8 +858,10 @@ export function SwaraTrainer() {
     sequenceTransitionUntilRef.current = null;
     sequenceHandoffRef.current = null;
     sequenceCarryoverBlockRef.current = null;
+    sequenceRearticulationGateRef.current = null;
     sequenceStepRecordsRef.current = [];
     sequenceStepDurationsRef.current = [];
+    setSequenceLiveScore(null);
     if (result) {
       setSequenceRunResult(result);
     }
@@ -842,6 +1079,7 @@ export function SwaraTrainer() {
     let visibleReading: DetectedSwara | null = visibleReadingRef.current;
     let status = "Blow a clean note to begin.";
     const carryoverBlock = sequenceCarryoverBlockRef.current;
+    const rearticulationGate = sequenceRearticulationGateRef.current;
     const detectedKey = noteKeyForReading(detected);
     const isCarryoverBlocked =
       Boolean(
@@ -852,6 +1090,17 @@ export function SwaraTrainer() {
           carryoverBlock.repeatIndex === liveProgress.repeatIndex &&
           detectedKey &&
           detectedKey === carryoverBlock.noteKey,
+      );
+    const isRearticulationBlocked =
+      Boolean(
+        liveSequenceStep &&
+          rearticulationGate &&
+          rearticulationGate.checkpointId === liveSequenceStep.id &&
+          rearticulationGate.stepIndex === liveProgress.stepIndex &&
+          rearticulationGate.repeatIndex === liveProgress.repeatIndex &&
+          detectedKey &&
+          detectedKey === rearticulationGate.targetKey &&
+          rearticulationGate.releaseSeenAt == null,
       );
 
     if (isActiveCandidate && detected) {
@@ -875,13 +1124,29 @@ export function SwaraTrainer() {
         previousReadingRef.current = detected;
       }
 
-      const sustainReading = liveSequenceStep ? (isCarryoverBlocked ? null : detected ?? visibleReading) : visibleReading;
+      if (
+        rearticulationGate &&
+        rearticulationGate.checkpointId === liveSequenceStep?.id &&
+        rearticulationGate.stepIndex === liveProgress.stepIndex &&
+        rearticulationGate.repeatIndex === liveProgress.repeatIndex &&
+        detectedKey === rearticulationGate.targetKey &&
+        rearticulationGate.releaseSeenAt != null
+      ) {
+        sequenceRearticulationGateRef.current = null;
+      }
+
+      const sustainReading =
+        liveSequenceStep
+          ? isCarryoverBlocked || isRearticulationBlocked
+            ? null
+            : detected ?? visibleReading
+          : visibleReading;
       const noteIsOnTarget =
         Boolean(
           sustainReading &&
             sustainReading.swara === liveTarget.swara &&
             sustainReading.octave === liveTarget.octave &&
-            Math.abs(sustainReading.centsOffset) <= TARGET_ZONE_CENTS,
+            Math.abs(sustainReading.centsOffset) <= pitchZoneCents,
         );
 
       const noteIsInReleaseZone =
@@ -889,7 +1154,7 @@ export function SwaraTrainer() {
           sustainReading &&
             sustainReading.swara === liveTarget.swara &&
             sustainReading.octave === liveTarget.octave &&
-            Math.abs(sustainReading.centsOffset) <= TARGET_RELEASE_CENTS,
+            Math.abs(sustainReading.centsOffset) <= pitchReleaseCents,
         );
 
       if (noteIsOnTarget) {
@@ -946,6 +1211,8 @@ export function SwaraTrainer() {
       if (liveSequenceStep) {
         status = isCarryoverBlocked
           ? `Release the previous note, then replay ${formatTargetLabel(liveTarget)}.`
+          : isRearticulationBlocked
+            ? `Release ${formatTargetLabel(liveTarget)} once, then replay it.`
           : visibleReading
             ? `${formatTargetLabel(liveTarget)} now · ${liveFocus.progressLabel}`
             : `Hold ${formatTargetLabel(liveTarget)} to move through the phrase`;
@@ -990,6 +1257,20 @@ export function SwaraTrainer() {
 
       if (
         liveSequenceStep &&
+        sequenceRearticulationGateRef.current &&
+        sequenceRearticulationGateRef.current.checkpointId === liveSequenceStep.id &&
+        sequenceRearticulationGateRef.current.stepIndex === liveProgress.stepIndex &&
+        sequenceRearticulationGateRef.current.repeatIndex === liveProgress.repeatIndex &&
+        silenceAge >= SEQUENCE_REARTICULATION_RELEASE_MS
+      ) {
+        sequenceRearticulationGateRef.current = {
+          ...sequenceRearticulationGateRef.current,
+          releaseSeenAt: now,
+        };
+      }
+
+      if (
+        liveSequenceStep &&
         liveProgress.stepIndex > 0 &&
         liveProgress.stepStartedAt != null &&
         silenceAge >= SEQUENCE_BETWEEN_NOTES_TIMEOUT_MS &&
@@ -999,7 +1280,17 @@ export function SwaraTrainer() {
           sequenceStepRecordsRef.current.filter((record): record is SequenceStepRecord => Boolean(record)),
           liveTarget,
           `timed out waiting for ${formatTargetLabel(liveTarget)}`,
+          pitchConfig.scoreToleranceCents,
+          sequenceRagaGrammar,
         );
+        const historyEntry = buildLoopHistoryEntry({
+          repeatIndex: liveProgress.repeatIndex,
+          kind: "failure",
+          message: result.message,
+          records: sequenceStepRecordsRef.current.filter((record): record is SequenceStepRecord => Boolean(record)),
+          totalSteps: liveSequenceStep.steps.length,
+        });
+        setSequenceLoopHistory((current) => [...current, historyEntry].slice(-4));
         pushDebugEvent({
           event: "sequence_reset",
           checkpointId: liveSequenceStep.id,
@@ -1034,12 +1325,15 @@ export function SwaraTrainer() {
     }
 
     const rawScore = visibleReading
-      ? scoreAttempt({
+      ? scoreSequenceStepAttempt({
           target: liveTarget,
           detected: visibleReading,
           sustainMs: Math.round(sustainMs ?? 0),
           stability: Math.round(stability ?? 0),
           noise: Math.round(hissPercent),
+          pitchToleranceCents: pitchConfig.scoreToleranceCents,
+          sustainNormalizationMs: liveSequenceStep ? Math.max(500, liveSequenceStep.sustainTargetMs * 4) : 3000,
+          ragaGrammar: sequenceRagaGrammar,
         }).score
       : 0;
 
@@ -1084,12 +1378,12 @@ export function SwaraTrainer() {
       if (!activeSequenceReading) {
         // Carryover from the previous checkpoint is intentionally ignored until the note is re-articulated.
       } else {
-      const sequencePitchToleranceCents = Math.max(liveSequenceStep.pitchToleranceCents, 60);
+      const sequencePitchToleranceCents = Math.max(liveSequenceStep.pitchToleranceCents, pitchConfig.sequenceToleranceCents);
       const expectedPitchMatches =
         activeSequenceReading.swara === liveTarget.swara &&
         activeSequenceReading.octave === liveTarget.octave &&
         Math.abs(activeSequenceReading.centsOffset) <= sequencePitchToleranceCents;
-      const sustainReady = (sustainMs ?? 0) >= Math.min(sequenceStep.sustainTargetMs, SEQUENCE_MIN_HIT_MS);
+      const sustainReady = (sustainMs ?? 0) >= Math.max(sequenceStep.sustainTargetMs, PRACTICE_HOLD_FLOOR_MS);
       const lockAge = noteLockRef.current ? now - noteLockRef.current.startedAt : 0;
       const noteLockThresholdMs = SEQUENCE_NOTE_LOCK_MS;
       const inTransitionGrace =
@@ -1100,19 +1394,22 @@ export function SwaraTrainer() {
         now <= handoff.until &&
         activeSequenceReading.swara === handoff.from.swara &&
         activeSequenceReading.octave === handoff.from.octave &&
-        Math.abs(activeSequenceReading.centsOffset) <= liveSequenceStep.pitchToleranceCents;
+        Math.abs(activeSequenceReading.centsOffset) <= sequencePitchToleranceCents;
       const isCurrentTarget =
         activeSequenceReading.swara === liveTarget.swara &&
         activeSequenceReading.octave === liveTarget.octave &&
-        Math.abs(activeSequenceReading.centsOffset) <= liveSequenceStep.pitchToleranceCents;
+        Math.abs(activeSequenceReading.centsOffset) <= sequencePitchToleranceCents;
 
       if (expectedPitchMatches && sustainReady) {
-        const stepScore = scoreAttempt({
+        const stepScore = scoreSequenceStepAttempt({
           target: sequenceStep.target,
           detected: activeSequenceReading,
           sustainMs: Math.round(sustainMs ?? 0),
           stability: Math.round(stability ?? 0),
           noise: Math.round(hissPercent),
+          pitchToleranceCents: pitchConfig.scoreToleranceCents,
+          sustainNormalizationMs: Math.max(500, sequenceStep.sustainTargetMs * 4),
+          ragaGrammar: sequenceRagaGrammar,
         }).score;
         recordSequenceStepResult({
           step: sequenceStep,
@@ -1125,13 +1422,25 @@ export function SwaraTrainer() {
         });
         sequenceTransitionUntilRef.current = now + SEQUENCE_RELEASE_GRACE_MS;
         if (liveProgress.stepIndex >= liveSequenceStep.steps.length - 1) {
-          if (liveProgress.repeatIndex + 1 >= liveSequenceStep.repeatCount) {
-            const phraseScores = sequenceStepRecordsRef.current
-              .filter((record): record is SequenceStepRecord => Boolean(record))
-              .map((record) => record.score);
-            const phraseScore = averageScore(phraseScores);
-            const passThreshold = Math.max(liveSequenceStep.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
-            if (phraseScore != null && phraseScore >= passThreshold) {
+          const phraseScores = sequenceStepRecordsRef.current
+            .filter((record): record is SequenceStepRecord => Boolean(record))
+            .map((record) => record.score);
+          const phraseScore = averageScore(phraseScores);
+          const passThreshold = Math.max(liveSequenceStep.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
+          const loopPassed = phraseScore != null && phraseScore >= passThreshold;
+          const historyEntry = buildLoopHistoryEntry({
+            repeatIndex: liveProgress.repeatIndex,
+            kind: loopPassed ? "success" : "failure",
+            message: loopPassed
+              ? `Loop ${liveProgress.repeatIndex + 1} passed with ${phraseScore}/100.`
+              : `Loop ${liveProgress.repeatIndex + 1} failed with ${phraseScore ?? 0}/${passThreshold}.`,
+            records: sequenceStepRecordsRef.current.filter((record): record is SequenceStepRecord => Boolean(record)),
+            totalSteps: liveSequenceStep.steps.length,
+          });
+          setSequenceLoopHistory((current) => [...current, historyEntry].slice(-4));
+
+          if (loopPassed) {
+            if (liveProgress.repeatIndex + 1 >= liveSequenceStep.repeatCount) {
               setSequenceRunResult({
                 kind: "success",
                 message: `Phrase passed with ${phraseScore}/100.`,
@@ -1139,74 +1448,78 @@ export function SwaraTrainer() {
               });
               completeStep(liveSequenceStep, "auto");
             } else {
-              const result = summarizeSequenceFailure(
-                sequenceStepRecordsRef.current.filter((record): record is SequenceStepRecord => Boolean(record)),
-                liveTarget,
-                `phrase score ${phraseScore ?? 0}/${passThreshold} was below the pass mark`,
-              );
               pushDebugEvent({
-                event: "sequence_reset",
+                event: "sequence_advance",
                 checkpointId: liveSequenceStep.id,
                 checkpointTitle: liveSequenceStep.title,
                 expectedTarget: formatTargetLabel(liveSequenceStep.steps[0].target),
-                sequenceStepIndex: liveProgress.stepIndex,
-                sequenceRepeatIndex: liveProgress.repeatIndex,
-                detail: result.message,
+                detectedTarget: formatTargetLabel(activeSequenceReading),
+                sequenceStepIndex: 0,
+                sequenceRepeatIndex: liveProgress.repeatIndex + 1,
+                holdMs: sustainMs,
+                rawFrequency: activeSequenceReading.frequency,
+                centsOffset: activeSequenceReading.centsOffset,
+                detail: "Completed phrase loop and restarted",
               });
-              resetSequenceAttempt(liveSequenceStep, liveProgress.repeatIndex, {
-                kind: "failure",
-                message: result.message,
-                score: result.score,
+              setSequenceRunResult({
+                kind: "success",
+                message: phraseScore != null ? `Loop ${liveProgress.repeatIndex + 1} passed with ${phraseScore}/100.` : "Loop passed.",
+                score: phraseScore,
               });
+              const nextProgress = {
+                checkpointId: liveSequenceStep.id,
+                stepIndex: 0,
+                repeatIndex: liveProgress.repeatIndex + 1,
+                stepStartedAt: now,
+              };
+              sequenceHandoffRef.current = null;
+              sequenceCarryoverBlockRef.current = {
+                noteKey: noteKeyForReading(activeSequenceReading) ?? "",
+                checkpointId: liveSequenceStep.id,
+                stepIndex: 0,
+                repeatIndex: liveProgress.repeatIndex + 1,
+              };
+              sequenceProgressRef.current = nextProgress;
+              setSequenceProgress(nextProgress);
+              setTarget(liveSequenceStep.steps[0].target);
+              targetRef.current = liveSequenceStep.steps[0].target;
+              previousReadingRef.current = null;
+              sustainStartRef.current = null;
+              sustainGraceSinceRef.current = null;
+              recentCentsRef.current = [];
+              visibleReadingRef.current = null;
+              noteLockRef.current = null;
+              sequenceStepDurationsRef.current = [];
+              setSequenceStepDurationsMs([]);
+              setSequenceLiveScore(null);
             }
           } else {
+            const result = summarizeSequenceFailure(
+              sequenceStepRecordsRef.current.filter((record): record is SequenceStepRecord => Boolean(record)),
+              liveTarget,
+              `loop score ${phraseScore ?? 0}/${passThreshold} was below the pass mark`,
+              pitchConfig.scoreToleranceCents,
+              sequenceRagaGrammar,
+            );
             pushDebugEvent({
-              event: "sequence_advance",
+              event: "sequence_reset",
               checkpointId: liveSequenceStep.id,
               checkpointTitle: liveSequenceStep.title,
               expectedTarget: formatTargetLabel(liveSequenceStep.steps[0].target),
-              detectedTarget: formatTargetLabel(activeSequenceReading),
-              sequenceStepIndex: 0,
-              sequenceRepeatIndex: liveProgress.repeatIndex + 1,
-              holdMs: sustainMs,
-              rawFrequency: activeSequenceReading.frequency,
-              centsOffset: activeSequenceReading.centsOffset,
-              detail: "Completed phrase loop and restarted",
+              sequenceStepIndex: liveProgress.stepIndex,
+              sequenceRepeatIndex: liveProgress.repeatIndex,
+              detail: result.message,
             });
-            const phraseScores = sequenceStepRecordsRef.current
-              .filter((record): record is SequenceStepRecord => Boolean(record))
-              .map((record) => record.score);
-            const phraseScore = averageScore(phraseScores);
+            resetSequenceAttempt(liveSequenceStep, liveProgress.repeatIndex, {
+              kind: "failure",
+              message: result.message,
+              score: result.score,
+            });
             setSequenceRunResult({
-              kind: "success",
-              message: phraseScore != null ? `Loop complete with ${phraseScore}/100.` : "Loop complete.",
-              score: phraseScore,
+              kind: "failure",
+              message: result.message,
+              score: result.score,
             });
-            const nextProgress = {
-              checkpointId: liveSequenceStep.id,
-              stepIndex: 0,
-              repeatIndex: liveProgress.repeatIndex + 1,
-              stepStartedAt: now,
-            };
-            sequenceHandoffRef.current = null;
-            sequenceCarryoverBlockRef.current = {
-              noteKey: noteKeyForReading(activeSequenceReading) ?? "",
-              checkpointId: liveSequenceStep.id,
-              stepIndex: 0,
-              repeatIndex: liveProgress.repeatIndex + 1,
-            };
-            sequenceProgressRef.current = nextProgress;
-            setSequenceProgress(nextProgress);
-            setTarget(liveSequenceStep.steps[0].target);
-            targetRef.current = liveSequenceStep.steps[0].target;
-            previousReadingRef.current = null;
-            sustainStartRef.current = null;
-            sustainGraceSinceRef.current = null;
-            recentCentsRef.current = [];
-            visibleReadingRef.current = null;
-            noteLockRef.current = null;
-            sequenceStepDurationsRef.current = [];
-            setSequenceStepDurationsMs([]);
           }
         } else {
           const currentStepTarget = liveSequenceStep.steps[liveProgress.stepIndex].target;
@@ -1241,6 +1554,19 @@ export function SwaraTrainer() {
             stepIndex: nextProgress.stepIndex,
             repeatIndex: nextProgress.repeatIndex,
           };
+          if (noteKeyForTarget(currentStepTarget) === noteKeyForTarget(nextStepTarget)) {
+            sequenceRearticulationGateRef.current = {
+              checkpointId: liveSequenceStep.id,
+              stepIndex: nextProgress.stepIndex,
+              repeatIndex: nextProgress.repeatIndex,
+              targetKey: noteKeyForTarget(nextStepTarget),
+              openedAt: now,
+              releaseSeenAt: null,
+            };
+            sequenceCarryoverBlockRef.current = null;
+          } else {
+            sequenceRearticulationGateRef.current = null;
+          }
           sequenceProgressRef.current = nextProgress;
           setSequenceProgress(nextProgress);
           setTarget(nextStepTarget);
@@ -1271,7 +1597,7 @@ export function SwaraTrainer() {
         (sustainMs ?? 0) >= (liveStep?.sustainTargetMs ?? 0) &&
         visibleReading?.swara === liveTarget.swara &&
         visibleReading?.octave === liveTarget.octave &&
-        Math.abs(visibleReading?.centsOffset ?? 999) <= TARGET_ZONE_CENTS;
+        Math.abs(visibleReading?.centsOffset ?? 999) <= pitchZoneCents;
 
       if (checkpointClearable) {
         if (!autoClearArmedRef.current || autoClearArmedRef.current.stepId !== liveStep.id) {
@@ -1305,7 +1631,7 @@ export function SwaraTrainer() {
     const activeStateChanged = Boolean(previousAnalysis.detected) !== Boolean(visibleReading);
     const shouldCommit = now - lastUiCommitRef.current >= UI_REFRESH_MS || activeStateChanged;
 
-    if (shouldCommit) {
+      if (shouldCommit) {
       lastUiCommitRef.current = now;
       const nextAnalysis = {
         detected: visibleReading,
@@ -1320,6 +1646,11 @@ export function SwaraTrainer() {
         trend: trendRef.current.slice(),
       };
       analysisRef.current = nextAnalysis;
+      if (liveSequenceStep) {
+        setSequenceLiveScore(visibleReading ? Math.round(rawScore) : null);
+      } else {
+        setSequenceLiveScore(null);
+      }
       setAnalysis(nextAnalysis);
     }
 
@@ -1362,6 +1693,10 @@ export function SwaraTrainer() {
   }
 
   function completeStep(step: LessonStep, source: "manual" | "auto") {
+    if (clearedCheckpoint?.stepId === step.id) {
+      return;
+    }
+
     pushDebugEvent({
       event: "checkpoint_cleared",
       checkpointId: step.id,
@@ -1387,16 +1722,18 @@ export function SwaraTrainer() {
 
     const currentIndex = allLessonSteps.findIndex((lessonStep) => lessonStep.id === step.id);
     const nextStep = allLessonSteps[currentIndex + 1];
+    const nextMessage = nextStep ? `Next: ${nextStep.title}` : "Path complete.";
     setCheckpointNotice(
-      nextStep
-        ? `${source === "auto" ? "Checkpoint cleared" : "Manual clear"}: ${step.title}. Next: ${nextStep.title}`
-        : `${source === "auto" ? "Checkpoint cleared" : "Manual clear"}: ${step.title}. Path complete.`,
+      `${source === "auto" ? "Checkpoint cleared" : "Manual clear"}: ${step.title}. ${nextMessage}`,
     );
-
-    checkpointNoticeTimerRef.current = window.setTimeout(() => {
-      setCheckpointNotice(null);
-      checkpointNoticeTimerRef.current = null;
-    }, 2200);
+    setClearedCheckpoint({
+      stepId: step.id,
+      stepTitle: step.title,
+      nextStepId: nextStep?.id ?? null,
+      nextStepTitle: nextStep?.title ?? null,
+      source,
+    });
+    checkpointNoticeTimerRef.current = null;
 
     setCelebrationPieces(
       Array.from({ length: 28 }, (_, index) => ({
@@ -1414,10 +1751,6 @@ export function SwaraTrainer() {
     }, 1800);
 
     playSuccessChime();
-
-    if (nextStep) {
-      setSelectedStepId(nextStep.id);
-    }
   }
 
   function markStepComplete() {
@@ -1426,6 +1759,30 @@ export function SwaraTrainer() {
     }
 
     completeStep(selectedStep, "manual");
+  }
+
+  function retryClearedCheckpoint() {
+    if (!clearedCheckpoint || !selectedStep || selectedStep.id !== clearedCheckpoint.stepId) {
+      return;
+    }
+
+    setCheckpointNotice(null);
+    setClearedCheckpoint(null);
+    resetLiveState(selectedStep);
+  }
+
+  function proceedToNextCheckpoint() {
+    if (!clearedCheckpoint) {
+      return;
+    }
+
+    setCheckpointNotice(null);
+    const nextStepId = clearedCheckpoint.nextStepId;
+    setClearedCheckpoint(null);
+
+    if (nextStepId) {
+      setSelectedStepId(nextStepId);
+    }
   }
 
   function playSuccessChime() {
@@ -1468,6 +1825,8 @@ export function SwaraTrainer() {
 
   function resetPath() {
     setCompletedStepIds([]);
+    setCheckpointNotice(null);
+    setClearedCheckpoint(null);
     if (firstStep) {
       setSelectedStepId(firstStep.id);
       setTarget(firstStep.target ?? FALLBACK_TARGET);
@@ -1476,6 +1835,7 @@ export function SwaraTrainer() {
 
   const scoreValue = analysis.detected ? result.score : null;
   const sequenceDrill = selectedStep && isSequenceStep(selectedStep) ? selectedStep : null;
+  const sequenceRagaGrammar = isRagaGrammarSequence(sequenceDrill);
   const sequenceCurrentIndex = sequenceDrill
     ? Math.min(sequenceProgress.stepIndex, Math.max(0, sequenceDrill.steps.length - 1))
     : 0;
@@ -1483,6 +1843,26 @@ export function SwaraTrainer() {
   const sequenceNextStep = sequenceDrill
     ? sequenceDrill.steps[Math.min(sequenceCurrentIndex + 1, sequenceDrill.steps.length - 1)] ?? null
     : null;
+  const currentLoopRecords = sequenceDrill
+    ? sequenceStepRecordsRef.current.filter(
+        (record): record is SequenceStepRecord => record != null && record.repeatIndex === sequenceProgress.repeatIndex,
+      )
+    : [];
+  const currentLoopCompletedScores = currentLoopRecords.map((record) => record.score);
+  const currentLoopScore = averageScore(
+    sequenceLiveScore != null ? [...currentLoopCompletedScores, sequenceLiveScore] : currentLoopCompletedScores,
+  );
+  const currentLoopStepScores = sequenceDrill
+    ? sequenceDrill.steps.map((_, index) => {
+        const record = currentLoopRecords.find((entry) => entry.stepIndex === index) ?? null;
+        if (record) {
+          return record.score;
+        }
+
+        return index === sequenceCurrentIndex && sequenceLiveScore != null ? sequenceLiveScore : null;
+      })
+    : [];
+  const latestLoopHistoryEntry = sequenceLoopHistory.at(-1) ?? null;
   const sequenceLoopsCompleted = sequenceDrill ? sequenceProgress.repeatIndex : 0;
   const sequenceLoopNumber = sequenceDrill ? Math.min(sequenceProgress.repeatIndex + 1, sequenceDrill.repeatCount) : 0;
   const sequenceProgressCount = sequenceDrill
@@ -1500,6 +1880,8 @@ export function SwaraTrainer() {
     ? Math.round((completedStepIds.length / allLessonSteps.length) * 100)
     : 0;
   const checkpointFocus = checkpointTargets(selectedStep, sequenceProgress);
+  const pitchZoneCents = pitchConfig.noteToleranceCents;
+  const pitchReleaseCents = pitchConfig.releaseToleranceCents;
   const currentTargetFrequency = targetFrequencyFor(checkpointFocus.target, fluteProfile.saFrequency);
   const currentCheckpointCleared = completedStepIds.includes(selectedStepId);
   const detectedIsCorrect =
@@ -1507,7 +1889,8 @@ export function SwaraTrainer() {
       analysis.detected &&
         analysis.detected &&
         analysis.detected.swara === checkpointFocus.target.swara &&
-        analysis.detected.octave === checkpointFocus.target.octave,
+        analysis.detected.octave === checkpointFocus.target.octave &&
+        Math.abs(analysis.detected.centsOffset) <= pitchZoneCents,
     );
   const goalProgress = scoreValue != null && selectedStep
     ? clamp(scoreValue / Math.max(1, selectedStep.minimumScore), 0, 1)
@@ -1618,12 +2001,6 @@ export function SwaraTrainer() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <span className="pill">Tonic {tonicLabel}</span>
               <span className="pill">Register {fluteProfile.registerLabel}</span>
-              <span className="pill">{sequenceDrill ? `Loop ${sequenceLoopNumber}/${sequenceDrill.repeatCount}` : checkpointFocus.progressLabel || "Single note"}</span>
-              <span className="pill">{sequenceDrill ? `Now ${formatTargetLabel(checkpointFocus.target)}` : `Target ${formatTargetLabel(checkpointFocus.target)}`}</span>
-              {sequenceDrill && sequenceNextStep && sequenceNextStep !== sequenceCurrentStep ? (
-                <span className="pill">Next {formatTargetLabel(sequenceNextStep.target)}</span>
-              ) : null}
-              <span className="pill">{currentTargetFrequency.toFixed(1)} Hz</span>
             </div>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -1690,6 +2067,8 @@ export function SwaraTrainer() {
                     const nextStep = allLessonSteps.find((step) => step.id === event.target.value);
 
                     if (nextStep) {
+                      setCheckpointNotice(null);
+                      setClearedCheckpoint(null);
                       setSelectedStepId(nextStep.id);
                     }
                   }}
@@ -1793,84 +2172,173 @@ export function SwaraTrainer() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(280px, 0.82fr) minmax(0, 1.9fr)",
+          gridTemplateColumns: leftRailOpen ? "minmax(280px, 0.82fr) minmax(0, 1.9fr)" : "minmax(0, 1fr)",
           gap: 12,
           alignItems: "start",
           minHeight: "calc(100vh - 260px)",
         }}
       >
+        {leftRailOpen ? (
           <aside
+            className="glass"
             style={{
+              minWidth: 0,
               display: "grid",
-              gap: 10,
-              alignSelf: "start",
-              position: "sticky",
-              top: 12,
+              gap: 12,
+              padding: 12,
+              borderRadius: 28,
+              background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
             }}
           >
-            <JourneySummary
-              overallProgress={overallProgress}
-              completedCount={completedStepIds.length}
-              totalCount={allLessonSteps.length}
-              completedStepIds={completedStepIds}
-              currentStepTitle={selectedStep?.title ?? "Choose a checkpoint"}
-              modules={foundationModules.map((module) => ({
-                id: module.id,
-                title: module.title,
-                description: module.description,
-                steps: module.steps.map((step) => ({
-                  id: step.id,
-                  title: step.title,
-                })),
-                completedCount: module.steps.filter((step) => completedStepIds.includes(step.id)).length,
-                isCurrent: module.id === currentModule?.id,
-              }))}
-            />
-
-            <SwaraReferencePanel
-              tonicLabel={tonicLabel}
-              registerLabel={fluteProfile.registerLabel}
-              tonicFrequency={fluteProfile.saFrequency}
-              profile={fluteProfile}
-              rows={swaraReference}
-            />
-          </aside>
-
-          <section style={{ minWidth: 0, display: "grid", gap: 12 }}>
-            {checkpointNotice ? (
-              <div
-                style={{
-                  borderRadius: 24,
-                  padding: "14px 16px",
-                  background: "linear-gradient(90deg, rgba(103,240,202,0.2), rgba(117,184,255,0.14))",
-                  border: "1px solid rgba(103,240,202,0.35)",
-                  color: "var(--text)",
-                  boxShadow: "0 18px 50px rgba(103,240,202,0.12)",
-                  display: "grid",
-                  gap: 6,
-                }}
-              >
-                <div className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
-                  Checkpoint cleared
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+              <div style={{ display: "grid", gap: 2 }}>
+                <div className="pill" style={{ width: "fit-content" }}>
+                  Practice map
                 </div>
-                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.3 }}>
-                  {checkpointNotice}
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <span className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
-                    Bonus +1 token
-                  </span>
-                  <span className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
-                    Total tokens {bonusTokens}
-                  </span>
+                <div style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.4 }}>
+                  Journey and swara reference
                 </div>
               </div>
-            ) : null}
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setLeftRailOpen(false)}
+                aria-label="Collapse practice map"
+                title="Collapse practice map"
+                style={{
+                  minHeight: 36,
+                  minWidth: 36,
+                  width: 36,
+                  padding: 0,
+                  borderRadius: 999,
+                  display: "grid",
+                  placeItems: "center",
+                }}
+              >
+                <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                  <path
+                    d="M10 4l-4 4 4 4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <JourneySummary
+                overallProgress={overallProgress}
+                completedCount={completedStepIds.length}
+                totalCount={allLessonSteps.length}
+                completedStepIds={completedStepIds}
+                currentStepTitle={selectedStep?.title ?? "Choose a checkpoint"}
+                modules={foundationModules.map((module) => ({
+                  id: module.id,
+                  title: module.title,
+                  description: module.description,
+                  steps: module.steps.map((step) => ({
+                    id: step.id,
+                    title: step.title,
+                  })),
+                  completedCount: module.steps.filter((step) => completedStepIds.includes(step.id)).length,
+                  isCurrent: module.id === currentModule?.id,
+                }))}
+              />
+
+              <SwaraReferencePanel
+                tonicLabel={tonicLabel}
+                registerLabel={fluteProfile.registerLabel}
+                tonicFrequency={fluteProfile.saFrequency}
+                profile={fluteProfile}
+                rows={swaraReference}
+              />
+            </div>
+          </aside>
+        ) : null}
+
+        <section style={{ minWidth: 0, display: "grid", gap: 12, position: "relative" }}>
+          {!leftRailOpen ? (
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => setLeftRailOpen(true)}
+              aria-label="Expand practice map"
+              title="Expand practice map"
+              style={{
+                minHeight: 44,
+                padding: "0 14px",
+                borderRadius: 999,
+                display: "inline-flex",
+                gap: 8,
+                alignItems: "center",
+                width: "fit-content",
+              }}
+              >
+              <span style={{ fontWeight: 650 }}>Practice map</span>
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                <path
+                  d="M6 4l4 4-4 4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : null}
+
+          {checkpointNotice ? (
+            <div
+              style={{
+                borderRadius: 24,
+                padding: "14px 16px",
+                background: "linear-gradient(90deg, rgba(103,240,202,0.2), rgba(117,184,255,0.14))",
+                border: "1px solid rgba(103,240,202,0.35)",
+                color: "var(--text)",
+                boxShadow: "0 18px 50px rgba(103,240,202,0.12)",
+                display: "grid",
+                gap: 6,
+              }}
+            >
+              <div className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
+                Checkpoint cleared
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.3 }}>
+                {checkpointNotice}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
+                  Bonus +1 token
+                </span>
+                <span className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
+                  Total tokens {bonusTokens}
+                </span>
+              </div>
+              {clearedCheckpoint?.stepId === selectedStepId ? (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button className="button button-secondary" onClick={retryClearedCheckpoint}>
+                    Retry checkpoint
+                  </button>
+                  <button
+                    className="button button-primary"
+                    onClick={proceedToNextCheckpoint}
+                    disabled={!clearedCheckpoint.nextStepId}
+                  >
+                    {clearedCheckpoint.nextStepId ? "Proceed to next" : "Path complete"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "minmax(0, 1.35fr) minmax(300px, 0.9fr)",
+                gridTemplateColumns: "minmax(0, 1fr)",
                 gap: 12,
                 alignItems: "stretch",
               }}
@@ -1914,6 +2382,9 @@ export function SwaraTrainer() {
                         <div className="pill" style={{ width: "fit-content" }}>Compound note tracker</div>
                         <div style={{ color: "var(--muted)", fontSize: 13.5 }}>
                           {sequenceLoopsCompleted} full loops cleared. Follow the phrase left to right.
+                        </div>
+                        <div style={{ color: "var(--muted)", fontSize: 12.5 }}>
+                          Current loop score {currentLoopScore != null ? `${currentLoopScore}/100` : "—"}
                         </div>
                       </div>
                       <div style={{ minWidth: 180, display: "grid", gap: 6 }}>
@@ -1966,10 +2437,77 @@ export function SwaraTrainer() {
                             <div style={{ color: "var(--muted)", fontSize: 11.5 }}>
                               Target {(step.sustainTargetMs / 1000).toFixed(1)}s
                             </div>
+                            <div style={{ color: "var(--muted)", fontSize: 11.5 }}>
+                              Score {currentLoopStepScores[index] != null ? `${currentLoopStepScores[index]}/100` : "—"}
+                            </div>
                           </div>
                         );
                       })}
                     </div>
+                    {sequenceLoopHistory.length ? (
+                      <div style={{ display: "grid", gap: 8, paddingTop: 4 }}>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <div className="pill" style={{ width: "fit-content" }}>Loop history</div>
+                          {sequenceLoopHistory.slice(-3).map((entry, index) => (
+                            <div
+                              key={`${entry.repeatIndex}-${entry.kind}-${index}`}
+                              className="pill"
+                              style={{
+                                width: "fit-content",
+                                background:
+                                  entry.kind === "success"
+                                    ? "rgba(103,240,202,0.12)"
+                                    : "rgba(255,142,142,0.12)",
+                                borderColor:
+                                  entry.kind === "success"
+                                    ? "rgba(103,240,202,0.22)"
+                                    : "rgba(255,142,142,0.22)",
+                              }}
+                              title={entry.message}
+                            >
+                              Loop {entry.repeatIndex + 1} {entry.score != null ? `${entry.score}/100` : "—"}
+                            </div>
+                          ))}
+                        </div>
+                        {latestLoopHistoryEntry ? (
+                          <div
+                            style={{
+                              borderRadius: 16,
+                              padding: 10,
+                              border: "1px solid rgba(255,255,255,0.08)",
+                              background: "rgba(255,255,255,0.03)",
+                              display: "grid",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                              <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
+                                {latestLoopHistoryEntry.kind === "success" ? "Last loop passed" : "Last loop failed"}
+                              </div>
+                              <div style={{ fontSize: 12.5, fontWeight: 650 }}>
+                                {latestLoopHistoryEntry.score != null ? `${latestLoopHistoryEntry.score}/100` : "—"}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              {sequenceDrill.steps.map((step, index) => (
+                                <span
+                                  key={`${latestLoopHistoryEntry.repeatIndex}-${index}-${step.target.swara}`}
+                                  className="pill"
+                                  style={{
+                                    padding: "5px 8px",
+                                    fontSize: 11,
+                                    width: "fit-content",
+                                    background: "rgba(255,255,255,0.04)",
+                                  }}
+                                >
+                                  {step.target.swara} {latestLoopHistoryEntry.stepScores[index] != null ? `${latestLoopHistoryEntry.stepScores[index]}` : "—"}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -2003,8 +2541,8 @@ export function SwaraTrainer() {
                     label={sequenceDrill ? "Current hold" : "Sustain"}
                     value={analysis.sustainMs != null ? `${(analysis.sustainMs / 1000).toFixed(1)}s` : "—"}
                     caption={sequenceDrill
-                      ? `Counts after ${(Math.min(checkpointFocus.sustainTargetMs, SEQUENCE_MIN_HIT_MS) / 1000).toFixed(1)}s`
-                      : `Target ${(checkpointFocus.sustainTargetMs / 1000).toFixed(1)}s`}
+      ? `Counts after ${(Math.max(checkpointFocus.sustainTargetMs, PRACTICE_HOLD_FLOOR_MS) / 1000).toFixed(1)}s`
+      : `Target ${(checkpointFocus.sustainTargetMs / 1000).toFixed(1)}s`}
                     progress={sustainProgress * 100}
                     target={checkpointFocus.sustainTargetMs}
                     active={Boolean(analysis.detected)}
@@ -2020,147 +2558,78 @@ export function SwaraTrainer() {
                   padding: 14,
                   background: "rgba(255,255,255,0.04)",
                   display: "grid",
-                  gap: 10,
+                  gap: 12,
                 }}
               >
-                <div className="pill">Coach feedback</div>
-                <div style={{ fontSize: 18, fontWeight: 650, letterSpacing: "-0.03em", lineHeight: 1.3 }}>
-                  {analysis.detected ? result.summary : "Waiting for a stable flute tone."}
-                </div>
-                {sequenceDrill && sequenceRunResult ? (
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.45fr) minmax(280px, 0.75fr)", gap: 12, alignItems: "stretch" }}>
+                  <div style={{ display: "grid", gap: 12, minHeight: 330 }}>
+                    <SignalTrace
+                      points={analysis.trend}
+                      detected={analysis.detected}
+                      target={checkpointFocus.target}
+                      pitchToleranceCents={pitchZoneCents}
+                      pitchReleaseCents={pitchReleaseCents}
+                      height={182}
+                      pitchDifficulty={pitchDifficulty}
+                      pitchDifficultyOptions={pitchDifficultyOptions}
+                      onPitchDifficultyChange={setPitchDifficulty}
+                    />
+                  </div>
+
                   <div
                     style={{
-                      borderRadius: 18,
-                      padding: "12px 14px",
-                      border:
-                        sequenceRunResult.kind === "success"
-                          ? "1px solid rgba(103,240,202,0.28)"
-                          : "1px solid rgba(255,142,142,0.28)",
-                      background:
-                        sequenceRunResult.kind === "success"
-                          ? "rgba(103,240,202,0.08)"
-                          : "rgba(255,142,142,0.08)",
                       display: "grid",
-                      gap: 4,
+                      gap: 10,
+                      alignContent: "start",
+                      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
                     }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 650 }}>
-                      {sequenceRunResult.message}
-                    </div>
-                    {sequenceRunResult.score != null ? (
-                      <div style={{ color: "var(--muted)", fontSize: 12 }}>
-                        Phrase score {sequenceRunResult.score}/100
-                      </div>
-                    ) : null}
+                    <MetricCard
+                      label="Stability"
+                      value={analysis.stability != null ? `${Math.round(analysis.stability)}` : null}
+                      subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "—"}
+                      hint="Less wobble is better"
+                      trend={analysis.trend}
+                      sparkMetric="stability"
+                      range={[0, 100]}
+                      sparkMode="high"
+                    />
+                    <MetricCard
+                      label="Voicing"
+                      value={analysis.confidence != null ? `${Math.round((analysis.confidence ?? 0) * 100)}%` : null}
+                      subvalue={analysis.detected ? describeConfidence(analysis.confidence ?? 0) : "—"}
+                      hint="Tone clarity"
+                      trend={analysis.trend}
+                      sparkMetric="confidence"
+                      range={[0, 100]}
+                      sparkMode="high"
+                    />
+                    <MetricCard
+                      label="Noise"
+                      value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : null}
+                      subvalue={analysis.detected ? "Lower is cleaner" : "—"}
+                      hint="Air / finger leak noise"
+                      trend={analysis.trend}
+                      sparkMetric="noise"
+                      range={[0, 100]}
+                      sparkMode="low"
+                    />
+                    <MetricCard
+                      label="Input Energy"
+                      value={analysis.energy != null ? `${Math.round(analysis.energy)}` : null}
+                      subvalue={analysis.detected ? describeEnergy(analysis.energy ?? 0) : "—"}
+                      hint="Blow strength"
+                      trend={analysis.trend}
+                      sparkMetric="energy"
+                      range={[0, 100]}
+                      sparkMode="high"
+                    />
                   </div>
-                ) : null}
-                <p className="section-copy" style={{ margin: 0, fontSize: 14 }}>
-                  {sequenceCoachText}
-                </p>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <span className="pill" style={{ padding: "6px 12px", fontSize: 11, width: "fit-content" }}>
-                    {currentCheckpointCleared ? "Cleared" : "In progress"}
-                  </span>
-                  {currentCheckpointCleared ? (
-                    <>
-                      <span className="pill" style={{ padding: "6px 12px", fontSize: 11, width: "fit-content" }}>
-                        Bonus +1 token
-                      </span>
-                      <span className="pill" style={{ padding: "6px 12px", fontSize: 11, width: "fit-content" }}>
-                        Total tokens {bonusTokens}
-                      </span>
-                    </>
-                  ) : null}
                 </div>
               </div>
+
             </div>
 
-            <SignalTrace
-              points={analysis.trend}
-              detected={analysis.detected}
-              target={checkpointFocus.target}
-              silent={!analysis.detected}
-            />
-
-            <div
-              className="grid"
-              style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}
-            >
-              <MetricCard
-                label="Mapped note"
-                value={analysis.detected ? `${analysis.detected.octave} ${analysis.detected.swara}` : null}
-                subvalue={
-                  analysis.detected
-                    ? `${analysis.rawFrequency != null ? `${analysis.rawFrequency.toFixed(1)} Hz raw` : "Raw pitch"}`
-                    : "—"
-                }
-                hint={analysis.detected ? "Mapped from the current raw pitch" : "—"}
-                trend={analysis.trend}
-                sparkMetric="centsOffset"
-                range={[-60, 60]}
-                sparkMode="center"
-              />
-              <MetricCard
-                label="Pitch Offset"
-                value={analysis.detected ? `${signedCents(analysis.centsOffset ?? 0)}¢` : null}
-                subvalue=""
-                hint=""
-                trend={analysis.trend}
-                sparkMetric="centsOffset"
-                range={[-60, 60]}
-                sparkMode="center"
-              />
-              <MetricCard
-                label="Attempt Score"
-                value={scoreValue != null ? `${scoreValue}` : null}
-                subvalue={analysis.detected ? (masteryReady ? "Checkpoint clearable" : "Keep practicing") : "—"}
-                hint="Mastery"
-                trend={analysis.trend}
-                sparkMetric="score"
-                range={[0, 100]}
-                sparkMode="high"
-              />
-              <MetricCard
-                label="Stability"
-                value={analysis.stability != null ? `${Math.round(analysis.stability)}` : null}
-                subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "—"}
-                hint="Less wobble is better"
-                trend={analysis.trend}
-                sparkMetric="stability"
-                range={[0, 100]}
-                sparkMode="high"
-              />
-              <MetricCard
-                label="Voicing"
-                value={analysis.confidence != null ? `${Math.round((analysis.confidence ?? 0) * 100)}%` : null}
-                subvalue={analysis.detected ? describeConfidence(analysis.confidence ?? 0) : "—"}
-                hint="Tone clarity"
-                trend={analysis.trend}
-                sparkMetric="confidence"
-                range={[0, 100]}
-                sparkMode="high"
-              />
-              <MetricCard
-                label="Noise"
-                value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : null}
-                subvalue={analysis.detected ? "Lower is cleaner" : "—"}
-                hint="Air / finger leak noise"
-                trend={analysis.trend}
-                sparkMetric="noise"
-                range={[0, 100]}
-                sparkMode="low"
-              />
-              <MetricCard
-                label="Input Energy"
-                value={analysis.energy != null ? `${Math.round(analysis.energy)}` : null}
-                subvalue={analysis.detected ? describeEnergy(analysis.energy ?? 0) : "—"}
-                hint="Blow strength"
-                trend={analysis.trend}
-                sparkMetric="energy"
-                range={[0, 100]}
-                sparkMode="high"
-              />
-            </div>
           </section>
         </div>
       </div>
@@ -2878,10 +3347,15 @@ function SignalTrace(props: {
   points: TrendPoint[];
   detected: DetectedSwara | null;
   target: SwaraTarget;
-  silent: boolean;
+  pitchToleranceCents: number;
+  pitchReleaseCents: number;
+  height?: number;
+  pitchDifficulty: PitchDifficulty;
+  pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; description: string }>;
+  onPitchDifficultyChange: (value: PitchDifficulty) => void;
 }) {
   const width = 860;
-  const height = 132;
+  const height = props.height ?? 132;
   const minCents = -60;
   const maxCents = 60;
   const usableWidth = width - 24;
@@ -2889,10 +3363,10 @@ function SignalTrace(props: {
   const points = filterTrendWindow(props.points);
   const latestTimestamp = points.at(-1)?.timestamp ?? Date.now();
   const centsToY = (cents: number) => height - 24 - clamp((cents - minCents) / (maxCents - minCents), 0, 1) * (height - 48);
-  const highReleaseY = centsToY(TARGET_RELEASE_CENTS);
-  const highLockY = centsToY(TARGET_ZONE_CENTS);
-  const lowLockY = centsToY(-TARGET_ZONE_CENTS);
-  const lowReleaseY = centsToY(-TARGET_RELEASE_CENTS);
+  const highReleaseY = centsToY(props.pitchReleaseCents);
+  const highLockY = centsToY(props.pitchToleranceCents);
+  const lowLockY = centsToY(-props.pitchToleranceCents);
+  const lowReleaseY = centsToY(-props.pitchReleaseCents);
   const centerY = centsToY(0);
   const curvePoints = points
     .map((point) => {
@@ -2917,24 +3391,59 @@ function SignalTrace(props: {
         borderRadius: 24,
         padding: 14,
         display: "grid",
-        gap: 8,
+        gap: 12,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <div className="pill">Signal trace</div>
-          <div style={{ marginTop: 8, fontSize: 17, fontWeight: 650 }}>Pitch movement over the last 30 seconds</div>
-          <div style={{ marginTop: 6, color: "var(--muted)", lineHeight: 1.45, fontSize: 13 }}>
-            {props.silent
-              ? "Silence is hidden here until a stable tone returns."
-              : `Tracking ${props.detected?.octave ?? props.target.octave} ${props.detected?.swara ?? props.target.swara} against the same pitch band used for sustain.`}
-          </div>
-        </div>
+        <div className="pill" style={{ width: "fit-content" }}>Pitch tracker</div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Latest offset</div>
           <div style={{ fontSize: 20, fontWeight: 700 }}>
             {latest?.centsOffset != null ? `${signedCents(latest.centsOffset)}¢` : "—"}
           </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          gap: 12,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ fontSize: 17, fontWeight: 650 }}>Pitch movement over the last 30 seconds</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {props.pitchDifficultyOptions.map((option) => {
+            const active = props.pitchDifficulty === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                className="button"
+                onClick={() => props.onPitchDifficultyChange(option.value)}
+                aria-pressed={active}
+                style={{
+                  minHeight: 34,
+                  padding: "0 12px",
+                  borderRadius: 999,
+                  border: active ? "1px solid rgba(103,240,202,0.38)" : "1px solid rgba(255,255,255,0.08)",
+                  background: active
+                    ? "linear-gradient(180deg, rgba(103,240,202,0.18), rgba(103,240,202,0.08))"
+                    : "rgba(255,255,255,0.04)",
+                  color: active ? "var(--text)" : "var(--muted)",
+                  fontSize: 11.5,
+                  fontWeight: 650,
+                  display: "grid",
+                  alignContent: "center",
+                  gap: 2,
+                }}
+                title={option.description}
+              >
+                {option.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -2946,7 +3455,7 @@ function SignalTrace(props: {
           padding: 6,
         }}
       >
-        <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="132" aria-hidden="true">
+        <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} aria-hidden="true">
           <rect x="0" y="0" width={width} height={highReleaseY} fill="rgba(255, 99, 99, 0.08)" />
           <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill="rgba(255, 189, 89, 0.12)" />
           <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(103,240,202,0.15)" />
@@ -2992,8 +3501,12 @@ function SignalTrace(props: {
           <text x="8" y="15" fill="rgba(255,255,255,0.6)" fontSize="10" textAnchor="start">High</text>
           <text x="8" y={centerY + 4} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="start">Target zone</text>
           <text x="8" y={height - 8} fill="rgba(255,255,255,0.6)" fontSize="10" textAnchor="start">Low</text>
-          <text x={width - 8} y={highLockY - 4} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="end">+20¢</text>
-          <text x={width - 8} y={lowLockY + 12} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="end">-20¢</text>
+          <text x={width - 8} y={highLockY - 4} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="end">
+            +{props.pitchToleranceCents}¢
+          </text>
+          <text x={width - 8} y={lowLockY + 12} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="end">
+            -{props.pitchToleranceCents}¢
+          </text>
           <text x={width - 8} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10" textAnchor="end">Now</text>
           <text x="12" y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">30s ago</text>
           <text x={width / 2 - 16} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">~12s</text>
@@ -3001,10 +3514,6 @@ function SignalTrace(props: {
       </div>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>Flat</span>
-        <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>In tune</span>
-        <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>Sharp</span>
-        <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>{props.silent ? "Silent" : "Live tone"}</span>
       </div>
     </article>
   );

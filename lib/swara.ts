@@ -470,8 +470,12 @@ export function scoreAttempt(params: {
   sustainMs: number;
   stability: number;
   noise: number;
+  pitchToleranceCents?: number;
+  sustainNormalizationMs?: number;
 }) {
   const { target, detected, sustainMs, stability, noise } = params;
+  const pitchToleranceCents = Math.max(8, params.pitchToleranceCents ?? 20);
+  const sustainNormalizationMs = Math.max(250, params.sustainNormalizationMs ?? 3000);
 
   if (!detected) {
     return {
@@ -480,10 +484,11 @@ export function scoreAttempt(params: {
     };
   }
 
-  const pitchScore = Math.max(0, 100 - Math.min(Math.abs(detected.centsOffset), 80) * 1.25);
+  const pitchPenalty = Math.min(Math.abs(detected.centsOffset), pitchToleranceCents * 2);
+  const pitchScore = Math.max(0, 100 - (pitchPenalty / (pitchToleranceCents * 2)) * 100);
   const octaveScore = detected.octave === target.octave ? 100 : 0;
   const swaraScore = detected.swara === target.swara ? 100 : 0;
-  const sustainScore = Math.min(100, (sustainMs / 3000) * 100);
+  const sustainScore = Math.min(100, (sustainMs / sustainNormalizationMs) * 100);
   const stabilityScore = Math.max(0, Math.min(100, stability));
   const noiseScore = Math.max(0, Math.min(100, 100 - noise));
 
@@ -501,12 +506,12 @@ export function scoreAttempt(params: {
     summary = `You played ${detected.swara} instead of ${target.swara}.`;
   } else if (detected.octave !== target.octave) {
     summary = `Correct swara, but the octave is ${detected.octave} instead of ${target.octave}.`;
-  } else if (Math.abs(detected.centsOffset) > 24) {
+  } else if (Math.abs(detected.centsOffset) > pitchToleranceCents * 1.5) {
     summary = detected.centsOffset > 0 ? "A little high. Ease the airflow slightly." : "A little low. Add a touch more support.";
-  } else if (Math.abs(detected.centsOffset) > 14) {
+  } else if (Math.abs(detected.centsOffset) > pitchToleranceCents * 0.75) {
     summary = detected.centsOffset > 0 ? "Close, but still a touch high." : "Close, but still a touch low.";
-  } else if (sustainMs < 2200) {
-    summary = "Pitch is close. Hold the note longer to clear the checkpoint.";
+  } else if (sustainMs < sustainNormalizationMs * 0.75) {
+    summary = "Pitch is close. Hold the note a little longer to clear the checkpoint.";
   } else if (stability < 70) {
     summary = "The note is right, but airflow stability still needs work.";
   }

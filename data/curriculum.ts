@@ -117,6 +117,23 @@ type LegacyStep = CurriculumCheckpoint & {
   groupTitle: string;
 };
 
+const MIN_PRACTICE_HOLD_MS = 2400;
+
+function normalizePracticeHoldMs(value: number) {
+  return value < 1000 ? MIN_PRACTICE_HOLD_MS : value;
+}
+
+function normalizePracticeHoldSeconds(value: number) {
+  return value < 1 ? MIN_PRACTICE_HOLD_MS / 1000 : value;
+}
+
+function normalizeSequenceStep(step: SequenceStep): SequenceStep {
+  return {
+    ...step,
+    sustainTargetMs: normalizePracticeHoldMs(step.sustainTargetMs),
+  };
+}
+
 export type LegacyModule = {
   id: string;
   title: string;
@@ -170,7 +187,7 @@ function single(
     type: "single_note",
     description,
     target,
-    sustainSeconds,
+    sustainSeconds: normalizePracticeHoldSeconds(sustainSeconds),
     minimumScore,
     pitchToleranceCents,
     lockBandCents,
@@ -212,7 +229,7 @@ function sequence(
     title,
     type: "sequence",
     description,
-    steps,
+    steps: steps.map(normalizeSequenceStep),
     repeatCount,
     minimumScore,
     pitchToleranceCents,
@@ -230,7 +247,14 @@ function sequence(
       requireStrictTempo: sequenceRules.requireStrictTempo,
       resetMode: sequenceRules.resetMode ?? "loop",
     },
-    ragaRules,
+    ragaRules: ragaRules
+      ? {
+          ...ragaRules,
+          arohana: ragaRules.arohana?.map(normalizeSequenceStep),
+          avarohana: ragaRules.avarohana?.map(normalizeSequenceStep),
+          pakad: ragaRules.pakad?.map((phrase) => phrase.map(normalizeSequenceStep)),
+        }
+      : undefined,
     stage,
   };
 }
