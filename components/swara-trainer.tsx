@@ -1915,7 +1915,7 @@ export function SwaraTrainer() {
   }));
 
   return (
-    <main className="shell" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
+    <main className="shell trainer-page" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
       <style>{`
         @keyframes confetti-fall {
           0% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
@@ -1950,7 +1950,7 @@ export function SwaraTrainer() {
         </div>
       ) : null}
       <div
-        className="glass"
+        className="trainer-hero glass"
         style={{
           borderRadius: 36,
           padding: "18px clamp(16px, 2.4vw, 28px)",
@@ -1959,6 +1959,7 @@ export function SwaraTrainer() {
         }}
       >
         <div
+          className="trainer-header"
           style={{
             display: "flex",
             justifyContent: "space-between",
@@ -1981,7 +1982,7 @@ export function SwaraTrainer() {
         </div>
 
         <div
-          className="glass"
+          className="trainer-setup glass"
           style={{
             borderRadius: 28,
             padding: 14,
@@ -1990,20 +1991,21 @@ export function SwaraTrainer() {
             gap: 12,
           }}
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) auto",
+            <div
+              className="trainer-setup-bar"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) auto",
               gap: 12,
               alignItems: "center",
             }}
           >
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div className="trainer-setup-pills" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <span className="pill">Tonic {tonicLabel}</span>
               <span className="pill">Register {fluteProfile.registerLabel}</span>
             </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div className="trainer-setup-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
               <button className="button button-primary" onClick={() => void startAnalysis()} disabled={running}>
                 Start mic
               </button>
@@ -2021,6 +2023,7 @@ export function SwaraTrainer() {
 
           {controlsOpen ? (
             <div
+              className="trainer-setup-grid"
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -2170,6 +2173,7 @@ export function SwaraTrainer() {
         </div>
 
       <div
+        className="trainer-layout"
         style={{
           display: "grid",
           gridTemplateColumns: leftRailOpen ? "minmax(280px, 0.82fr) minmax(0, 1.9fr)" : "minmax(0, 1fr)",
@@ -2180,7 +2184,7 @@ export function SwaraTrainer() {
       >
         {leftRailOpen ? (
           <aside
-            className="glass"
+            className="trainer-rail glass"
             style={{
               minWidth: 0,
               display: "grid",
@@ -2259,7 +2263,7 @@ export function SwaraTrainer() {
           </aside>
         ) : null}
 
-        <section style={{ minWidth: 0, display: "grid", gap: 12, position: "relative" }}>
+        <section className="trainer-main" style={{ minWidth: 0, display: "grid", gap: 12, position: "relative" }}>
           {!leftRailOpen ? (
             <button
               type="button"
@@ -2293,6 +2297,7 @@ export function SwaraTrainer() {
 
           {checkpointNotice ? (
             <div
+              className="trainer-checkpoint-notice"
               style={{
                 borderRadius: 24,
                 padding: "14px 16px",
@@ -2336,6 +2341,7 @@ export function SwaraTrainer() {
           ) : null}
 
             <div
+              className="trainer-stage"
               style={{
                 display: "grid",
                 gridTemplateColumns: "minmax(0, 1fr)",
@@ -2344,7 +2350,7 @@ export function SwaraTrainer() {
               }}
             >
               <div
-                className="glass"
+                className="trainer-live-card glass"
                 style={{
                   borderRadius: 28,
                   padding: 16,
@@ -2353,7 +2359,7 @@ export function SwaraTrainer() {
                   gap: 12,
                 }}
               >
-                <div style={{ display: "grid", gap: 12 }}>
+                <div className="trainer-live-header" style={{ display: "grid", gap: 12 }}>
                   <div>
                     <div className="pill">Live target</div>
                     <div style={{ marginTop: 10, fontSize: 28, fontWeight: 750, letterSpacing: "-0.05em" }}>
@@ -2368,6 +2374,7 @@ export function SwaraTrainer() {
 
                 {sequenceDrill ? (
                   <div
+                    className="trainer-sequence"
                     style={{
                       borderRadius: 22,
                       padding: 14,
@@ -2377,7 +2384,7 @@ export function SwaraTrainer() {
                       gap: 12,
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                    <div className="trainer-sequence-header" style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                       <div style={{ display: "grid", gap: 4 }}>
                         <div className="pill" style={{ width: "fit-content" }}>Compound note tracker</div>
                         <div style={{ color: "var(--muted)", fontSize: 13.5 }}>
@@ -2401,7 +2408,7 @@ export function SwaraTrainer() {
                         </div>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div className="trainer-sequence-steps" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {sequenceDrill.steps.map((step, index) => {
                         const isDone = index < sequenceCurrentIndex;
                         const isCurrent = index === sequenceCurrentIndex;
@@ -2445,7 +2452,7 @@ export function SwaraTrainer() {
                       })}
                     </div>
                     {sequenceLoopHistory.length ? (
-                      <div style={{ display: "grid", gap: 8, paddingTop: 4 }}>
+                      <div className="trainer-loop-history" style={{ display: "grid", gap: 8, paddingTop: 4 }}>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <div className="pill" style={{ width: "fit-content" }}>Loop history</div>
                           {sequenceLoopHistory.slice(-3).map((entry, index) => (
@@ -2511,7 +2518,7 @@ export function SwaraTrainer() {
                   </div>
                 ) : null}
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+                <div className="trainer-summary-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
                   <LiveStat
                     label={sequenceDrill ? "Current note" : "Detected"}
                     value={analysis.detected ? `${analysis.detected.octave} ${analysis.detected.swara}` : "—"}
@@ -2552,7 +2559,7 @@ export function SwaraTrainer() {
               </div>
 
               <div
-                className="glass"
+                className="trainer-pitch-card glass"
                 style={{
                   borderRadius: 24,
                   padding: 14,
@@ -2561,9 +2568,10 @@ export function SwaraTrainer() {
                   gap: 12,
                 }}
               >
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.45fr) minmax(280px, 0.75fr)", gap: 12, alignItems: "stretch" }}>
-                  <div style={{ display: "grid", gap: 12, minHeight: 330 }}>
+                <div className="trainer-pitch-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.45fr) minmax(280px, 0.75fr)", gap: 12, alignItems: "stretch" }}>
+                  <div className="trainer-signal-column" style={{ display: "grid", gap: 12, minHeight: 330 }}>
                     <SignalTrace
+                      className="trainer-signal-trace"
                       points={analysis.trend}
                       detected={analysis.detected}
                       target={checkpointFocus.target}
@@ -2577,6 +2585,7 @@ export function SwaraTrainer() {
                   </div>
 
                   <div
+                    className="trainer-metric-grid"
                     style={{
                       display: "grid",
                       gap: 10,
@@ -3344,6 +3353,7 @@ function JourneyRibbon(props: {
 }
 
 function SignalTrace(props: {
+  className?: string;
   points: TrendPoint[];
   detected: DetectedSwara | null;
   target: SwaraTarget;
@@ -3386,7 +3396,7 @@ function SignalTrace(props: {
 
   return (
     <article
-      className="glass"
+      className={`glass ${props.className ?? ""}`.trim()}
       style={{
         borderRadius: 24,
         padding: 14,
@@ -3394,7 +3404,7 @@ function SignalTrace(props: {
         gap: 12,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div className="pill" style={{ width: "fit-content" }}>Pitch tracker</div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Latest offset</div>
@@ -3405,6 +3415,7 @@ function SignalTrace(props: {
       </div>
 
       <div
+        className="trainer-signal-title-row"
         style={{
           display: "grid",
           gridTemplateColumns: "1fr auto",
@@ -3412,8 +3423,8 @@ function SignalTrace(props: {
           alignItems: "center",
         }}
       >
-        <div style={{ fontSize: 17, fontWeight: 650 }}>Pitch movement over the last 30 seconds</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div className="trainer-signal-title" style={{ fontSize: 17, fontWeight: 650 }}>Pitch movement over the last 30 seconds</div>
+        <div className="trainer-pitch-difficulty" style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {props.pitchDifficultyOptions.map((option) => {
             const active = props.pitchDifficulty === option.value;
             return (

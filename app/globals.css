@@ -137,6 +137,157 @@ select {
 
 @media (max-width: 900px) {
   .shell {
-    width: min(100% - 20px, 1180px);
+    width: min(100% - 12px, 1180px);
+  }
+
+  .trainer-page {
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+
+  .trainer-header {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .trainer-setup-bar {
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+  }
+
+  .trainer-setup-pills {
+    width: 100%;
+  }
+
+  .trainer-setup-actions {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch !important;
+  }
+
+  .trainer-setup-actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .trainer-setup-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .trainer-layout {
+    grid-template-columns: 1fr !important;
+    min-height: auto !important;
+  }
+
+  .trainer-rail {
+    order: 2;
+  }
+
+  .trainer-main {
+    order: 1;
+  }
+
+  .trainer-hero,
+  .trainer-setup,
+  .trainer-rail,
+  .trainer-live-card,
+  .trainer-pitch-card {
+    border-radius: 22px !important;
+  }
+
+  .trainer-hero,
+  .trainer-setup,
+  .trainer-rail,
+  .trainer-live-card,
+  .trainer-pitch-card {
+    padding: 12px !important;
+  }
+
+  .trainer-stage,
+  .trainer-main {
+    gap: 10px !important;
+  }
+
+  .trainer-checkpoint-notice {
+    border-radius: 20px !important;
+  }
+
+  .trainer-live-card {
+    gap: 10px !important;
+  }
+
+  .trainer-sequence-header {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .trainer-sequence-steps {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .trainer-sequence-steps > div {
+    min-width: 0 !important;
+  }
+
+  .trainer-loop-history > div:first-child {
+    align-items: flex-start;
+  }
+
+  .trainer-summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .trainer-pitch-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .trainer-signal-title-row {
+    grid-template-columns: 1fr !important;
+    justify-items: start;
+  }
+
+  .trainer-pitch-difficulty {
+    justify-content: flex-start !important;
+  }
+
+  .trainer-signal-column {
+    min-height: 0 !important;
+  }
+
+  .trainer-signal-trace svg {
+    height: 210px !important;
+  }
+
+  .trainer-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .shell {
+    width: min(100% - 8px, 1180px);
+  }
+
+  .trainer-page {
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .trainer-setup-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .trainer-sequence-steps {
+    grid-template-columns: 1fr !important;
+  }
+
+  .trainer-metric-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .trainer-signal-trace svg {
+    height: 188px !important;
   }
 }
