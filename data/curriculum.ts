@@ -259,7 +259,7 @@ function sequence(
   };
 }
 
-function module(
+function curriculumModule(
   id: string,
   title: string,
   description: string,
@@ -308,7 +308,7 @@ export const curriculumTracks: CurriculumTrack[] = [
     description: "From clean Sa to alankars and raga phrases, with a slow ramp and strict gating.",
     order: 1,
     modules: [
-      module("tone-foundation", "Tone Foundation", "Sound first. Breath, embouchure, and a stable Madhya Sa.", 1, [], [
+      curriculumModule("tone-foundation", "Tone Foundation", "Sound first. Breath, embouchure, and a stable Madhya Sa.", 1, [], [
         group(
           "tone-foundation-core",
           "Stable Sa",
@@ -354,7 +354,7 @@ export const curriculumTracks: CurriculumTrack[] = [
           ],
         ),
       ]),
-      module("swara-placement", "Swara Placement", "Place each Madhya swara accurately before combining them.", 2, ["tone-foundation"], [
+      curriculumModule("swara-placement", "Swara Placement", "Place each Madhya swara accurately before combining them.", 2, ["tone-foundation"], [
         group(
           "madhya-swaras",
           "Seven swaras in Madhya",
@@ -372,7 +372,7 @@ export const curriculumTracks: CurriculumTrack[] = [
           ],
         ),
       ]),
-      module("interval-links", "Interval Links", "Learn adjacent swara motion as real musical motion.", 3, ["swara-placement"], [
+      curriculumModule("interval-links", "Interval Links", "Learn adjacent swara motion as real musical motion.", 3, ["swara-placement"], [
         group(
           "adjacent-links",
           "Adjacent pairs",
@@ -412,7 +412,7 @@ export const curriculumTracks: CurriculumTrack[] = [
           ],
         ),
       ]),
-      module("scale-runs-alankars", "Scale Runs and Alankars", "Turn notes into patterns, not isolated targets.", 4, ["interval-links"], [
+      curriculumModule("scale-runs-alankars", "Scale Runs and Alankars", "Turn notes into patterns, not isolated targets.", 4, ["interval-links"], [
         group(
           "simple-alankars",
           "Pattern drills",
@@ -471,7 +471,7 @@ export const curriculumTracks: CurriculumTrack[] = [
           ],
         ),
       ]),
-      module("raga-grammar", "Raga Grammar", "Learn actual phrasing instead of generic scales.", 5, ["scale-runs-alankars"], [
+      curriculumModule("raga-grammar", "Raga Grammar", "Learn actual phrasing instead of generic scales.", 5, ["scale-runs-alankars"], [
         group(
           "raga-bhoopali",
           "Bhoopali",
@@ -570,7 +570,7 @@ export const curriculumTracks: CurriculumTrack[] = [
           ],
         ),
       ]),
-      module("ornamentation", "Ornamentation", "Advanced bends, oscillations, and rapid clusters.", 6, ["raga-grammar"], [
+      curriculumModule("ornamentation", "Ornamentation", "Advanced bends, oscillations, and rapid clusters.", 6, ["raga-grammar"], [
         group(
           "ornamentation-preview",
           "Future ornamentation",
@@ -593,12 +593,12 @@ export const curriculumTracks: CurriculumTrack[] = [
     description: "Varisais first, then rhythm and phrase discipline in Mayamalavagowla.",
     order: 2,
     modules: [
-      module("tone-sruti", "Tone and Sruti Alignment", "Center the flute tone against the drone before the varisais begin.", 1, [], [
+      curriculumModule("tone-sruti", "Tone and Sruti Alignment", "Center the flute tone against the drone before the varisais begin.", 1, [], [
         group("sruti-basics", "Tone checks", "tone", 1, "none", "Get one clean stable Sa and hold it against the tanpura.", [
           single("carnatic-sa", "Stable Sa", "Hold the Carnatic tonic cleanly.", { swara: "Sa", octave: "Madhya", state: "Shuddha" }, 2.4, 68, 22, 12, 26, 40, 60, cMediumAndUp, "Match the shruti before worrying about speed.", ["Overblowing", "Ignoring the drone"], "disable"),
         ]),
       ]),
-      module("varisai-foundations", "Varisai Foundations", "Sarali, Janta, Dhatu, and Melstayi build the grammar of Carnatic practice.", 2, ["tone-sruti"], [
+      curriculumModule("varisai-foundations", "Varisai Foundations", "Sarali, Janta, Dhatu, and Melstayi build the grammar of Carnatic practice.", 2, ["tone-sruti"], [
         group("sarali-varisai", "Sarali Varisai", "sequence", 1, "clear_previous_group", "Straight line movement in Mayamalavagowla.", [
           sequence("sarali-1", "Sarali 1", "Basic ascent and descent.", [
             { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 180 },
@@ -652,12 +652,12 @@ export const curriculumTracks: CurriculumTrack[] = [
     description: "Daily drill loops that keep tone, time, and memory in shape.",
     order: 3,
     modules: [
-      module("riyaaz-core", "Core Conditioning", "Daily long notes and breath stability.", 1, [], [
+      curriculumModule("riyaaz-core", "Core Conditioning", "Daily long notes and breath stability.", 1, [], [
         group("long-swaras", "Long swaras", "riyaaz", 1, "none", "Play one note per breath and keep the line centered.", [
           single("daily-sa", "Long Sa", "Hold Sa with a long, even breath.", { swara: "Sa", octave: "Madhya", state: "Shuddha" }, 6, 78, 15, 10, 20, 30, 70, cMediumAndUp, "Aim for a stable tone, not just a long one.", ["Pitch drift", "Breath sag"], "disable"),
         ]),
       ]),
-      module("riyaaz-intervals", "Motor Skills", "Intervals and repeat-pattern motor memory.", 2, ["riyaaz-core"], [
+      curriculumModule("riyaaz-intervals", "Motor Skills", "Intervals and repeat-pattern motor memory.", 2, ["riyaaz-core"], [
         group("daily-ladder", "Swara ladder", "sequence", 1, "clear_previous_group", "Move through the scale in a daily loop.", [
           sequence("daily-ladder-1", "Daily ladder", "Step through a short practice ladder.", [
             { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 180 },
@@ -667,7 +667,7 @@ export const curriculumTracks: CurriculumTrack[] = [
           ], 2, 78, 15, 10, 30, 30, 70, cMediumAndUp, "Use this as a warm-up rather than a sprint.", ["Rushing the first note", "Losing tone at the fourth note"], { maxGapMs: 280, requireStrictTempo: true }),
         ]),
       ]),
-      module("riyaaz-patterns", "Pattern Work", "Alankars and short cycles for daily fluency.", 3, ["riyaaz-intervals"], [
+      curriculumModule("riyaaz-patterns", "Pattern Work", "Alankars and short cycles for daily fluency.", 3, ["riyaaz-intervals"], [
         group("daily-alankar", "Daily alankar", "sequence", 1, "clear_previous_group", "Repeat a core alankar in a daily cadence.", [
           sequence("daily-alankar-1", "Alankar loop", "Practice a short daily alankar loop.", [
             { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 140 },
@@ -680,7 +680,7 @@ export const curriculumTracks: CurriculumTrack[] = [
           ], 2, 80, 15, 10, 28, 28, 72, cMediumAndUp, "Keep the loop exact each time; daily practice should feel predictable.", ["Letting the middle note blur", "Varying the return path"], { maxGapMs: 260, requireStrictTempo: true }),
         ]),
       ]),
-      module("riyaaz-review", "Review and Endurance", "Rote revision keeps old checkpoints alive.", 4, ["riyaaz-patterns"], [
+      curriculumModule("riyaaz-review", "Review and Endurance", "Rote revision keeps old checkpoints alive.", 4, ["riyaaz-patterns"], [
         group("daily-review", "Revision loop", "riyaaz", 1, "clear_module", "Review older checkpoints and build endurance.", [
           single("daily-review-sa", "Revision Sa", "Revisit a stable Sa after the warm-up.", { swara: "Sa", octave: "Madhya", state: "Shuddha" }, 10, 82, 12, 8, 20, 25, 75, cMediumAndUp, "Use the same embouchure every day so the body learns the shape.", ["Changing breath angle", "Growing tired halfway through"], "disable"),
         ]),
@@ -690,11 +690,11 @@ export const curriculumTracks: CurriculumTrack[] = [
 ];
 
 function flattenTrack(track: CurriculumTrack): LegacyModule[] {
-  return track.modules.map((mod) => ({
+  return (track.modules ?? []).map((mod) => ({
     id: mod.id,
     title: mod.title,
     description: mod.description,
-    steps: mod.checkpointGroups.flatMap((group) =>
+    steps: (mod.checkpointGroups ?? []).flatMap((group) =>
       group.checkpoints.map((checkpoint) => ({
         ...checkpoint,
         groupId: group.id,

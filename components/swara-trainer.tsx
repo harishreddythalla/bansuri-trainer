@@ -35,6 +35,8 @@ type TrendPoint = {
   sustainMs: number | null;
   active: boolean;
   timestamp: number;
+  swara: string | null;
+  octave: string | null;
 };
 
 type AnalysisState = {
@@ -200,26 +202,38 @@ const pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; des
 ];
 
 function readStoredPitchDifficulty(): PitchDifficulty {
-  if (
-    typeof window === "undefined" ||
-    typeof window.localStorage?.getItem !== "function"
-  ) {
+  try {
+    if (typeof window === "undefined") {
+      return "medium";
+    }
+
+    const storage = window.localStorage;
+    if (typeof storage?.getItem !== "function") {
+      return "medium";
+    }
+
+    const stored = storage.getItem(PITCH_DIFFICULTY_STORAGE_KEY);
+    return stored === "easy" || stored === "medium" || stored === "hard" ? stored : "medium";
+  } catch {
     return "medium";
   }
-
-  const stored = window.localStorage.getItem(PITCH_DIFFICULTY_STORAGE_KEY);
-  return stored === "easy" || stored === "medium" || stored === "hard" ? stored : "medium";
 }
 
 function storePitchDifficulty(value: PitchDifficulty) {
-  if (
-    typeof window === "undefined" ||
-    typeof window.localStorage?.setItem !== "function"
-  ) {
-    return;
-  }
+  try {
+    if (typeof window === "undefined") {
+      return;
+    }
 
-  window.localStorage.setItem(PITCH_DIFFICULTY_STORAGE_KEY, value);
+    const storage = window.localStorage;
+    if (typeof storage?.setItem !== "function") {
+      return;
+    }
+
+    storage.setItem(PITCH_DIFFICULTY_STORAGE_KEY, value);
+  } catch {
+    // best-effort
+  }
 }
 
 function pitchDifficultyConfig(difficulty: PitchDifficulty): PitchDifficultyConfig {
@@ -256,15 +270,17 @@ function pitchDifficultyConfig(difficulty: PitchDifficulty): PitchDifficultyConf
 }
 
 function readStoredDebugLog() {
-  if (
-    typeof window === "undefined" ||
-    typeof window.localStorage?.getItem !== "function"
-  ) {
-    return [] as DebugLogEntry[];
-  }
-
   try {
-    const raw = window.localStorage.getItem(DEBUG_LOG_STORAGE_KEY);
+    if (typeof window === "undefined") {
+      return [] as DebugLogEntry[];
+    }
+
+    const storage = window.localStorage;
+    if (typeof storage?.getItem !== "function") {
+      return [] as DebugLogEntry[];
+    }
+
+    const raw = storage.getItem(DEBUG_LOG_STORAGE_KEY);
     if (!raw) {
       return [] as DebugLogEntry[];
     }
@@ -277,14 +293,20 @@ function readStoredDebugLog() {
 }
 
 function writeStoredDebugLog(entries: DebugLogEntry[]) {
-  if (
-    typeof window === "undefined" ||
-    typeof window.localStorage?.setItem !== "function"
-  ) {
-    return;
-  }
+  try {
+    if (typeof window === "undefined") {
+      return;
+    }
 
-  window.localStorage.setItem(DEBUG_LOG_STORAGE_KEY, JSON.stringify(entries.slice(-DEBUG_LOG_LIMIT)));
+    const storage = window.localStorage;
+    if (typeof storage?.setItem !== "function") {
+      return;
+    }
+
+    storage.setItem(DEBUG_LOG_STORAGE_KEY, JSON.stringify(entries.slice(-DEBUG_LOG_LIMIT)));
+  } catch {
+    // best-effort
+  }
 }
 
 async function sendDebugEventToSink(entry: DebugLogEntry) {
@@ -553,7 +575,7 @@ export function SwaraTrainer() {
   });
   const [selectedTonic, setSelectedTonic] = useState<TonicName>(defaultFluteProfile.tonic);
   const [selectedRegister, setSelectedRegister] = useState<FluteRegister>(defaultFluteProfile.register);
-  const [pitchDifficulty, setPitchDifficulty] = useState<PitchDifficulty>(readStoredPitchDifficulty);
+  const [pitchDifficulty, setPitchDifficulty] = useState<PitchDifficulty>("medium");
   const [controlsOpen, setControlsOpen] = useState(false);
   const [leftRailOpen, setLeftRailOpen] = useState(false);
   const [running, setRunning] = useState(false);
@@ -710,6 +732,10 @@ export function SwaraTrainer() {
 
   useEffect(() => {
     debugLogRef.current = readStoredDebugLog();
+  }, []);
+
+  useEffect(() => {
+    setPitchDifficulty(readStoredPitchDifficulty());
   }, []);
 
   useEffect(() => {
@@ -1688,6 +1714,8 @@ export function SwaraTrainer() {
         score: point.score,
         active: point.active,
         timestamp,
+        swara: point.reading ? point.reading.swara : null,
+        octave: point.reading ? point.reading.octave : null,
       },
     ];
   }
@@ -3352,6 +3380,73 @@ function JourneyRibbon(props: {
   );
 }
 
+const SWARA_BASE_COLORS: Record<string, string> = {
+  Sa: "#ff6d6d",
+  Re: "#ff9f43",
+  Ga: "#e8d34e",
+  Ma: "#69d48a",
+  Pa: "#59cfd6",
+  Dha: "#6f9dff",
+  Ni: "#d47bff",
+};
+
+function octaveSymbol(octave: string | null) {
+  if (octave === "Mandra") return "↓";
+  if (octave === "Taar") return "↑";
+  return "";
+}
+
+function hexToRgb(hex: string) {
+  const normalized = hex.replace("#", "");
+  const expanded = normalized.length === 3
+    ? normalized.split("").map((char) => char + char).join("")
+    : normalized;
+  const value = Number.parseInt(expanded, 16);
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255,
+  };
+}
+
+function rgba(hex: string, alpha: number) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function mixHex(a: string, b: string, ratio: number) {
+  const left = hexToRgb(a);
+  const right = hexToRgb(b);
+  const mix = (start: number, end: number) => Math.round(start + (end - start) * ratio);
+  return `#${[mix(left.r, right.r), mix(left.g, right.g), mix(left.b, right.b)]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function noteVisual(swara: string | null, octave: string | null) {
+  const baseHex = SWARA_BASE_COLORS[swara ?? "Sa"] ?? SWARA_BASE_COLORS.Sa;
+  const tint = octave === "Taar"
+    ? mixHex(baseHex, "#ffffff", 0.35)
+    : octave === "Mandra"
+      ? mixHex(baseHex, "#091120", 0.38)
+      : baseHex;
+  const fillAlpha = octave === "Taar" ? 0.92 : octave === "Mandra" ? 0.58 : 0.78;
+  const strokeAlpha = octave === "Taar" ? 0.9 : octave === "Mandra" ? 0.42 : 0.64;
+  const bandAlpha = octave === "Taar" ? 0.18 : octave === "Mandra" ? 0.08 : 0.12;
+
+  return {
+    fill: rgba(tint, fillAlpha),
+    stroke: rgba(tint, strokeAlpha),
+    band: rgba(tint, bandAlpha),
+  };
+}
+
+function compactNoteLabel(swara: string, octave: string | null) {
+  const head = swara.charAt(0);
+  const prefix = octaveSymbol(octave) === "↑" ? "^" : octaveSymbol(octave) === "↓" ? "_" : "";
+  return `${prefix}${head}`;
+}
+
 function SignalTrace(props: {
   className?: string;
   points: TrendPoint[];
@@ -3366,6 +3461,7 @@ function SignalTrace(props: {
 }) {
   const width = 860;
   const height = props.height ?? 132;
+  const [segmentationEnabled, setSegmentationEnabled] = useState(true);
   const minCents = -60;
   const maxCents = 60;
   const usableWidth = width - 24;
@@ -3378,21 +3474,116 @@ function SignalTrace(props: {
   const lowLockY = centsToY(-props.pitchToleranceCents);
   const lowReleaseY = centsToY(-props.pitchReleaseCents);
   const centerY = centsToY(0);
+
+  // Build enriched curve points with swara info
   const curvePoints = points
     .map((point) => {
-      if (point.centsOffset == null) {
-        return null;
-      }
-
+      if (point.centsOffset == null) return null;
       const x = leftPad + clamp(1 - (latestTimestamp - point.timestamp) / TREND_WINDOW_MS, 0, 1) * usableWidth;
       const normalized = clamp((point.centsOffset - minCents) / (maxCents - minCents), 0, 1);
       const y = height - 24 - normalized * (height - 48);
-      return { x, y, active: point.active };
+      return { x, y, active: point.active, swara: point.swara, octave: point.octave, timestamp: point.timestamp };
     })
-    .filter(Boolean) as Array<{ x: number; y: number; active: boolean }>;
-  const path = buildSmoothPolyline(curvePoints);
+    .filter(Boolean) as Array<{
+    x: number;
+    y: number;
+    active: boolean;
+    swara: string | null;
+    octave: string | null;
+    timestamp: number;
+  }>;
+
+  type Segment = {
+    points: Array<{ x: number; y: number }>;
+    swara: string | null;
+    octave: string | null;
+  };
+  const segments: Segment[] = [];
+  const activeCurvePoints = curvePoints.filter((pt) => pt.active && pt.swara);
+  const segmentGapMs = 720;
+  let previousSegmentTimestamp = 0;
+  for (let i = 0; i < activeCurvePoints.length; i++) {
+    const pt = activeCurvePoints[i];
+    const prev = segments[segments.length - 1];
+    if (
+      prev &&
+      prev.swara === pt.swara &&
+      prev.octave === pt.octave &&
+      pt.timestamp - previousSegmentTimestamp <= segmentGapMs
+    ) {
+      prev.points.push({ x: pt.x, y: pt.y });
+    } else {
+      // Carry over last point from previous segment for continuity
+      const carry = prev ? [prev.points[prev.points.length - 1]] : [];
+      segments.push({ points: [...carry, { x: pt.x, y: pt.y }], swara: pt.swara, octave: pt.octave });
+    }
+    previousSegmentTimestamp = pt.timestamp;
+  }
 
   const latest = [...points].reverse().find((point) => point.centsOffset != null);
+
+  type NoteBand = {
+    key: string;
+    swara: string;
+    octave: string | null;
+    startX: number;
+    endX: number;
+    startTime: number;
+    endTime: number;
+    color: ReturnType<typeof noteVisual>;
+  };
+
+  const noteBands: NoteBand[] = [];
+  const sectionGapMs = 420;
+  const minBandDurationMs = 160;
+
+  for (const pt of activeCurvePoints) {
+    const swara = pt.swara ?? "Sa";
+    const octave = pt.octave ?? "Madhya";
+    const key = `${swara}-${octave}`;
+    const color = noteVisual(swara, octave);
+    const existing = noteBands.at(-1);
+
+    if (existing && existing.key === key && pt.timestamp - existing.endTime <= sectionGapMs) {
+      existing.endX = pt.x;
+      existing.endTime = pt.timestamp;
+      existing.color = color;
+      continue;
+    }
+
+    noteBands.push({
+      key,
+      swara,
+      octave,
+      startX: pt.x,
+      endX: pt.x,
+      startTime: pt.timestamp,
+      endTime: pt.timestamp,
+      color,
+    });
+  }
+
+  const mergedNoteBands: NoteBand[] = [];
+  for (const band of noteBands) {
+    const prev = mergedNoteBands.at(-1);
+    if (prev && prev.key === band.key && band.startTime - prev.endTime <= sectionGapMs) {
+      prev.endX = band.endX;
+      prev.endTime = band.endTime;
+      prev.color = band.color;
+    } else {
+      mergedNoteBands.push({ ...band });
+    }
+  }
+
+  const visibleNoteBands = mergedNoteBands.filter((band) => band.endTime - band.startTime >= minBandDurationMs);
+  const noteLegend = Array.from(
+    new Map(
+      ["Sa", "Re", "Ga", "Ma", "Pa", "Dha", "Ni"].map((swara) => [
+        swara,
+        { swara, color: noteVisual(swara, "Madhya") },
+      ]),
+    ).values(),
+  );
 
   return (
     <article
@@ -3405,7 +3596,34 @@ function SignalTrace(props: {
       }}
     >
       <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div className="pill" style={{ width: "fit-content" }}>Pitch tracker</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div className="pill" style={{ width: "fit-content" }}>Pitch tracker</div>
+          <button
+            type="button"
+            className="button"
+            aria-pressed={segmentationEnabled}
+            aria-label={segmentationEnabled ? "Hide note segmentation" : "Show note segmentation"}
+            title={segmentationEnabled ? "Hide note segmentation" : "Show note segmentation"}
+            onClick={() => setSegmentationEnabled((value) => !value)}
+            style={{
+              width: 28,
+              height: 28,
+              minWidth: 28,
+              minHeight: 28,
+              padding: 0,
+              borderRadius: 10,
+              display: "grid",
+              placeItems: "center",
+              border: segmentationEnabled ? "1px solid rgba(103,240,202,0.34)" : "1px solid rgba(255,255,255,0.08)",
+              background: segmentationEnabled
+                ? "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(103,240,202,0.06))"
+                : "rgba(255,255,255,0.04)",
+              color: segmentationEnabled ? "rgba(219,255,247,0.98)" : "var(--muted)",
+            }}
+          >
+            <SegmentationToggleIcon active={segmentationEnabled} />
+          </button>
+        </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Latest offset</div>
           <div style={{ fontSize: 20, fontWeight: 700 }}>
@@ -3458,6 +3676,49 @@ function SignalTrace(props: {
         </div>
       </div>
 
+      {segmentationEnabled ? (
+        <div
+          aria-hidden="true"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6,
+            alignItems: "center",
+            marginTop: -2,
+            color: "rgba(255,255,255,0.62)",
+            fontSize: 10,
+          }}
+        >
+          <span style={{ opacity: 0.7 }}>Segmentation</span>
+          {noteLegend.map((note) => (
+            <span
+              key={note.swara}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "2px 6px",
+                borderRadius: 999,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                lineHeight: 1,
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 999,
+                  background: note.color.stroke,
+                  boxShadow: `0 0 0 1px ${note.color.band}`,
+                }}
+              />
+              {note.swara}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       <div
         style={{
           borderRadius: 24,
@@ -3467,48 +3728,98 @@ function SignalTrace(props: {
         }}
       >
         <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} aria-hidden="true">
+          {/* Background bands */}
           <rect x="0" y="0" width={width} height={highReleaseY} fill="rgba(255, 99, 99, 0.08)" />
           <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill="rgba(255, 189, 89, 0.12)" />
           <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(103,240,202,0.15)" />
           <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill="rgba(255, 189, 89, 0.12)" />
           <rect x="0" y={lowReleaseY} width={width} height={height - lowReleaseY} fill="rgba(255, 99, 99, 0.08)" />
+
+          {/* Dynamic note sections */}
+          {segmentationEnabled
+            ? visibleNoteBands.map((band, index) => {
+                const bandWidth = Math.max(0, band.endX - band.startX);
+                const shouldLabel = bandWidth >= 36;
+                const labelX = clamp(band.startX + 8, 16, width - 18);
+                return (
+                  <g key={`${band.key}-${index}`}>
+                    <rect
+                      x={band.startX - 2}
+                      y={24}
+                      width={bandWidth + 4}
+                      height={height - 48}
+                      rx={14}
+                      fill={band.color.band}
+                      stroke={band.color.stroke}
+                      strokeWidth={0.9}
+                      opacity={0.42}
+                    />
+                    {shouldLabel ? (
+                      <text
+                        x={labelX}
+                        y={38}
+                        fill="rgba(255,255,255,0.96)"
+                        stroke="rgba(8,18,31,0.9)"
+                        strokeWidth={2}
+                        paintOrder="stroke"
+                        fontSize="11"
+                        fontWeight="750"
+                        textAnchor="start"
+                      >
+                        {compactNoteLabel(band.swara, band.octave)}
+                      </text>
+                    ) : null}
+                  </g>
+                );
+              })
+            : null}
+
+          {/* Grid lines */}
           <line x1="12" y1={centerY} x2={width - 12} y2={centerY} stroke="rgba(255,255,255,0.22)" strokeDasharray="6 6" />
           <line x1="12" y1={highLockY} x2={width - 12} y2={highLockY} stroke="rgba(255,255,255,0.1)" />
           <line x1="12" y1={lowLockY} x2={width - 12} y2={lowLockY} stroke="rgba(255,255,255,0.1)" />
           <line x1="12" y1="24" x2="12" y2={height - 24} stroke="rgba(255,255,255,0.06)" />
           <line x1={width / 2} y1="24" x2={width / 2} y2={height - 24} stroke="rgba(117,184,255,0.18)" />
 
-          {curvePoints.map((point, index) => (
-            <circle
-              key={`${point.x}-${point.y}-${index}`}
-              cx={point.x}
-              cy={point.y}
-              r={point.active ? 2.4 : 1.4}
-              fill="rgba(103,240,202,0.9)"
-              opacity={point.active ? 0.9 : 0.32}
-              stroke="rgba(8,18,31,0.65)"
-              strokeWidth={0.6}
-            />
-          ))}
+          {/* Color-coded line segments by swara */}
+          {segments.map((seg, si) => {
+            if (seg.points.length < 2) return null;
+            const color = seg.swara ? noteVisual(seg.swara, seg.octave).stroke : "rgba(103,240,202,0.7)";
+            const d = buildSmoothPolyline(seg.points.map((p) => ({ ...p, active: true })));
+            return (
+              <path
+                key={`seg-${si}`}
+                d={d}
+                fill="none"
+                stroke={color}
+                strokeWidth="2.8"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                opacity={0.88}
+              />
+            );
+          })}
 
-          {path ? (
-            <path
-              d={path}
-              fill="none"
-              stroke="url(#signalGradient)"
-              strokeWidth="2.6"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-          ) : null}
+          {!segmentationEnabled
+            ? curvePoints.map((point, index) => {
+                if (!point.active || point.swara == null) return null;
+                const visual = noteVisual(point.swara, point.octave);
+                return (
+                  <circle
+                    key={`point-${index}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r="2.15"
+                    fill={visual.fill}
+                    stroke={visual.stroke}
+                    strokeWidth="0.7"
+                    opacity={0.92}
+                  />
+                );
+              })
+            : null}
 
-          <defs>
-            <linearGradient id="signalGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(117,184,255,0.95)" />
-              <stop offset="100%" stopColor="rgba(103,240,202,0.95)" />
-            </linearGradient>
-          </defs>
-
+          {/* Labels */}
           <text x="8" y="15" fill="rgba(255,255,255,0.6)" fontSize="10" textAnchor="start">High</text>
           <text x="8" y={centerY + 4} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="start">Target zone</text>
           <text x="8" y={height - 8} fill="rgba(255,255,255,0.6)" fontSize="10" textAnchor="start">Low</text>
@@ -3523,10 +3834,28 @@ function SignalTrace(props: {
           <text x={width / 2 - 16} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">~12s</text>
         </svg>
       </div>
-
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      </div>
     </article>
+  );
+}
+
+function SegmentationToggleIcon({ active }: { active: boolean }) {
+  if (active) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+        <rect x="1" y="2" width="4" height="10" rx="1.5" fill="currentColor" opacity="0.9" />
+        <rect x="5.4" y="3.4" width="3.2" height="7.2" rx="1.2" fill="currentColor" opacity="0.72" />
+        <rect x="8.9" y="1.8" width="4.1" height="10.4" rx="1.5" fill="currentColor" opacity="0.52" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M1.2 10.8L4.9 7.1L7.3 8.6L11.9 3.4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="4.9" cy="7.1" r="1.1" fill="currentColor" opacity="0.9" />
+      <circle cx="7.3" cy="8.6" r="1.1" fill="currentColor" opacity="0.78" />
+      <circle cx="11.9" cy="3.4" r="1.1" fill="currentColor" opacity="0.62" />
+    </svg>
   );
 }
 

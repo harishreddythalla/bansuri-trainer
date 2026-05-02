@@ -58,7 +58,7 @@ function flattenModule(module: CurriculumModule): LessonModule {
     id: module.id,
     title: module.title,
     description: module.description,
-    steps: module.checkpointGroups.flatMap((group) =>
+    steps: (module.checkpointGroups ?? []).flatMap((group) =>
       group.checkpoints.map((checkpoint) => {
         if (checkpoint.type === "sequence") {
           return {
@@ -144,4 +144,4 @@ function flattenModule(module: CurriculumModule): LessonModule {
   };
 }
 
-export const foundationModules: LessonModule[] = curriculumTracks[0].modules.map(flattenModule);
+export const foundationModules: LessonModule[] = (curriculumTracks[0]?.modules ?? []).map(flattenModule);

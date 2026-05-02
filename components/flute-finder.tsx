@@ -29,25 +29,37 @@ type FinderState = {
 };
 
 export function readStoredFluteProfile() {
-  if (
-    typeof window === "undefined" ||
-    typeof window.localStorage?.getItem !== "function"
-  ) {
+  try {
+    if (typeof window === "undefined") {
+      return defaultFluteProfile;
+    }
+
+    const storage = window.localStorage;
+    if (typeof storage?.getItem !== "function") {
+      return defaultFluteProfile;
+    }
+
+    return fluteProfileById(storage.getItem(FLUTE_PROFILE_STORAGE_KEY)) ?? defaultFluteProfile;
+  } catch {
     return defaultFluteProfile;
   }
-
-  return fluteProfileById(window.localStorage.getItem(FLUTE_PROFILE_STORAGE_KEY)) ?? defaultFluteProfile;
 }
 
 export function storeFluteProfile(profile: FluteProfile) {
-  if (
-    typeof window === "undefined" ||
-    typeof window.localStorage?.setItem !== "function"
-  ) {
-    return;
-  }
+  try {
+    if (typeof window === "undefined") {
+      return;
+    }
 
-  window.localStorage.setItem(FLUTE_PROFILE_STORAGE_KEY, profile.id);
+    const storage = window.localStorage;
+    if (typeof storage?.setItem !== "function") {
+      return;
+    }
+
+    storage.setItem(FLUTE_PROFILE_STORAGE_KEY, profile.id);
+  } catch {
+    // best-effort
+  }
 }
 
 export function FluteFinder(props: {
