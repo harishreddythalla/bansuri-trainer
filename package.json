@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "NODE_OPTIONS=--localstorage-file=/private/tmp/flute-learning-app.localstorage next dev",
     "build": "next build",
-    "build:pages": "BASE_PATH=/bansuri-trainer next build",
+    "build:pages": "NEXT_STATIC_EXPORT=true BASE_PATH=/bansuri-trainer next build",
     "start": "next start",
     "debug:log-sink": "node scripts/debug-log-sink.mjs",
     "lint": "next lint",
