@@ -606,7 +606,6 @@ export function SwaraTrainer() {
   const [celebrationPieces, setCelebrationPieces] = useState<Array<{ id: string; left: number; delay: number; duration: number; drift: number; hue: number }>>([]);
   const [sequenceStepDurationsMs, setSequenceStepDurationsMs] = useState<number[]>([]);
   const [sequenceLiveScore, setSequenceLiveScore] = useState<number | null>(null);
-  const [debugStatus, setDebugStatus] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisState>({
     detected: null,
     rawFrequency: null,
@@ -986,46 +985,6 @@ export function SwaraTrainer() {
     debugLogRef.current = nextLog;
     writeStoredDebugLog(nextLog);
     void sendDebugEventToSink(nextEntry);
-  }
-
-  async function copyDebugLog() {
-    const payload = JSON.stringify(debugLogRef.current, null, 2);
-
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(payload);
-        setDebugStatus(`Copied ${debugLogRef.current.length} debug entries.`);
-        return;
-      }
-    } catch {
-      // Fall through to download.
-    }
-
-    downloadDebugLog();
-    setDebugStatus("Clipboard unavailable. Downloaded debug log instead.");
-  }
-
-  function downloadDebugLog() {
-    if (typeof window === "undefined" || typeof document === "undefined") {
-      return;
-    }
-
-    const blob = new Blob([JSON.stringify(debugLogRef.current, null, 2)], { type: "application/json" });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `bansuri-trainer-debug-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
-    setDebugStatus(`Downloaded ${debugLogRef.current.length} debug entries.`);
-  }
-
-  function clearDebugLog() {
-    debugLogRef.current = [];
-    writeStoredDebugLog([]);
-    setDebugStatus("Cleared debug log.");
   }
 
   async function startAnalysis() {
@@ -2199,37 +2158,6 @@ export function SwaraTrainer() {
                 Reset path
               </button>
 
-              <button className="button button-secondary" onClick={() => void copyDebugLog()}>
-                Copy debug log
-              </button>
-
-              <button className="button button-secondary" onClick={downloadDebugLog}>
-                Download debug log
-              </button>
-
-              <button className="button button-secondary" onClick={clearDebugLog}>
-                Clear debug log
-              </button>
-
-              <div
-                style={{
-                  padding: 14,
-                  borderRadius: 16,
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  background: "rgba(255,255,255,0.03)",
-                  display: "grid",
-                  gap: 6,
-                }}
-              >
-                <div style={{ color: "var(--muted)", fontSize: 12 }}>Current flute</div>
-                <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.03em" }}>
-                  {fluteProfile.tonicLabel} {fluteProfile.registerLabel}
-                </div>
-                <div style={{ color: "var(--muted)", fontSize: 13 }}>
-                  Sa baseline {fluteProfile.saFrequency.toFixed(1)} Hz
-                </div>
-              </div>
-
               {error ? (
                 <div
                   style={{
@@ -2246,21 +2174,6 @@ export function SwaraTrainer() {
                 </div>
               ) : null}
 
-              {debugStatus ? (
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: 16,
-                    border: "1px solid rgba(117,184,255,0.24)",
-                    color: "var(--text)",
-                    background: "rgba(117,184,255,0.08)",
-                    fontSize: 14,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {debugStatus}
-                </div>
-              ) : null}
             </div>
           ) : null}
 
