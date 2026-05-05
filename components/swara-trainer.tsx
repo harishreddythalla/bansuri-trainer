@@ -187,7 +187,7 @@ const AUTO_CLEAR_HOLD_MS = 140;
 const TARGET_HOLD_GRACE_MS = 220;
 const ACTIVE_CONFIDENCE = 0.45;
 const ACTIVE_ENERGY = 0.012;
-const TREND_WINDOW_MS = 30000;
+const TREND_WINDOW_MS = 15000;
 const TREND_SAMPLE_MS = 40;
 const DEBUG_LOG_STORAGE_KEY = "bansuri.trainerDebugLog";
 const PITCH_DIFFICULTY_STORAGE_KEY = "bansuri.pitchDifficulty";
@@ -3815,7 +3815,7 @@ function SignalTrace(props: {
           alignItems: "center",
         }}
       >
-        <div className="trainer-signal-title" style={{ fontSize: 17, fontWeight: 650 }}>Pitch movement over the last 30 seconds</div>
+        <div className="trainer-signal-title" style={{ fontSize: 17, fontWeight: 650 }}>Pitch movement over the last 15 seconds</div>
         <div className="trainer-pitch-difficulty" style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {props.pitchDifficultyOptions.map((option) => {
             const active = props.pitchDifficulty === option.value;
@@ -3913,12 +3913,15 @@ function SignalTrace(props: {
                 const bandWidth = Math.max(0, band.endX - band.startX);
                 const shouldLabel = props.fullscreen || bandWidth >= 36;
                 const labelX = clamp(band.startX + 8, 16, width - 18);
+                const bandInset = 1;
+                const rectX = clamp(band.startX + bandInset, 0, width);
+                const rectWidth = Math.max(0, bandWidth - bandInset * 2);
                 return (
                   <g key={`${band.key}-${index}`}>
                     <rect
-                      x={band.startX - 2}
+                      x={rectX}
                       y={24}
-                      width={bandWidth + 4}
+                      width={rectWidth}
                       height={height - 48}
                       rx={14}
                       fill={band.color.band}
@@ -4003,8 +4006,8 @@ function SignalTrace(props: {
             -{props.pitchToleranceCents}¢
           </text>
           <text x={width - 8} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10" textAnchor="end">Now</text>
-          <text x="12" y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">30s ago</text>
-          <text x={width / 2 - 16} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">~12s</text>
+          <text x="12" y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">15s ago</text>
+          <text x={width / 2 - 16} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">~7.5s</text>
         </svg>
       </div>
     </article>
