@@ -5070,56 +5070,63 @@ function FluteRoadView(props: {
                 : clamp(0.24 + progress * 0.86, 0, 1) * fadeProgress;
             const isCountdown = tile.kind === "countdown";
             const tileWidth = tile.width;
+            const noteLabelVisible = tile.kind === "note" && opacity > 0 && y < FLUTE_BOARD_HEIGHT && y + tile.height > 0;
+            const noteLabelY = clamp(y + tile.height - 10, y + 16, FLUTE_BOARD_HEIGHT - 10);
             return (
-              <g
-                key={tile.key}
-                style={{
-                  transform: `translate(${tile.x - tileWidth / 2}px, ${y}px)`,
-                  opacity,
-                }}
-              >
-                <rect
-                  x="0"
-                  y="0"
-                  width={tileWidth}
-                  height={tile.height}
-                  rx={isCountdown ? 10 : 5}
-                  fill={tile.fill}
-                  stroke={tile.stroke}
-                  strokeWidth={1.2}
-                  filter={tile.active && !isCountdown ? "drop-shadow(0 0 12px rgba(0, 224, 255, 0.28))" : undefined}
-                />
-                <rect x="0" y="0" width={tileWidth} height={Math.max(8, tile.height * 0.22)} rx={5} fill="url(#trainerTileGlow)" opacity={0.42} />
-                <text
-                  x={tileWidth / 2}
-                  y={tile.kind === "countdown" ? tile.height / 2 + 7 : tile.height / 2 - 3}
-                  textAnchor="middle"
-                  fill={tile.textFill}
-                  fontSize={tile.kind === "countdown" ? "20" : "13"}
-                  fontWeight="800"
-                  stroke="rgba(5,10,18,0.85)"
-                  strokeWidth={tile.kind === "countdown" ? 2.4 : 1.8}
-                  paintOrder="stroke"
+              <>
+                <g
+                  key={`${tile.key}-shape`}
+                  style={{
+                    transform: `translate(${tile.x - tileWidth / 2}px, ${y}px)`,
+                    opacity,
+                  }}
                 >
-                  {tile.label}
-                </text>
-                {tile.kind === "note" ? (
+                  <rect
+                    x="0"
+                    y="0"
+                    width={tileWidth}
+                    height={tile.height}
+                    rx={isCountdown ? 10 : 5}
+                    fill={tile.fill}
+                    stroke={tile.stroke}
+                    strokeWidth={1.2}
+                    filter={tile.active && !isCountdown ? "drop-shadow(0 0 12px rgba(0, 224, 255, 0.28))" : undefined}
+                  />
+                  <rect x="0" y="0" width={tileWidth} height={Math.max(8, tile.height * 0.22)} rx={5} fill="url(#trainerTileGlow)" opacity={0.42} />
+                  {isCountdown ? (
+                    <text
+                      x={tileWidth / 2}
+                      y={tile.height / 2 + 7}
+                      textAnchor="middle"
+                      fill={tile.textFill}
+                      fontSize="20"
+                      fontWeight="800"
+                      stroke="rgba(5,10,18,0.85)"
+                      strokeWidth={2.4}
+                      paintOrder="stroke"
+                    >
+                      {tile.label}
+                    </text>
+                  ) : null}
+                </g>
+                {noteLabelVisible ? (
                   <text
-                    x={tileWidth / 2}
-                    y={tile.height - 12}
+                    key={`${tile.key}-label`}
+                    x={tile.x}
+                    y={noteLabelY}
                     textAnchor="middle"
                     fill={tile.textFill}
-                    fontSize="9.5"
-                    fontWeight="650"
-                    opacity={0.94}
-                    stroke="rgba(5,10,18,0.85)"
-                    strokeWidth={1.4}
+                    opacity={opacity}
+                    fontSize="11.5"
+                    fontWeight="800"
+                    stroke="rgba(5,10,18,0.9)"
+                    strokeWidth={1.8}
                     paintOrder="stroke"
                   >
-                    {octaveSymbol(tile.octave)}
+                    {tile.label}
                   </text>
                 ) : null}
-              </g>
+              </>
             );
           })}
 
