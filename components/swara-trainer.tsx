@@ -4663,6 +4663,7 @@ function FluteRoadView(props: {
       return;
     }
 
+    const currentTarget = props.sequenceCurrentStep?.target ?? props.checkpointFocus.target;
     const noteKey = noteKeyForTarget(reverseDetected);
     if (lastReverseNoteKeyRef.current === noteKey) {
       setReverseTrail((current) => {
@@ -4697,7 +4698,6 @@ function FluteRoadView(props: {
     }
 
     lastReverseNoteKeyRef.current = noteKey;
-    const currentTarget = props.sequenceCurrentStep?.target ?? props.checkpointFocus.target;
     const correct =
       reverseDetected.swara === currentTarget.swara &&
       reverseDetected.octave === currentTarget.octave &&
