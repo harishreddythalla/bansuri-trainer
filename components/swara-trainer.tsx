@@ -19,6 +19,8 @@ import {
   type FluteProfile,
   type FluteRegister,
   type DetectedSwara,
+  type OctaveName,
+  type SwaraName,
   type SwaraTarget,
   type TonicName,
 } from "@/lib/swara";
@@ -161,6 +163,9 @@ type SequenceLoopHistoryEntry = {
 };
 
 type PitchDifficulty = "easy" | "medium" | "hard";
+type PitchTrendWindowMs = 5000 | 15000 | 30000;
+type TrainerVisualMode = "blocks" | "flute";
+type FluteRoadPracticeMode = "rainfall" | "reverse";
 
 type PitchDifficultyConfig = {
   label: string;
@@ -189,17 +194,63 @@ const ACTIVE_CONFIDENCE = 0.45;
 const ACTIVE_ENERGY = 0.012;
 const TREND_WINDOW_MS = 15000;
 const TREND_SAMPLE_MS = 40;
+const PITCH_TREND_WINDOW_STORAGE_KEY = "bansuri.pitchTrendWindow";
 const DEBUG_LOG_STORAGE_KEY = "bansuri.trainerDebugLog";
 const PITCH_DIFFICULTY_STORAGE_KEY = "bansuri.pitchDifficulty";
+const FLUTE_ROAD_MODE_STORAGE_KEY = "bansuri.fluteRoadMode";
 const DEBUG_LOG_LIMIT = 900;
 const DEBUG_LOG_SINK_URL = "http://127.0.0.1:4010/log";
 const SEQUENCE_MIN_PRACTICE_SCORE = 72;
+const TRAINER_VISUAL_MODE_STORAGE_KEY = "bansuri.trainerVisualMode";
+const FLUTE_BOARD_WIDTH = 1100;
+const FLUTE_BOARD_HEIGHT = 620;
+const FLUTE_BODY_OFFSET_Y = 510;
+const FLUTE_LANES = [
+  { swara: "Ga", targetSwaras: ["Ga", "Ma"], x: 540, hole: "circle" as const, roadLabel: "Ga / Ma" },
+  { swara: "Re", targetSwaras: ["Re"], x: 610, hole: "circle" as const, roadLabel: "Re" },
+  { swara: "Sa", targetSwaras: ["Sa"], x: 680, hole: "circle" as const, roadLabel: "Sa" },
+  { swara: "Ni", targetSwaras: ["Ni"], x: 780, hole: "circle" as const, roadLabel: "Ni" },
+  { swara: "Dha", targetSwaras: ["Dha"], x: 850, hole: "circle" as const, roadLabel: "Dha" },
+  { swara: "Pa", targetSwaras: ["Pa"], x: 920, hole: "circle" as const, roadLabel: "Pa" },
+] satisfies Array<{ swara: SwaraName; targetSwaras: SwaraName[]; x: number; hole: "circle" | "ellipse"; roadLabel: string }>;
+
+const TRAINER_OCTAVE_PALETTE: Record<OctaveName, { fill: string; glow: string; road: string; label: string }> = {
+  Mandra: {
+    fill: "#58b8ff",
+    glow: "rgba(88,184,255,0.48)",
+    road: "rgba(88,184,255,0.18)",
+    label: "#d9efff",
+  },
+  Madhya: {
+    fill: "#8be66a",
+    glow: "rgba(139,230,106,0.48)",
+    road: "rgba(139,230,106,0.18)",
+    label: "#ecffe2",
+  },
+  Taar: {
+    fill: "#e16cff",
+    glow: "rgba(225,108,255,0.48)",
+    road: "rgba(225,108,255,0.18)",
+    label: "#fbebff",
+  },
+};
 const canUsePersistentStorage = process.env.NODE_ENV === "production";
 
 const pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; description: string }> = [
   { value: "easy", label: "Easy", description: "Wider pitch band" },
   { value: "medium", label: "Medium", description: "Balanced trainer mode" },
   { value: "hard", label: "Hard", description: "Tighter pitch band" },
+];
+
+const pitchTrendWindowOptions: Array<{ value: PitchTrendWindowMs; label: string; description: string }> = [
+  { value: 5000, label: "5s", description: "Most detail and most labels" },
+  { value: 15000, label: "15s", description: "Balanced overview" },
+  { value: 30000, label: "30s", description: "Wider history view" },
+];
+
+const fluteRoadModeOptions: Array<{ value: FluteRoadPracticeMode; label: string; description: string }> = [
+  { value: "rainfall", label: "Rainfall", description: "Notes fall toward the flute" },
+  { value: "reverse", label: "Reverse", description: "Your played notes fall from the flute" },
 ];
 
 function readStoredPitchDifficulty(): PitchDifficulty {
@@ -240,6 +291,139 @@ function storePitchDifficulty(value: PitchDifficulty) {
     }
 
     storage.setItem(PITCH_DIFFICULTY_STORAGE_KEY, value);
+  } catch {
+    // best-effort
+  }
+}
+
+function readStoredFluteRoadMode(): FluteRoadPracticeMode {
+  if (!canUsePersistentStorage) {
+    return "rainfall";
+  }
+
+  try {
+    if (typeof window === "undefined") {
+      return "rainfall";
+    }
+
+    const storage = window.localStorage;
+    if (typeof storage?.getItem !== "function") {
+      return "rainfall";
+    }
+
+    const stored = storage.getItem(FLUTE_ROAD_MODE_STORAGE_KEY);
+    return stored === "reverse" || stored === "rainfall" ? stored : "rainfall";
+  } catch {
+    return "rainfall";
+  }
+}
+
+function storeFluteRoadMode(value: FluteRoadPracticeMode) {
+  if (!canUsePersistentStorage) {
+    return;
+  }
+
+  try {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storage = window.localStorage;
+    if (typeof storage?.setItem !== "function") {
+      return;
+    }
+
+    storage.setItem(FLUTE_ROAD_MODE_STORAGE_KEY, value);
+  } catch {
+    // best-effort
+  }
+}
+
+function readStoredPitchTrendWindow(): PitchTrendWindowMs {
+  if (!canUsePersistentStorage) {
+    return 15000;
+  }
+
+  try {
+    if (typeof window === "undefined") {
+      return 15000;
+    }
+
+    const storage = window.localStorage;
+    if (typeof storage?.getItem !== "function") {
+      return 15000;
+    }
+
+    const stored = storage.getItem(PITCH_TREND_WINDOW_STORAGE_KEY);
+    if (stored === "5000" || stored === "15000" || stored === "30000") {
+      return Number(stored) as PitchTrendWindowMs;
+    }
+
+    return 15000;
+  } catch {
+    return 15000;
+  }
+}
+
+function storePitchTrendWindow(value: PitchTrendWindowMs) {
+  if (!canUsePersistentStorage) {
+    return;
+  }
+
+  try {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storage = window.localStorage;
+    if (typeof storage?.setItem !== "function") {
+      return;
+    }
+
+    storage.setItem(PITCH_TREND_WINDOW_STORAGE_KEY, String(value));
+  } catch {
+    // best-effort
+  }
+}
+
+function readStoredTrainerVisualMode(): TrainerVisualMode {
+  if (!canUsePersistentStorage) {
+    return "blocks";
+  }
+
+  try {
+    if (typeof window === "undefined") {
+      return "blocks";
+    }
+
+    const storage = window.localStorage;
+    if (typeof storage?.getItem !== "function") {
+      return "blocks";
+    }
+
+    const stored = storage.getItem(TRAINER_VISUAL_MODE_STORAGE_KEY);
+    return stored === "flute" || stored === "blocks" ? stored : "blocks";
+  } catch {
+    return "blocks";
+  }
+}
+
+function storeTrainerVisualMode(value: TrainerVisualMode) {
+  if (!canUsePersistentStorage) {
+    return;
+  }
+
+  try {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storage = window.localStorage;
+    if (typeof storage?.setItem !== "function") {
+      return;
+    }
+
+    storage.setItem(TRAINER_VISUAL_MODE_STORAGE_KEY, value);
   } catch {
     // best-effort
   }
@@ -593,7 +777,11 @@ export function SwaraTrainer() {
   const [selectedTonic, setSelectedTonic] = useState<TonicName>(defaultFluteProfile.tonic);
   const [selectedRegister, setSelectedRegister] = useState<FluteRegister>(defaultFluteProfile.register);
   const [pitchDifficulty, setPitchDifficulty] = useState<PitchDifficulty>("medium");
+  const [pitchTrendWindowMs, setPitchTrendWindowMs] = useState<PitchTrendWindowMs>(15000);
+  const [trainerVisualMode, setTrainerVisualMode] = useState<TrainerVisualMode>("blocks");
+  const [fluteRoadMode, setFluteRoadMode] = useState<FluteRoadPracticeMode>("rainfall");
   const [pitchFullscreen, setPitchFullscreen] = useState(false);
+  const [micStatusToast, setMicStatusToast] = useState<string | null>(null);
   const [controlsOpen, setControlsOpen] = useState(false);
   const [leftRailOpen, setLeftRailOpen] = useState(false);
   const [running, setRunning] = useState(false);
@@ -606,6 +794,13 @@ export function SwaraTrainer() {
   const [celebrationPieces, setCelebrationPieces] = useState<Array<{ id: string; left: number; delay: number; duration: number; drift: number; hue: number }>>([]);
   const [sequenceStepDurationsMs, setSequenceStepDurationsMs] = useState<number[]>([]);
   const [sequenceLiveScore, setSequenceLiveScore] = useState<number | null>(null);
+  const [fluteViewTick, setFluteViewTick] = useState(() => Date.now());
+  const [fluteViewStartedAt, setFluteViewStartedAt] = useState(() => Date.now());
+  const [isFluteRoadPaused, setIsFluteRoadPaused] = useState(false);
+  const isFluteRoadPausedRef = useRef(false);
+  const pauseStartRef = useRef<number | null>(null);
+  const [isFluteRoadLooping, setIsFluteRoadLooping] = useState(false);
+  const isFluteRoadLoopingRef = useRef(false);
   const [analysis, setAnalysis] = useState<AnalysisState>({
     detected: null,
     rawFrequency: null,
@@ -652,6 +847,7 @@ export function SwaraTrainer() {
   const lastDebugStepRef = useRef<string>("");
   const checkpointNoticeTimerRef = useRef<number | null>(null);
   const celebrationTimerRef = useRef<number | null>(null);
+  const micStatusTimerRef = useRef<number | null>(null);
   const sequenceProgressRef = useRef<SequenceProgress>(sequenceProgress);
   const smoothedMetricsRef = useRef({
     score: 0,
@@ -758,6 +954,80 @@ export function SwaraTrainer() {
   }, []);
 
   useEffect(() => {
+    setPitchTrendWindowMs(readStoredPitchTrendWindow());
+  }, []);
+
+  useEffect(() => {
+    setTrainerVisualMode(readStoredTrainerVisualMode());
+  }, []);
+
+  useEffect(() => {
+    setFluteRoadMode(readStoredFluteRoadMode());
+  }, []);
+
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+
+      const tagName = target.tagName.toLowerCase();
+      return target.isContentEditable || tagName === "input" || tagName === "textarea" || tagName === "select";
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+
+      if ((event.ctrlKey || event.metaKey) && key === "m") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (running) {
+          stopAnalysis();
+          setMicStatusToast("Mic muted");
+        } else {
+          void startAnalysis();
+          setMicStatusToast("Mic unmuted");
+        }
+        return;
+      }
+
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && key === "f") {
+        event.preventDefault();
+        event.stopPropagation();
+        void togglePitchFullscreen(!pitchFullscreen);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [pitchFullscreen, running]);
+
+  useEffect(() => {
+    if (micStatusToast === null) {
+      return;
+    }
+
+    if (micStatusTimerRef.current !== null) {
+      window.clearTimeout(micStatusTimerRef.current);
+    }
+
+    micStatusTimerRef.current = window.setTimeout(() => {
+      setMicStatusToast(null);
+      micStatusTimerRef.current = null;
+    }, 1100);
+
+    return () => {
+      if (micStatusTimerRef.current !== null) {
+        window.clearTimeout(micStatusTimerRef.current);
+      }
+    };
+  }, [micStatusToast]);
+
+  useEffect(() => {
     if (autoStartAttemptedRef.current) {
       return;
     }
@@ -792,6 +1062,38 @@ export function SwaraTrainer() {
   useEffect(() => {
     storePitchDifficulty(pitchDifficulty);
   }, [pitchDifficulty]);
+
+  useEffect(() => {
+    storePitchTrendWindow(pitchTrendWindowMs);
+  }, [pitchTrendWindowMs]);
+
+  useEffect(() => {
+    storeTrainerVisualMode(trainerVisualMode);
+  }, [trainerVisualMode]);
+
+  useEffect(() => {
+    storeFluteRoadMode(fluteRoadMode);
+  }, [fluteRoadMode]);
+
+  useEffect(() => {
+    setFluteViewStartedAt(Date.now());
+  }, [selectedStepId, trainerVisualMode]);
+
+  useEffect(() => {
+    if (trainerVisualMode !== "flute") {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      if (!isFluteRoadPausedRef.current) {
+        setFluteViewTick(Date.now());
+      }
+    }, 80);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [trainerVisualMode]);
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -950,6 +1252,40 @@ export function SwaraTrainer() {
       setSequenceRunResult(result);
     }
     setSequenceStepDurationsMs([]);
+  }
+
+  function handleToggleFluteRoadPause() {
+    setIsFluteRoadPaused(prev => {
+      const next = !prev;
+      isFluteRoadPausedRef.current = next;
+      if (!next && pauseStartRef.current) {
+        const pauseDuration = Date.now() - pauseStartRef.current;
+        setFluteViewStartedAt(start => start + pauseDuration);
+        pauseStartRef.current = null;
+      } else if (next) {
+        pauseStartRef.current = Date.now();
+      }
+      return next;
+    });
+  }
+
+  function handleRetryFluteRoad() {
+    const drill = selectedStep && isSequenceStep(selectedStep) ? selectedStep : null;
+    if (drill) {
+      resetSequenceAttempt(drill, 0);
+    }
+    setFluteViewStartedAt(Date.now());
+    if (isFluteRoadPausedRef.current) {
+      handleToggleFluteRoadPause();
+    }
+  }
+
+  function handleToggleFluteRoadLoop() {
+    setIsFluteRoadLooping(prev => {
+      const next = !prev;
+      isFluteRoadLoopingRef.current = next;
+      return next;
+    });
   }
 
   function recordSequenceStepResult(params: {
@@ -1114,6 +1450,11 @@ export function SwaraTrainer() {
       : 0;
 
     if (!analyser || !audioContext) {
+      return;
+    }
+
+    if (isFluteRoadPausedRef.current) {
+      frameRef.current = requestAnimationFrame(tick);
       return;
     }
 
@@ -1762,6 +2103,14 @@ export function SwaraTrainer() {
   }
 
   function completeStep(step: LessonStep, source: "manual" | "auto") {
+    if (isFluteRoadLoopingRef.current && source === "auto") {
+      if (isSequenceStep(step)) {
+        resetSequenceAttempt(step, 0);
+      }
+      setFluteViewStartedAt(Date.now());
+      return;
+    }
+
     if (clearedCheckpoint?.stepId === step.id) {
       return;
     }
@@ -1837,6 +2186,7 @@ export function SwaraTrainer() {
 
     setCheckpointNotice(null);
     setClearedCheckpoint(null);
+    setFluteViewStartedAt(Date.now());
     resetLiveState(selectedStep);
   }
 
@@ -1896,6 +2246,7 @@ export function SwaraTrainer() {
     setCompletedStepIds([]);
     setCheckpointNotice(null);
     setClearedCheckpoint(null);
+    setFluteViewStartedAt(Date.now());
     if (firstStep) {
       setSelectedStepId(firstStep.id);
       setTarget(firstStep.target ?? FALLBACK_TARGET);
@@ -1941,6 +2292,7 @@ export function SwaraTrainer() {
   const sequenceProgressPercent = sequenceDrill && sequenceProgressTotal
     ? clamp(sequenceProgressCount / sequenceProgressTotal, 0, 1) * 100
     : 0;
+  const showFluteRoad = trainerVisualMode === "flute";
   const currentModuleIndex = foundationModules.findIndex((module) =>
     module.steps.some((step) => step.id === selectedStepId),
   );
@@ -2016,6 +2368,33 @@ export function SwaraTrainer() {
               }}
             />
           ))}
+        </div>
+      ) : null}
+      {micStatusToast ? (
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 10000,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 14px",
+            borderRadius: 999,
+            border: "1px solid rgba(103,240,202,0.22)",
+            background: "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(10,20,36,0.88))",
+            boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
+            backdropFilter: "blur(18px)",
+            color: "var(--text)",
+            fontSize: 13,
+            fontWeight: 650,
+            letterSpacing: "-0.02em",
+            pointerEvents: "none",
+          }}
+        >
+          <MicToggleIcon active={micStatusToast === "Mic unmuted"} />
+          {micStatusToast}
         </div>
       ) : null}
       <div
@@ -2376,20 +2755,103 @@ export function SwaraTrainer() {
                   gap: 12,
                 }}
               >
-                <div className="trainer-live-header" style={{ display: "grid", gap: 12 }}>
-                  <div>
+                <div
+                  className="trainer-live-header"
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    alignItems: "start",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ display: "grid", gap: 10 }}>
                     <div className="pill">Live target</div>
-                    <div style={{ marginTop: 10, fontSize: 28, fontWeight: 750, letterSpacing: "-0.05em" }}>
+                    <div style={{ fontSize: 28, fontWeight: 750, letterSpacing: "-0.05em" }}>
                       {liveTargetTitle}
                     </div>
-                    <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 14 }}>
+                    <div style={{ color: "var(--muted)", fontSize: 14 }}>
                       {liveTargetSubtitle} · {currentTargetFrequency.toFixed(1)} Hz
                       {checkpointFocus.progressLabel ? ` · ${checkpointFocus.progressLabel}` : ""}
                     </div>
                   </div>
+
+                  <div
+                    role="group"
+                    aria-label="Live target view mode"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: 4,
+                      borderRadius: 999,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "rgba(255,255,255,0.03)",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="button"
+                      aria-pressed={!showFluteRoad}
+                      onClick={() => setTrainerVisualMode("blocks")}
+                      style={{
+                        minHeight: 34,
+                        padding: "0 12px",
+                        borderRadius: 999,
+                        border: !showFluteRoad ? "1px solid rgba(103,240,202,0.34)" : "1px solid transparent",
+                        background: !showFluteRoad
+                          ? "linear-gradient(180deg, rgba(103,240,202,0.18), rgba(103,240,202,0.08))"
+                          : "transparent",
+                        color: !showFluteRoad ? "var(--text)" : "var(--muted)",
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      Blocks
+                    </button>
+                    <button
+                      type="button"
+                      className="button"
+                      aria-pressed={showFluteRoad}
+                      onClick={() => setTrainerVisualMode("flute")}
+                      style={{
+                        minHeight: 34,
+                        padding: "0 12px",
+                        borderRadius: 999,
+                        border: showFluteRoad ? "1px solid rgba(103,240,202,0.34)" : "1px solid transparent",
+                        background: showFluteRoad
+                          ? "linear-gradient(180deg, rgba(103,240,202,0.18), rgba(103,240,202,0.08))"
+                          : "transparent",
+                        color: showFluteRoad ? "var(--text)" : "var(--muted)",
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      Flute road
+                    </button>
+                  </div>
                 </div>
 
-                {sequenceDrill ? (
+                {showFluteRoad ? (
+                  <FluteRoadView
+                    now={fluteViewTick}
+                    startedAt={fluteViewStartedAt}
+                    analysis={analysis}
+                    checkpointFocus={checkpointFocus}
+                    fluteRoadMode={fluteRoadMode}
+                    onFluteRoadModeChange={setFluteRoadMode}
+                    sequenceDrill={sequenceDrill}
+                    sequenceCurrentIndex={sequenceCurrentIndex}
+                    sequenceCurrentStep={sequenceCurrentStep}
+                    sequenceNextStep={sequenceNextStep}
+                    pitchToleranceCents={pitchZoneCents}
+                    isPaused={isFluteRoadPaused}
+                    onTogglePause={handleToggleFluteRoadPause}
+                    onRetry={handleRetryFluteRoad}
+                    isLooping={isFluteRoadLooping}
+                    onToggleLoop={handleToggleFluteRoadLoop}
+                  />
+                ) : sequenceDrill ? (
                   <div
                     className="trainer-sequence"
                     style={{
@@ -2535,44 +2997,53 @@ export function SwaraTrainer() {
                   </div>
                 ) : null}
 
-                <div className="trainer-summary-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
-                  <LiveStat
-                    label={sequenceDrill ? "Current note" : "Detected"}
-                    value={analysis.detected ? `${analysis.detected.octave} ${analysis.detected.swara}` : "—"}
-                    detail={
-                      analysis.detected
-                        ? `${analysis.rawFrequency != null ? `${analysis.rawFrequency.toFixed(1)} Hz` : "Raw pitch"} · ${signedCents(analysis.centsOffset ?? 0)}¢`
-                        : "Waiting for stable tone"
-                    }
-                    background={
-                      analysis.detected
-                        ? detectedIsCorrect
-                          ? "linear-gradient(180deg, rgba(103,240,202,0.24), rgba(103,240,202,0.08))"
-                          : "linear-gradient(180deg, rgba(255,99,99,0.22), rgba(255,99,99,0.08))"
-                        : "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(117,184,255,0.05))"
-                    }
-                  />
-                  <MiniProgressPanel
-                    label={sequenceDrill ? "Phrase score" : "Goal"}
-                    value={scoreValue != null ? `${scoreValue}` : "—"}
-                    caption={selectedStep ? `Need ${selectedStep.minimumScore}+` : "Need a checkpoint"}
-                    progress={goalProgress * 100}
-                    target={selectedStep?.minimumScore ?? null}
-                    active={Boolean(analysis.detected)}
-                    mode="goal"
-                  />
-                  <MiniProgressPanel
-                    label={sequenceDrill ? "Current hold" : "Sustain"}
-                    value={analysis.sustainMs != null ? `${(analysis.sustainMs / 1000).toFixed(1)}s` : "—"}
-                    caption={sequenceDrill
-      ? `Counts after ${(Math.max(checkpointFocus.sustainTargetMs, PRACTICE_HOLD_FLOOR_MS) / 1000).toFixed(1)}s`
-      : `Target ${(checkpointFocus.sustainTargetMs / 1000).toFixed(1)}s`}
-                    progress={sustainProgress * 100}
-                    target={checkpointFocus.sustainTargetMs}
-                    active={Boolean(analysis.detected)}
-                    mode="sustain"
-                  />
-                </div>
+                {!showFluteRoad ? (
+                  <div
+                    className="trainer-summary-grid"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                      gap: 10,
+                    }}
+                  >
+                    <LiveStat
+                      label="Current note"
+                      value={analysis.detected ? `${analysis.detected.octave} ${analysis.detected.swara}` : "—"}
+                      detail={
+                        analysis.detected
+                          ? `${analysis.rawFrequency != null ? `${analysis.rawFrequency.toFixed(1)} Hz` : "Raw pitch"} · ${signedCents(analysis.centsOffset ?? 0)}¢`
+                          : "Waiting for stable tone"
+                      }
+                      background={
+                        analysis.detected
+                          ? detectedIsCorrect
+                            ? "linear-gradient(180deg, rgba(103,240,202,0.24), rgba(103,240,202,0.08))"
+                            : "linear-gradient(180deg, rgba(255,99,99,0.22), rgba(255,99,99,0.08))"
+                          : "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(117,184,255,0.05))"
+                      }
+                    />
+                    <MiniProgressPanel
+                      label={sequenceDrill ? "Phrase score" : "Goal"}
+                      value={scoreValue != null ? `${scoreValue}` : "—"}
+                      caption={selectedStep ? `Need ${selectedStep.minimumScore}+` : "Need a checkpoint"}
+                      progress={goalProgress * 100}
+                      target={selectedStep?.minimumScore ?? null}
+                      active={Boolean(analysis.detected)}
+                      mode="goal"
+                    />
+                    <MiniProgressPanel
+                      label={sequenceDrill ? "Current hold" : "Sustain"}
+                      value={analysis.sustainMs != null ? `${(analysis.sustainMs / 1000).toFixed(1)}s` : "—"}
+                      caption={sequenceDrill
+                        ? `Counts after ${(Math.max(checkpointFocus.sustainTargetMs, PRACTICE_HOLD_FLOOR_MS) / 1000).toFixed(1)}s`
+                        : `Target ${(checkpointFocus.sustainTargetMs / 1000).toFixed(1)}s`}
+                      progress={sustainProgress * 100}
+                      target={checkpointFocus.sustainTargetMs}
+                      active={Boolean(analysis.detected)}
+                      mode="sustain"
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <div
@@ -2625,9 +3096,12 @@ export function SwaraTrainer() {
                           height={420}
                           fullscreen
                           running={running}
+                          pitchTrendWindowMs={pitchTrendWindowMs}
                           pitchDifficulty={pitchDifficulty}
                           pitchDifficultyOptions={pitchDifficultyOptions}
+                          pitchTrendWindowOptions={pitchTrendWindowOptions}
                           onPitchDifficultyChange={setPitchDifficulty}
+                          onPitchTrendWindowChange={setPitchTrendWindowMs}
                           onToggleFullscreen={() => void togglePitchFullscreen(false)}
                           onToggleMic={() => (running ? stopAnalysis() : void startAnalysis())}
                         />
@@ -2703,9 +3177,12 @@ export function SwaraTrainer() {
                         height={182}
                         fullscreen={false}
                         running={running}
+                        pitchTrendWindowMs={pitchTrendWindowMs}
                         pitchDifficulty={pitchDifficulty}
                         pitchDifficultyOptions={pitchDifficultyOptions}
+                        pitchTrendWindowOptions={pitchTrendWindowOptions}
                         onPitchDifficultyChange={setPitchDifficulty}
+                        onPitchTrendWindowChange={setPitchTrendWindowMs}
                         onToggleFullscreen={() => void togglePitchFullscreen(true)}
                         onToggleMic={() => (running ? stopAnalysis() : void startAnalysis())}
                       />
@@ -3547,6 +4024,10 @@ function compactNoteLabel(swara: string, octave: string | null) {
   return `${prefix}${head}`;
 }
 
+function formatPitchWindowLabel(windowMs: PitchTrendWindowMs) {
+  return `${windowMs / 1000}s`;
+}
+
 function SignalTrace(props: {
   className?: string;
   points: TrendPoint[];
@@ -3557,9 +4038,12 @@ function SignalTrace(props: {
   height?: number;
   fullscreen: boolean;
   running: boolean;
+  pitchTrendWindowMs: PitchTrendWindowMs;
   pitchDifficulty: PitchDifficulty;
   pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; description: string }>;
+  pitchTrendWindowOptions: Array<{ value: PitchTrendWindowMs; label: string; description: string }>;
   onPitchDifficultyChange: (value: PitchDifficulty) => void;
+  onPitchTrendWindowChange: (value: PitchTrendWindowMs) => void;
   onToggleFullscreen: () => void;
   onToggleMic: () => void;
 }) {
@@ -3570,7 +4054,7 @@ function SignalTrace(props: {
   const maxCents = 60;
   const usableWidth = width - 24;
   const leftPad = 12;
-  const points = filterTrendWindow(props.points);
+  const points = filterTrendWindow(props.points, props.pitchTrendWindowMs);
   const latestTimestamp = points.at(-1)?.timestamp ?? Date.now();
   const traceSilenceGapMs = 2000;
   const traceResampleStepPx = props.fullscreen ? 2.4 : 3.4;
@@ -3584,7 +4068,7 @@ function SignalTrace(props: {
   const tracePoints = points
     .map((point) => {
       if (point.centsOffset == null) return null;
-      const x = leftPad + clamp(1 - (latestTimestamp - point.timestamp) / TREND_WINDOW_MS, 0, 1) * usableWidth;
+      const x = leftPad + clamp(1 - (latestTimestamp - point.timestamp) / props.pitchTrendWindowMs, 0, 1) * usableWidth;
       const normalized = clamp((point.centsOffset - minCents) / (maxCents - minCents), 0, 1);
       const y = height - 24 - normalized * (height - 48);
       return {
@@ -3704,6 +4188,7 @@ function SignalTrace(props: {
   }
 
   const visibleNoteBands = mergedNoteBands.filter((band) => band.endTime - band.startTime >= minBandDurationMs);
+  const labelThresholdPx = props.pitchTrendWindowMs === 5000 ? 24 : props.pitchTrendWindowMs === 15000 ? 36 : 46;
   const noteLegend = Array.from(
     new Map(
       ["Sa", "Re", "Ga", "Ma", "Pa", "Dha", "Ni"].map((swara) => [
@@ -3753,28 +4238,6 @@ function SignalTrace(props: {
           <button
             type="button"
             className="button"
-            aria-label={props.fullscreen ? "Exit fullscreen pitch view" : "Enter fullscreen pitch view"}
-            title={props.fullscreen ? "Exit fullscreen pitch view" : "Enter fullscreen pitch view"}
-            onClick={props.onToggleFullscreen}
-            style={{
-              width: 28,
-              height: 28,
-              minWidth: 28,
-              minHeight: 28,
-              padding: 0,
-              borderRadius: 10,
-              display: "grid",
-              placeItems: "center",
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.04)",
-              color: "var(--muted)",
-            }}
-          >
-            <FullscreenToggleIcon active={props.fullscreen} />
-          </button>
-          <button
-            type="button"
-            className="button"
             aria-pressed={segmentationEnabled}
             aria-label={segmentationEnabled ? "Hide note segmentation" : "Show note segmentation"}
             title={segmentationEnabled ? "Hide note segmentation" : "Show note segmentation"}
@@ -3798,11 +4261,29 @@ function SignalTrace(props: {
             <SegmentationToggleIcon active={segmentationEnabled} />
           </button>
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Latest offset</div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>
-            {latest?.centsOffset != null ? `${signedCents(latest.centsOffset)}¢` : "—"}
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            className="button"
+            aria-label={props.fullscreen ? "Exit fullscreen pitch view" : "Enter fullscreen pitch view"}
+            title={props.fullscreen ? "Exit fullscreen pitch view" : "Enter fullscreen pitch view"}
+            onClick={props.onToggleFullscreen}
+            style={{
+              width: 28,
+              height: 28,
+              minWidth: 28,
+              minHeight: 28,
+              padding: 0,
+              borderRadius: 10,
+              display: "grid",
+              placeItems: "center",
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.04)",
+              color: "var(--muted)",
+            }}
+          >
+            <FullscreenToggleIcon active={props.fullscreen} />
+          </button>
         </div>
       </div>
 
@@ -3815,38 +4296,74 @@ function SignalTrace(props: {
           alignItems: "center",
         }}
       >
-        <div className="trainer-signal-title" style={{ fontSize: 17, fontWeight: 650 }}>Pitch movement over the last 15 seconds</div>
-        <div className="trainer-pitch-difficulty" style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {props.pitchDifficultyOptions.map((option) => {
-            const active = props.pitchDifficulty === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                className="button"
-                onClick={() => props.onPitchDifficultyChange(option.value)}
-                aria-pressed={active}
-                style={{
-                  minHeight: 34,
-                  padding: "0 12px",
-                  borderRadius: 999,
-                  border: active ? "1px solid rgba(103,240,202,0.38)" : "1px solid rgba(255,255,255,0.08)",
-                  background: active
-                    ? "linear-gradient(180deg, rgba(103,240,202,0.18), rgba(103,240,202,0.08))"
-                    : "rgba(255,255,255,0.04)",
-                  color: active ? "var(--text)" : "var(--muted)",
-                  fontSize: 11.5,
-                  fontWeight: 650,
-                  display: "grid",
-                  alignContent: "center",
-                  gap: 2,
-                }}
-                title={option.description}
-              >
-                {option.label}
-              </button>
-            );
-          })}
+        <div className="trainer-signal-title" style={{ fontSize: 17, fontWeight: 650 }}>
+          Pitch movement over the last {formatPitchWindowLabel(props.pitchTrendWindowMs)}
+        </div>
+        <div className="trainer-pitch-controls" style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {props.pitchTrendWindowOptions.map((option) => {
+              const active = props.pitchTrendWindowMs === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className="button"
+                  onClick={() => props.onPitchTrendWindowChange(option.value)}
+                  aria-pressed={active}
+                  style={{
+                    minHeight: 34,
+                    padding: "0 12px",
+                    borderRadius: 999,
+                    border: active ? "1px solid rgba(117,184,255,0.38)" : "1px solid rgba(255,255,255,0.08)",
+                    background: active
+                      ? "linear-gradient(180deg, rgba(117,184,255,0.18), rgba(117,184,255,0.08))"
+                      : "rgba(255,255,255,0.04)",
+                    color: active ? "var(--text)" : "var(--muted)",
+                    fontSize: 11.5,
+                    fontWeight: 650,
+                    display: "grid",
+                    alignContent: "center",
+                    gap: 2,
+                  }}
+                  title={option.description}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {props.pitchDifficultyOptions.map((option) => {
+              const active = props.pitchDifficulty === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className="button"
+                  onClick={() => props.onPitchDifficultyChange(option.value)}
+                  aria-pressed={active}
+                  style={{
+                    minHeight: 34,
+                    padding: "0 12px",
+                    borderRadius: 999,
+                    border: active ? "1px solid rgba(103,240,202,0.38)" : "1px solid rgba(255,255,255,0.08)",
+                    background: active
+                      ? "linear-gradient(180deg, rgba(103,240,202,0.18), rgba(103,240,202,0.08))"
+                      : "rgba(255,255,255,0.04)",
+                    color: active ? "var(--text)" : "var(--muted)",
+                    fontSize: 11.5,
+                    fontWeight: 650,
+                    display: "grid",
+                    alignContent: "center",
+                    gap: 2,
+                  }}
+                  title={option.description}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -3855,41 +4372,51 @@ function SignalTrace(props: {
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: 6,
+          justifyContent: "space-between",
+          gap: 10,
           alignItems: "center",
           marginTop: -2,
           color: "rgba(255,255,255,0.62)",
           fontSize: 10,
         }}
       >
-        <span style={{ opacity: 0.7 }}>Segmentation</span>
-        {noteLegend.map((note) => (
-          <span
-            key={note.swara}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "2px 6px",
-              borderRadius: 999,
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              lineHeight: 1,
-            }}
-          >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+          <span style={{ opacity: 0.7 }}>Segmentation</span>
+          {noteLegend.map((note) => (
             <span
+              key={note.swara}
               style={{
-                width: 6,
-                height: 6,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "2px 6px",
                 borderRadius: 999,
-                background: note.color.stroke,
-                boxShadow: `0 0 0 1px ${note.color.band}`,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                lineHeight: 1,
               }}
-            />
-            {note.swara}
-          </span>
-        ))}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 999,
+                  background: note.color.stroke,
+                  boxShadow: `0 0 0 1px ${note.color.band}`,
+                }}
+              />
+              {note.swara}
+            </span>
+          ))}
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 11.5, color: "var(--muted)" }}>Latest offset</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>
+            {latest?.centsOffset != null ? `${signedCents(latest.centsOffset)}¢` : "—"}
+          </div>
+        </div>
       </div>
+
 
       <div
         style={{
@@ -3908,10 +4435,10 @@ function SignalTrace(props: {
           <rect x="0" y={lowReleaseY} width={width} height={height - lowReleaseY} fill="rgba(255, 99, 99, 0.08)" />
 
           {/* Dynamic note sections */}
-          {segmentationEnabled
+              {segmentationEnabled
             ? visibleNoteBands.map((band, index) => {
                 const bandWidth = Math.max(0, band.endX - band.startX);
-                const shouldLabel = props.fullscreen || bandWidth >= 36;
+                const shouldLabel = props.fullscreen || bandWidth >= labelThresholdPx;
                 const labelX = clamp(band.startX + 8, 16, width - 18);
                 const bandInset = 1;
                 const rectX = clamp(band.startX + bandInset, 0, width);
@@ -4006,11 +4533,590 @@ function SignalTrace(props: {
             -{props.pitchToleranceCents}¢
           </text>
           <text x={width - 8} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10" textAnchor="end">Now</text>
-          <text x="12" y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">15s ago</text>
-          <text x={width / 2 - 16} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">~7.5s</text>
+          <text x="12" y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">{`${formatPitchWindowLabel(props.pitchTrendWindowMs)} ago`}</text>
+          <text x={width / 2 - 16} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">{`~${props.pitchTrendWindowMs / 2000}s`}</text>
         </svg>
       </div>
-    </article>
+  </article>
+  );
+}
+
+function fluteLaneForSwara(swara: SwaraName) {
+  return FLUTE_LANES.find((lane) => laneContainsSwara(lane, swara)) ?? FLUTE_LANES[0];
+}
+
+function laneContainsSwara(lane: (typeof FLUTE_LANES)[number], swara: SwaraName) {
+  return (lane.targetSwaras as readonly SwaraName[]).includes(swara);
+}
+
+function formatFluteTileLabel(target: SwaraTarget) {
+  const octaveMarker = octaveSymbol(target.octave);
+  return octaveMarker ? `${target.swara} ${octaveMarker}` : target.swara;
+}
+
+function FluteRoadView(props: {
+  now: number;
+  startedAt: number;
+  analysis: AnalysisState;
+  checkpointFocus: CheckpointFocus;
+  fluteRoadMode: FluteRoadPracticeMode;
+  onFluteRoadModeChange: (value: FluteRoadPracticeMode) => void;
+  sequenceDrill: SequenceLessonStep | null;
+  sequenceCurrentIndex: number;
+  sequenceCurrentStep: SequenceLessonStep["steps"][number] | null;
+  sequenceNextStep: SequenceLessonStep["steps"][number] | null;
+  pitchToleranceCents: number;
+  isPaused?: boolean;
+  onTogglePause?: () => void;
+  onRetry?: () => void;
+  isLooping?: boolean;
+  onToggleLoop?: () => void;
+}) {
+  const isReverseMode = props.fluteRoadMode === "reverse";
+  const phraseSteps = props.sequenceDrill?.steps.length
+    ? props.sequenceDrill.steps
+    : [{ target: props.checkpointFocus.target, sustainTargetMs: Math.max(props.checkpointFocus.sustainTargetMs, 900) }];
+  const activeTarget = props.sequenceCurrentStep?.target ?? props.checkpointFocus.target;
+  const activeDetected = props.analysis.detected;
+  const targetLane = fluteLaneForSwara(activeTarget.swara);
+  const [reverseTrail, setReverseTrail] = useState<Array<{
+    id: string;
+    swara: SwaraName;
+    octave: OctaveName;
+    target: SwaraTarget;
+    startedAt: number;
+    sustainMs: number;
+    correct: boolean;
+    centsOffset: number;
+    confidence: number;
+  }>>([]);
+  const lastReverseNoteKeyRef = useRef<string | null>(null);
+  // ── Guitar Hero tile model ─────────────────────────────────────────────────
+  // Scroll at a constant pixel speed (TILE_PX_PER_MS).  To ensure large
+  // sustain tiles never appear on-screen at spawn we compute spawn/exit
+  // positions from the maximum tile height in this phrase (including
+  // countdown tiles). This preserves a single shared travelMs and keeps
+  // the gap-between-tiles construction (cursorAdvance = sustainMs).
+  const TILE_PX_PER_MS = 0.10; // 100 px/s — controls global scroll speed
+
+  // Countdown spacing (ms) and its visual height
+  const countdownDelayMs = 1000;
+  const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS)); // ~100 px
+
+  // Estimate note tile heights for this phrase so we can pick spawn/exit
+  // points large enough that even the tallest tile is fully off-screen.
+  const estimatedNoteHeights = phraseSteps.map((step) => Math.round(step.sustainTargetMs * TILE_PX_PER_MS));
+  const maxTileHeight = Math.max(countdownHeight, ...estimatedNoteHeights, 46);
+  const SPAWN_MARGIN = 58;
+
+  const TILE_SPAWN_Y = -maxTileHeight - SPAWN_MARGIN; // ensure tile bottom < 0 at spawn
+  const TILE_EXIT_Y = FLUTE_BOARD_HEIGHT + maxTileHeight + SPAWN_MARGIN;
+
+  const TILE_TOTAL_DIST = TILE_EXIT_Y - TILE_SPAWN_Y;
+  const TILE_TRAVEL_MS = Math.max(1, Math.round(TILE_TOTAL_DIST / TILE_PX_PER_MS));
+
+  // Time from spawn until the tile TOP reaches the flute line
+  const MS_TO_FLUTE = Math.round((FLUTE_BODY_OFFSET_Y - TILE_SPAWN_Y) / TILE_PX_PER_MS);
+
+  const fluteBodyY = isReverseMode ? 30 : FLUTE_BODY_OFFSET_Y;
+  const roadStartY = isReverseMode ? 112 : 18;
+  const roadEndY = FLUTE_BOARD_HEIGHT - 34;
+  const tileSpawnY = isReverseMode ? fluteBodyY + 80 : TILE_SPAWN_Y;
+  const tileEndY = isReverseMode ? FLUTE_BOARD_HEIGHT - 42 : TILE_EXIT_Y;
+  const tileTravelMs = Math.max(1, Math.round((tileEndY - tileSpawnY) / TILE_PX_PER_MS));
+
+  useEffect(() => {
+    setReverseTrail([]);
+    lastReverseNoteKeyRef.current = null;
+  }, [props.startedAt, props.fluteRoadMode, props.checkpointFocus.target.swara, props.checkpointFocus.target.octave, props.sequenceDrill?.id]);
+
+  useEffect(() => {
+    if (!isReverseMode) {
+      lastReverseNoteKeyRef.current = null;
+      return;
+    }
+
+    if (!activeDetected) {
+      lastReverseNoteKeyRef.current = null;
+      return;
+    }
+
+    const noteKey = noteKeyForTarget(activeDetected);
+    if (lastReverseNoteKeyRef.current === noteKey) {
+      return;
+    }
+
+    lastReverseNoteKeyRef.current = noteKey;
+    const currentTarget = props.sequenceCurrentStep?.target ?? props.checkpointFocus.target;
+    const correct = activeDetected.swara === currentTarget.swara && activeDetected.octave === currentTarget.octave;
+    setReverseTrail((current) => [
+      ...current.slice(-10),
+      {
+        id: `${props.now}-${noteKey}-${current.length}`,
+        swara: activeDetected.swara,
+        octave: activeDetected.octave,
+        target: currentTarget,
+        startedAt: props.now,
+        sustainMs: Math.max(260, Math.round((props.analysis.sustainMs ?? 0) * 1.2)),
+        correct,
+        centsOffset: activeDetected.centsOffset,
+        confidence: activeDetected.confidence,
+      },
+    ]);
+  }, [
+    activeDetected,
+    isReverseMode,
+    props.analysis.sustainMs,
+    props.checkpointFocus.target,
+    props.now,
+    props.sequenceCurrentStep?.target,
+  ]);
+
+  // Build countdown tiles (startAt patched below once note timing is known)
+  const countdownTiles = [3, 2, 1].map((value, index) => ({
+    kind: "countdown" as const,
+    key: `countdown-${value}-${index}`,
+    label: String(value),
+    x: targetLane.x,
+    startAt: 0, // patched below
+    startY: TILE_SPAWN_Y,
+    targetY: TILE_EXIT_Y,
+    travelMs: TILE_TRAVEL_MS,
+    height: countdownHeight,
+    width: 42,
+    fill: "linear-gradient(180deg, rgba(255,214,122,0.96), rgba(255,185,92,0.86))",
+    stroke: "rgba(255,241,196,0.46)",
+    textFill: "#fff8e7",
+    glow: "rgba(255,214,122,0.34)",
+    active: false,
+  }));
+
+  // First note tile spawns so its top reaches the flute at:
+  //   props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE  (after all 3 digits pass)
+  const firstNoteArrivalAt = props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE;
+  // => first note startAt = firstNoteArrivalAt - MS_TO_FLUTE
+  let noteCursor = firstNoteArrivalAt - MS_TO_FLUTE;
+
+  // Patch countdown startAts: digit[i] top should reach flute at
+  //   firstNoteArrivalAt - (3-1-i)*countdownDelayMs - countdownDelayMs
+  // Simplified: digit 0 (=3) at firstNoteArrivalAt - 2*delay, etc.
+  countdownTiles.forEach((tile, i) => {
+    const arrivalAt = firstNoteArrivalAt - (2 - i) * countdownDelayMs - countdownDelayMs;
+    tile.startAt = arrivalAt - MS_TO_FLUTE;
+  });
+
+  const noteTiles = phraseSteps.map((step, index) => {
+    const lane = fluteLaneForSwara(step.target.swara);
+    const palette = noteVisual(step.target.swara, step.target.octave);
+    // Height is proportional to sustain so adjacent tiles are gapless
+    const tileHeight = step.sustainTargetMs * TILE_PX_PER_MS;
+    
+    const timeAtFluteTop = noteCursor + MS_TO_FLUTE;
+    const timeAtFluteBottom = timeAtFluteTop + step.sustainTargetMs;
+    const isPassing = props.now >= timeAtFluteTop && props.now <= timeAtFluteBottom;
+
+    const isPlayedCorrectly = Boolean(
+        activeDetected &&
+          activeDetected.swara === step.target.swara &&
+          activeDetected.octave === step.target.octave &&
+          Math.abs(activeDetected.centsOffset) <= props.pitchToleranceCents
+    );
+
+    let tileFill = palette.fill;
+    let tileStroke = palette.stroke;
+    let tileGlow = palette.band;
+
+    if (isPassing) {
+        if (isPlayedCorrectly) {
+            tileFill = "rgba(46, 213, 115, 0.85)"; // Green
+            tileStroke = "rgba(46, 213, 115, 1)";
+            tileGlow = "rgba(46, 213, 115, 0.6)";
+        } else {
+            tileFill = "rgba(255, 71, 87, 0.85)"; // Red
+            tileStroke = "rgba(255, 71, 87, 1)";
+            tileGlow = "rgba(255, 71, 87, 0.6)";
+        }
+    }
+
+    const tile = {
+      kind: "note" as const,
+      key: `${step.target.swara}-${step.target.octave}-${index}`,
+      label: formatFluteTileLabel(step.target),
+      swara: step.target.swara,
+      octave: step.target.octave,
+      x: lane.x,
+      startAt: noteCursor,
+      startY: tileSpawnY,
+      targetY: tileEndY,
+      travelMs: tileTravelMs,
+      height: tileHeight,
+      width: 28,
+      fill: tileFill,
+      stroke: tileStroke,
+      textFill: "#ffffff",
+      glow: tileGlow,
+      active: isPassing,
+      isPlayedCorrectly,
+    };
+
+    // Advance cursor by the sustain duration — gap is 0 by construction.
+    noteCursor += step.sustainTargetMs;
+    return tile;
+  });
+
+  const visibleReverseTrail = reverseTrail.filter((event) => props.now - event.startedAt <= 6500);
+
+  const reverseTiles = visibleReverseTrail.map((event) => {
+    const lane = fluteLaneForSwara(event.swara);
+    const palette = noteVisual(event.swara, event.octave);
+    const tileHeight = Math.max(56, Math.min(168, 64 + Math.round(event.sustainMs * 0.12)));
+    const tileFill = event.correct ? "rgba(46, 213, 115, 0.86)" : "rgba(255, 71, 87, 0.86)";
+    const tileStroke = event.correct ? "rgba(46, 213, 115, 1)" : "rgba(255, 71, 87, 1)";
+    const tileGlow = event.correct ? "rgba(46, 213, 115, 0.62)" : "rgba(255, 71, 87, 0.62)";
+    return {
+      kind: "note" as const,
+      key: event.id,
+      label: formatFluteTileLabel({ swara: event.swara, octave: event.octave }),
+      swara: event.swara,
+      octave: event.octave,
+      x: lane.x,
+      startAt: event.startedAt,
+      startY: tileSpawnY,
+      targetY: tileEndY,
+      travelMs: tileTravelMs,
+      height: tileHeight,
+      width: 28,
+      fill: event.correct ? tileFill : palette.fill,
+      stroke: event.correct ? tileStroke : palette.stroke,
+      textFill: "#ffffff",
+      glow: event.correct ? tileGlow : palette.band,
+      active: true,
+      isPlayedCorrectly: event.correct,
+    };
+  });
+
+  const tiles = isReverseMode ? reverseTiles : [...countdownTiles, ...noteTiles];
+
+  const laneActive = (lane: (typeof FLUTE_LANES)[number]) =>
+    Boolean(activeDetected && laneContainsSwara(lane, activeDetected.swara));
+  const fluteGlowActive = FLUTE_LANES.some((lane) => laneActive(lane));
+
+  return (
+    <div className="trainer-flute-view" style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "grid", gap: 4 }}>
+          <div className="pill" style={{ width: "fit-content" }}>
+            {isReverseMode ? "Reverse practice" : "Rainfall practice"}
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 750, letterSpacing: "-0.04em" }}>
+            {props.sequenceDrill ? summarizeSequencePath(props.sequenceDrill) : formatTargetLabel(props.checkpointFocus.target)}
+          </div>
+          <div style={{ color: "var(--muted)", fontSize: 13 }}>
+            {props.sequenceDrill
+              ? isReverseMode
+                ? `Play the phrase ${summarizeSequencePath(props.sequenceDrill)} and let each played swara fall from the flute.`
+                : `Now ${formatTargetLabel(activeTarget)}${props.sequenceNextStep && props.sequenceNextStep !== props.sequenceCurrentStep ? ` · Next ${formatTargetLabel(props.sequenceNextStep.target)}` : ""}`
+              : isReverseMode
+                ? `Play ${formatTargetLabel(activeTarget)} and let it fall from the flute.`
+                : `Countdown then ${formatTargetLabel(activeTarget)}`}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div
+            role="group"
+            aria-label="Flute road practice mode"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: 4,
+              borderRadius: 999,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.03)",
+            }}
+          >
+            {fluteRoadModeOptions.map((option) => {
+              const active = props.fluteRoadMode === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className="button"
+                  aria-pressed={active}
+                  onClick={() => props.onFluteRoadModeChange(option.value)}
+                  title={option.description}
+                  style={{
+                    minHeight: 30,
+                    padding: "0 11px",
+                    borderRadius: 999,
+                    border: active ? "1px solid rgba(117,184,255,0.36)" : "1px solid transparent",
+                    background: active
+                      ? "linear-gradient(180deg, rgba(117,184,255,0.18), rgba(117,184,255,0.08))"
+                      : "transparent",
+                    color: active ? "var(--text)" : "var(--muted)",
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          {props.onToggleLoop && (
+            <button
+              onClick={props.onToggleLoop}
+              className="pill"
+              style={{
+                background: props.isLooping ? "rgba(255,255,255,0.15)" : "transparent",
+                border: "1px solid rgba(255,255,255,0.15)",
+                cursor: "pointer",
+                fontWeight: 650,
+              }}
+            >
+              Loop {props.isLooping ? "ON" : "OFF"}
+            </button>
+          )}
+          {props.onTogglePause && (
+            <button
+              onClick={props.onTogglePause}
+              className="pill"
+              style={{
+                background: props.isPaused ? "rgba(255,255,255,0.15)" : "transparent",
+                border: "1px solid rgba(255,255,255,0.15)",
+                cursor: "pointer",
+                fontWeight: 650,
+              }}
+            >
+              {props.isPaused ? "Resume" : "Pause"}
+            </button>
+          )}
+          {props.onRetry && (
+            <button
+              onClick={props.onRetry}
+              className="pill"
+              style={{
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.15)",
+                cursor: "pointer",
+                fontWeight: 650,
+              }}
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div
+        style={{
+          borderRadius: 26,
+          padding: 10,
+          background: "linear-gradient(180deg, rgba(6,18,16,0.96), rgba(9,14,24,0.92))",
+          border: "1px solid rgba(255,255,255,0.08)",
+          overflow: "hidden",
+        }}
+      >
+        <svg
+          className="trainer-flute-svg"
+          viewBox={`0 0 ${FLUTE_BOARD_WIDTH} ${FLUTE_BOARD_HEIGHT}`}
+          width="100%"
+          height={FLUTE_BOARD_HEIGHT}
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="trainerFluteBoard" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#06110c" />
+              <stop offset="60%" stopColor="#08171a" />
+              <stop offset="100%" stopColor="#090f18" />
+            </linearGradient>
+            <linearGradient id="trainerFluteWood" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f1d9b5" />
+              <stop offset="50%" stopColor="#e9c99c" />
+              <stop offset="100%" stopColor="#d8b485" />
+            </linearGradient>
+            <radialGradient id="trainerFluteLip" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#d9b98f" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#000" stopOpacity="0" />
+            </radialGradient>
+            <linearGradient id="trainerTileGlow" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(255,255,255,0.28)" />
+              <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+            </linearGradient>
+          </defs>
+
+          <rect x="0" y="0" width={FLUTE_BOARD_WIDTH} height={FLUTE_BOARD_HEIGHT} rx="26" fill="url(#trainerFluteBoard)" />
+
+          <g opacity="0.12">
+            {Array.from({ length: 13 }).map((_, index) => (
+              <rect
+                key={`stripe-${index}`}
+                x={index * 92}
+                y={0}
+                width={52}
+                height={FLUTE_BOARD_HEIGHT}
+                fill={index % 2 === 0 ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)"}
+              />
+            ))}
+          </g>
+
+          {FLUTE_LANES.map((lane) => {
+            const active = laneActive(lane);
+            const roadFill = active ? "rgba(0,224,255,0.12)" : "rgba(255,255,255,0.03)";
+            const roadStroke = active ? "rgba(0,224,255,0.26)" : "rgba(255,255,255,0.05)";
+            return (
+              <g key={lane.swara}>
+                <rect x={lane.x - 16} y={roadStartY} width={32} height={roadEndY - roadStartY} rx={16} fill={roadFill} stroke={roadStroke} strokeWidth={1} />
+                <line x1={lane.x} y1={roadStartY + 4} x2={lane.x} y2={roadEndY - 4} stroke={active ? "rgba(0,224,255,0.32)" : "rgba(255,255,255,0.06)"} strokeWidth={2} strokeDasharray="8 10" />
+                <text
+                  x={lane.x}
+                  y={roadStartY - 8}
+                  textAnchor="middle"
+                  fill={active ? "rgba(219,255,247,0.98)" : "rgba(255,255,255,0.72)"}
+                  fontSize="12"
+                  fontWeight="700"
+                >
+                  {lane.roadLabel}
+                </text>
+              </g>
+            );
+          })}
+
+          {tiles.map((tile) => {
+            const progress = tile.startAt <= props.now ? clamp((props.now - tile.startAt) / tile.travelMs, 0, 1) : 0;
+            const y = tile.startY + progress * (tile.targetY - tile.startY);
+            const fadeProgress = progress < 0.88 ? 1 : clamp(1 - (progress - 0.88) / 0.12, 0, 1);
+            const opacity = progress <= 0 ? 0 : clamp(0.24 + progress * 0.86, 0, 1) * fadeProgress;
+            const isCountdown = tile.kind === "countdown";
+            const tileWidth = tile.width;
+            return (
+              <g
+                key={tile.key}
+                style={{
+                  transform: `translate(${tile.x - tileWidth / 2}px, ${y}px)`,
+                  opacity,
+                }}
+              >
+                <rect
+                  x="0"
+                  y="0"
+                  width={tileWidth}
+                  height={tile.height}
+                  rx={isCountdown ? 10 : 5}
+                  fill={tile.fill}
+                  stroke={tile.stroke}
+                  strokeWidth={1.2}
+                  filter={tile.active && !isCountdown ? "drop-shadow(0 0 12px rgba(0, 224, 255, 0.28))" : undefined}
+                />
+                <rect x="0" y="0" width={tileWidth} height={Math.max(8, tile.height * 0.22)} rx={5} fill="url(#trainerTileGlow)" opacity={0.42} />
+                <text
+                  x={tileWidth / 2}
+                  y={tile.kind === "countdown" ? tile.height / 2 + 7 : tile.height / 2 - 3}
+                  textAnchor="middle"
+                  fill={tile.textFill}
+                  fontSize={tile.kind === "countdown" ? "20" : "13"}
+                  fontWeight="800"
+                  stroke="rgba(5,10,18,0.85)"
+                  strokeWidth={tile.kind === "countdown" ? 2.4 : 1.8}
+                  paintOrder="stroke"
+                >
+                  {tile.label}
+                </text>
+                {tile.kind === "note" ? (
+                  <text
+                    x={tileWidth / 2}
+                    y={tile.height - 12}
+                    textAnchor="middle"
+                    fill={tile.textFill}
+                    fontSize="9.5"
+                    fontWeight="650"
+                    opacity={0.94}
+                    stroke="rgba(5,10,18,0.85)"
+                    strokeWidth={1.4}
+                    paintOrder="stroke"
+                  >
+                    {octaveSymbol(tile.octave)}
+                  </text>
+                ) : null}
+              </g>
+            );
+          })}
+
+          <g
+            transform={`translate(0,${fluteBodyY})`}
+            style={{
+              filter: fluteGlowActive ? "drop-shadow(0 0 18px rgba(0,224,255,0.26))" : undefined,
+            }}
+          >
+            <rect x="40" y="60" width="1020" height="40" rx="20" fill="url(#trainerFluteWood)" />
+            <rect x="40" y="60" width="25" height="40" fill="#111" />
+            <rect x="65" y="60" width="45" height="40" fill="#B87333" />
+            <rect x="110" y="60" width="30" height="40" fill="#111" />
+
+            <ellipse cx="190" cy="80" rx="26" ry="16" fill="url(#trainerFluteLip)" />
+            <ellipse cx="190" cy="80" rx="9" ry="6" fill="#111" />
+
+            <rect x="330" y="60" width="40" height="40" fill="#111" />
+            <rect x="370" y="60" width="65" height="40" fill="#B87333" />
+            <rect x="435" y="60" width="40" height="40" fill="#111" />
+
+            {FLUTE_LANES.map((lane) => {
+              const active = Boolean(activeDetected && laneContainsSwara(lane, activeDetected.swara));
+              return (
+                <circle
+                  key={lane.swara}
+                  cx={lane.x}
+                  cy={80}
+                  r="11"
+                  fill="#111"
+                  className={active ? "active" : undefined}
+                />
+              );
+            })}
+
+            <rect x="960" y="60" width="50" height="40" fill="#B87333" />
+            <rect x="1010" y="60" width="35" height="40" fill="#111" />
+            <ellipse id="tune" cx="985" cy="92" rx="8" ry="5.5" fill="#111" />
+          </g>
+
+          {noteTiles.map(tile => {
+            if (!tile.active) return null;
+            const particles = [];
+            for (let i = 0; i < 36; i++) {
+              const maxLife = 300 + ((i * 7) % 300); // 300ms to 600ms lifespan
+              const t = (props.now + i * 113) % maxLife;
+              const progress = t / maxLife;
+              
+              // Upward travel distance
+              const speed = 40 + ((i * 13) % 40); // 40px to 80px total height
+              const py = (fluteBodyY + 80) - (progress * speed);
+              
+              // Lateral spread across the tile width (tile width is 28)
+              const spread = -12 + ((i * 29) % 24);
+              // Drift slightly outwards as they rise
+              const px = tile.x + spread + (spread * progress * 0.4);
+              
+              const opacity = (1 - progress * progress) * 0.9;
+              const r = 0.5 + (1 - progress) * 1.5; // Max 2px, shrinks to 0.5px
+              const color = tile.isPlayedCorrectly ? "#4ae38c" : "#ff5e6d"; // Bright spark colors
+
+              particles.push(
+                <circle
+                  key={`${tile.key}-p-${i}`}
+                  cx={px}
+                  cy={py}
+                  r={r}
+                  fill={color}
+                  opacity={opacity}
+                  style={{ filter: "blur(0.5px)", mixBlendMode: "screen" }}
+                />
+              );
+            }
+            return <g key={`particles-${tile.key}`}>{particles}</g>;
+          })}
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -4165,9 +5271,9 @@ function densifyTracePoints(points: Array<{ x: number; y: number }>, stepPx: num
   return densePoints;
 }
 
-function filterTrendWindow(points: TrendPoint[]) {
+function filterTrendWindow(points: TrendPoint[], windowMs: PitchTrendWindowMs = 15000) {
   const latestTimestamp = points.at(-1)?.timestamp ?? Date.now();
-  return points.filter((point) => latestTimestamp - point.timestamp <= TREND_WINDOW_MS);
+  return points.filter((point) => latestTimestamp - point.timestamp <= windowMs);
 }
 
 function lerp(current: number, next: number, alpha: number) {

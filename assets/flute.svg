@@ -1,0 +1,56 @@
+<svg width="1100" height="160" viewBox="0 0 1100 160" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Gradients -->
+  <defs>
+    <!-- bamboo body shading -->
+    <linearGradient id="bamboo" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F0D5AC"/>
+      <stop offset="50%" stop-color="#E8C89E"/>
+      <stop offset="100%" stop-color="#DDBA8D"/>
+    </linearGradient>
+
+    <!-- subtle lip shading -->
+    <radialGradient id="lipShade" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#d9b98f" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Flute body -->
+  <rect x="40" y="60" width="1020" height="40" rx="20" fill="url(#bamboo)"/>
+
+  <!-- Left end -->
+  <rect x="40" y="60" width="25" height="40" fill="#111"/>
+
+  <!-- Threads -->
+  <rect x="65" y="60" width="45" height="40" fill="#B87333"/>
+  <rect x="110" y="60" width="30" height="40" fill="#111"/>
+
+  <!-- Blow hole (clean look) -->
+  <ellipse cx="190" cy="80" rx="26" ry="16" fill="url(#lipShade)"/>
+  <ellipse cx="190" cy="80" rx="9" ry="6" fill="#111"/>
+
+  <!-- Mid threads -->
+  <rect x="330" y="60" width="40" height="40" fill="#111"/>
+  <rect x="370" y="60" width="65" height="40" fill="#B87333"/>
+  <rect x="435" y="60" width="40" height="40" fill="#111"/>
+
+  <!-- Finger holes -->
+  <circle id="h1" cx="540" cy="80" r="11" fill="#111"/>
+  <circle id="h2" cx="610" cy="80" r="11" fill="#111"/>
+  <circle id="h3" cx="680" cy="80" r="11" fill="#111"/>
+
+  <!-- extra spacing -->
+  <circle id="h4" cx="780" cy="80" r="11" fill="#111"/>
+
+  <circle id="h5" cx="850" cy="80" r="11" fill="#111"/>
+  <circle id="h6" cx="920" cy="80" r="11" fill="#111"/>
+
+  <!-- Right threads -->
+  <rect x="960" y="60" width="50" height="40" fill="#B87333"/>
+  <rect x="1010" y="60" width="35" height="40" fill="#111"/>
+
+  <!-- Tuning hole (angled look) -->
+  <ellipse id="tune" cx="985" cy="92" rx="8" ry="5.5" fill="#111"/>
+
+</svg>
