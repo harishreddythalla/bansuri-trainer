@@ -43,6 +43,7 @@ type TrendPoint = {
 
 type AnalysisState = {
   detected: DetectedSwara | null;
+  transientDetected: DetectedSwara | null;
   rawFrequency: number | null;
   energy: number | null;
   noise: number | null;
@@ -803,6 +804,7 @@ export function SwaraTrainer() {
   const isFluteRoadLoopingRef = useRef(false);
   const [analysis, setAnalysis] = useState<AnalysisState>({
     detected: null,
+    transientDetected: null,
     rawFrequency: null,
     energy: null,
     noise: null,
@@ -874,6 +876,7 @@ export function SwaraTrainer() {
   const pitchConfigRef = useRef<PitchDifficultyConfig>(pitchConfig);
   const analysisRef = useRef<AnalysisState>({
     detected: null,
+    transientDetected: null,
     rawFrequency: null,
     energy: null,
     noise: null,
@@ -1412,6 +1415,7 @@ export function SwaraTrainer() {
     setRunning(false);
     setAnalysis({
       detected: null,
+      transientDetected: null,
       rawFrequency: null,
       energy: null,
       noise: null,
@@ -2058,6 +2062,7 @@ export function SwaraTrainer() {
       lastUiCommitRef.current = now;
       const nextAnalysis = {
         detected: visibleReading,
+        transientDetected: compactDetected,
         rawFrequency: pitch.frequency > 0 ? pitch.frequency : null,
         energy: visibleReading ? Math.round(smooth.energy) : null,
         noise: visibleReading ? Math.round(smooth.noise) : null,
@@ -4593,6 +4598,7 @@ function FluteRoadView(props: {
     : [{ target: props.checkpointFocus.target, sustainTargetMs: Math.max(props.checkpointFocus.sustainTargetMs, 900) }];
   const activeTarget = props.sequenceCurrentStep?.target ?? props.checkpointFocus.target;
   const activeDetected = props.analysis.detected;
+  const reverseDetected = props.analysis.transientDetected;
   const targetLane = fluteLaneForSwara(activeTarget.swara);
   const [reverseTrail, setReverseTrail] = useState<Array<{
     id: string;
@@ -4600,7 +4606,8 @@ function FluteRoadView(props: {
     octave: OctaveName;
     target: SwaraTarget;
     startedAt: number;
-    sustainMs: number;
+    durationMs: number;
+    lastSeenAt: number;
     correct: boolean;
     centsOffset: number;
     confidence: number;
@@ -4651,40 +4658,73 @@ function FluteRoadView(props: {
       return;
     }
 
-    if (!activeDetected) {
+    if (!reverseDetected) {
       lastReverseNoteKeyRef.current = null;
       return;
     }
 
-    const noteKey = noteKeyForTarget(activeDetected);
+    const noteKey = noteKeyForTarget(reverseDetected);
     if (lastReverseNoteKeyRef.current === noteKey) {
+      setReverseTrail((current) => {
+        if (!current.length) {
+          return current;
+        }
+
+        const lastEvent = current[current.length - 1];
+        if (lastEvent.swara !== reverseDetected.swara || lastEvent.octave !== reverseDetected.octave) {
+          return current;
+        }
+
+        const nextDurationMs = Math.max(lastEvent.durationMs, props.now - lastEvent.startedAt);
+        const nextCorrect =
+          reverseDetected.swara === currentTarget.swara &&
+          reverseDetected.octave === currentTarget.octave &&
+          Math.abs(reverseDetected.centsOffset) <= props.pitchToleranceCents;
+
+        const nextTrail = [...current];
+        nextTrail[nextTrail.length - 1] = {
+          ...lastEvent,
+          target: currentTarget,
+          durationMs: nextDurationMs,
+          lastSeenAt: props.now,
+          correct: nextCorrect,
+          centsOffset: reverseDetected.centsOffset,
+          confidence: reverseDetected.confidence,
+        };
+        return nextTrail;
+      });
       return;
     }
 
     lastReverseNoteKeyRef.current = noteKey;
     const currentTarget = props.sequenceCurrentStep?.target ?? props.checkpointFocus.target;
-    const correct = activeDetected.swara === currentTarget.swara && activeDetected.octave === currentTarget.octave;
+    const correct =
+      reverseDetected.swara === currentTarget.swara &&
+      reverseDetected.octave === currentTarget.octave &&
+      Math.abs(reverseDetected.centsOffset) <= props.pitchToleranceCents;
     setReverseTrail((current) => [
       ...current.slice(-10),
       {
         id: `${props.now}-${noteKey}-${current.length}`,
-        swara: activeDetected.swara,
-        octave: activeDetected.octave,
+        swara: reverseDetected.swara,
+        octave: reverseDetected.octave,
         target: currentTarget,
         startedAt: props.now,
-        sustainMs: Math.max(260, Math.round((props.analysis.sustainMs ?? 0) * 1.2)),
+        durationMs: Math.max(120, props.analysis.sustainMs ?? 0),
+        lastSeenAt: props.now,
         correct,
-        centsOffset: activeDetected.centsOffset,
-        confidence: activeDetected.confidence,
+        centsOffset: reverseDetected.centsOffset,
+        confidence: reverseDetected.confidence,
       },
     ]);
   }, [
-    activeDetected,
     isReverseMode,
     props.analysis.sustainMs,
     props.checkpointFocus.target,
     props.now,
+    props.pitchToleranceCents,
     props.sequenceCurrentStep?.target,
+    reverseDetected,
   ]);
 
   // Build countdown tiles (startAt patched below once note timing is known)
@@ -4779,12 +4819,12 @@ function FluteRoadView(props: {
     return tile;
   });
 
-  const visibleReverseTrail = reverseTrail.filter((event) => props.now - event.startedAt <= 6500);
+  const visibleReverseTrail = reverseTrail.filter((event) => props.now - event.startedAt <= tileTravelMs + event.durationMs + 400);
 
   const reverseTiles = visibleReverseTrail.map((event) => {
     const lane = fluteLaneForSwara(event.swara);
     const palette = noteVisual(event.swara, event.octave);
-    const tileHeight = Math.max(56, Math.min(168, 64 + Math.round(event.sustainMs * 0.12)));
+    const tileHeight = Math.max(18, Math.round(event.durationMs * TILE_PX_PER_MS));
     const tileFill = event.correct ? "rgba(46, 213, 115, 0.86)" : "rgba(255, 71, 87, 0.86)";
     const tileStroke = event.correct ? "rgba(46, 213, 115, 1)" : "rgba(255, 71, 87, 1)";
     const tileGlow = event.correct ? "rgba(46, 213, 115, 0.62)" : "rgba(255, 71, 87, 0.62)";
