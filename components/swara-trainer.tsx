@@ -4825,6 +4825,7 @@ function FluteRoadView(props: {
     const lane = fluteLaneForSwara(event.swara);
     const palette = noteVisual(event.swara, event.octave);
     const tileHeight = Math.max(18, Math.round(event.durationMs * TILE_PX_PER_MS));
+    const attached = props.now - event.lastSeenAt <= 140;
     const tileFill = event.correct ? "rgba(46, 213, 115, 0.86)" : "rgba(255, 71, 87, 0.86)";
     const tileStroke = event.correct ? "rgba(46, 213, 115, 1)" : "rgba(255, 71, 87, 1)";
     const tileGlow = event.correct ? "rgba(46, 213, 115, 0.62)" : "rgba(255, 71, 87, 0.62)";
@@ -4835,7 +4836,7 @@ function FluteRoadView(props: {
       swara: event.swara,
       octave: event.octave,
       x: lane.x,
-      startAt: event.startedAt,
+      startAt: event.lastSeenAt,
       startY: tileSpawnY,
       targetY: tileEndY,
       travelMs: tileTravelMs,
@@ -4845,7 +4846,8 @@ function FluteRoadView(props: {
       stroke: event.correct ? tileStroke : palette.stroke,
       textFill: "#ffffff",
       glow: event.correct ? tileGlow : palette.band,
-      active: true,
+      active: attached,
+      attached,
       isPlayedCorrectly: event.correct,
     };
   });
@@ -5038,10 +5040,19 @@ function FluteRoadView(props: {
           })}
 
           {tiles.map((tile) => {
-            const progress = tile.startAt <= props.now ? clamp((props.now - tile.startAt) / tile.travelMs, 0, 1) : 0;
-            const y = tile.startY + progress * (tile.targetY - tile.startY);
+            const isAttachedReverseTile = isReverseMode && tile.kind === "note" && "attached" in tile && tile.attached;
+            const progress = isAttachedReverseTile
+              ? 0
+              : tile.startAt <= props.now
+                ? clamp((props.now - tile.startAt) / tile.travelMs, 0, 1)
+                : 0;
+            const y = isAttachedReverseTile ? tile.startY : tile.startY + progress * (tile.targetY - tile.startY);
             const fadeProgress = progress < 0.88 ? 1 : clamp(1 - (progress - 0.88) / 0.12, 0, 1);
-            const opacity = progress <= 0 ? 0 : clamp(0.24 + progress * 0.86, 0, 1) * fadeProgress;
+            const opacity = isAttachedReverseTile
+              ? 1
+              : progress <= 0
+                ? 0
+                : clamp(0.24 + progress * 0.86, 0, 1) * fadeProgress;
             const isCountdown = tile.kind === "countdown";
             const tileWidth = tile.width;
             return (
