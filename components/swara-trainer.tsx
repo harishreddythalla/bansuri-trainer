@@ -1496,9 +1496,24 @@ export function SwaraTrainer() {
       sampleRate: audioContext.sampleRate,
     });
     const detected = rawReading ?? harmonicReading;
-
-    const isActiveCandidate = Boolean(detected && pitch.confidence >= ACTIVE_CONFIDENCE && energy >= ACTIVE_ENERGY);
     const energyPercent = Math.min(100, energy * 5000);
+    const preliminaryNoise = detected
+      ? estimateNoiseLevel({
+          spectrum,
+          frequency: pitch.frequency,
+          confidence: pitch.confidence,
+          energy: energyPercent,
+          stability: null,
+          sampleRate: audioContext.sampleRate,
+        })
+      : 100;
+
+    const isActiveCandidate = Boolean(
+      detected &&
+        pitch.confidence >= ACTIVE_CONFIDENCE &&
+        energy >= ACTIVE_ENERGY &&
+        preliminaryNoise <= 58,
+    );
     let hissPercent = 0;
 
     let sustainMs: number | null = null;
@@ -1764,7 +1779,7 @@ export function SwaraTrainer() {
         }).score
       : 0;
 
-    const compactDetected = visibleReading ?? detected ?? null;
+    const compactDetected = visibleReading ?? (isActiveCandidate ? detected : null);
     const compactDetectedKey = noteKeyForReading(compactDetected);
     const sustainBucket = compactDetected ? Math.floor(Math.max(0, sustainMs ?? 0) / 600) : -1;
     const debugStepKey = liveStep
