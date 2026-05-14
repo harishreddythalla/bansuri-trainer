@@ -870,6 +870,8 @@ export function SwaraTrainer() {
   const pitchConfig = useMemo(() => pitchDifficultyConfig(pitchDifficulty), [pitchDifficulty]);
   const selectedStepRef = useRef<LessonStep | null>(selectedStep ?? null);
   const targetRef = useRef<SwaraTarget>(selectedStep?.target ?? target);
+  const fluteProfileRef = useRef<FluteProfile>(fluteProfile);
+  const pitchConfigRef = useRef<PitchDifficultyConfig>(pitchConfig);
   const analysisRef = useRef<AnalysisState>({
     detected: null,
     rawFrequency: null,
@@ -1054,6 +1056,14 @@ export function SwaraTrainer() {
   useEffect(() => {
     targetRef.current = target;
   }, [target]);
+
+  useEffect(() => {
+    fluteProfileRef.current = fluteProfile;
+  }, [fluteProfile]);
+
+  useEffect(() => {
+    pitchConfigRef.current = pitchConfig;
+  }, [pitchConfig]);
 
   useEffect(() => {
     storeFluteProfile(fluteProfile);
@@ -1445,6 +1455,11 @@ export function SwaraTrainer() {
     const liveFocus = checkpointTargets(liveStep, liveProgress);
     const liveTarget = targetRef.current;
     const liveSequenceStep = liveStep && isSequenceStep(liveStep) ? liveStep : null;
+    const liveFluteProfile = fluteProfileRef.current;
+    const livePitchConfig = pitchConfigRef.current;
+    const livePitchZoneCents = livePitchConfig.noteToleranceCents;
+    const livePitchReleaseCents = livePitchConfig.releaseToleranceCents;
+    const liveSequenceRagaGrammar = isRagaGrammarSequence(liveSequenceStep);
     const liveSequenceIndex = liveSequenceStep
       ? Math.min(liveProgress.stepIndex, Math.max(0, liveSequenceStep.steps.length - 1))
       : 0;
@@ -1466,10 +1481,10 @@ export function SwaraTrainer() {
 
     const energy = rms(buffer);
     const pitch = detectPitch(buffer, audioContext.sampleRate);
-    const rawReading = classifySwara(pitch.frequency, fluteProfile.saFrequency, pitch.confidence);
+    const rawReading = classifySwara(pitch.frequency, liveFluteProfile.saFrequency, pitch.confidence);
     const harmonicReading = resolveSwaraReading({
       frequency: pitch.frequency,
-      tonicFrequency: fluteProfile.saFrequency,
+      tonicFrequency: liveFluteProfile.saFrequency,
       confidence: pitch.confidence,
       target: liveTarget,
       previous: previousReadingRef.current,
@@ -1554,7 +1569,7 @@ export function SwaraTrainer() {
           sustainReading &&
             sustainReading.swara === liveTarget.swara &&
             sustainReading.octave === liveTarget.octave &&
-            Math.abs(sustainReading.centsOffset) <= pitchZoneCents,
+            Math.abs(sustainReading.centsOffset) <= livePitchZoneCents,
         );
 
       const noteIsInReleaseZone =
@@ -1562,7 +1577,7 @@ export function SwaraTrainer() {
           sustainReading &&
             sustainReading.swara === liveTarget.swara &&
             sustainReading.octave === liveTarget.octave &&
-            Math.abs(sustainReading.centsOffset) <= pitchReleaseCents,
+            Math.abs(sustainReading.centsOffset) <= livePitchReleaseCents,
         );
 
       if (noteIsOnTarget) {
@@ -1688,8 +1703,8 @@ export function SwaraTrainer() {
           sequenceStepRecordsRef.current.filter((record): record is SequenceStepRecord => Boolean(record)),
           liveTarget,
           `timed out waiting for ${formatTargetLabel(liveTarget)}`,
-          pitchConfig.scoreToleranceCents,
-          sequenceRagaGrammar,
+          livePitchConfig.scoreToleranceCents,
+          liveSequenceRagaGrammar,
         );
         const historyEntry = buildLoopHistoryEntry({
           repeatIndex: liveProgress.repeatIndex,
@@ -1739,9 +1754,9 @@ export function SwaraTrainer() {
           sustainMs: Math.round(sustainMs ?? 0),
           stability: Math.round(stability ?? 0),
           noise: Math.round(hissPercent),
-          pitchToleranceCents: pitchConfig.scoreToleranceCents,
+          pitchToleranceCents: livePitchConfig.scoreToleranceCents,
           sustainNormalizationMs: liveSequenceStep ? Math.max(500, liveSequenceStep.sustainTargetMs * 4) : 3000,
-          ragaGrammar: sequenceRagaGrammar,
+          ragaGrammar: liveSequenceRagaGrammar,
         }).score
       : 0;
 
@@ -1786,7 +1801,7 @@ export function SwaraTrainer() {
       if (!activeSequenceReading) {
         // Carryover from the previous checkpoint is intentionally ignored until the note is re-articulated.
       } else {
-      const sequencePitchToleranceCents = Math.max(liveSequenceStep.pitchToleranceCents, pitchConfig.sequenceToleranceCents);
+      const sequencePitchToleranceCents = Math.max(liveSequenceStep.pitchToleranceCents, livePitchConfig.sequenceToleranceCents);
       const expectedPitchMatches =
         activeSequenceReading.swara === liveTarget.swara &&
         activeSequenceReading.octave === liveTarget.octave &&
@@ -1815,9 +1830,9 @@ export function SwaraTrainer() {
           sustainMs: Math.round(sustainMs ?? 0),
           stability: Math.round(stability ?? 0),
           noise: Math.round(hissPercent),
-          pitchToleranceCents: pitchConfig.scoreToleranceCents,
+          pitchToleranceCents: livePitchConfig.scoreToleranceCents,
           sustainNormalizationMs: Math.max(500, sequenceStep.sustainTargetMs * 4),
-          ragaGrammar: sequenceRagaGrammar,
+          ragaGrammar: liveSequenceRagaGrammar,
         }).score;
         recordSequenceStepResult({
           step: sequenceStep,
@@ -1906,8 +1921,8 @@ export function SwaraTrainer() {
               sequenceStepRecordsRef.current.filter((record): record is SequenceStepRecord => Boolean(record)),
               liveTarget,
               `loop score ${phraseScore ?? 0}/${passThreshold} was below the pass mark`,
-              pitchConfig.scoreToleranceCents,
-              sequenceRagaGrammar,
+              livePitchConfig.scoreToleranceCents,
+              liveSequenceRagaGrammar,
             );
             pushDebugEvent({
               event: "sequence_reset",
@@ -2005,7 +2020,7 @@ export function SwaraTrainer() {
         (sustainMs ?? 0) >= (liveStep?.sustainTargetMs ?? 0) &&
         visibleReading?.swara === liveTarget.swara &&
         visibleReading?.octave === liveTarget.octave &&
-        Math.abs(visibleReading?.centsOffset ?? 999) <= pitchZoneCents;
+        Math.abs(visibleReading?.centsOffset ?? 999) <= livePitchZoneCents;
 
       if (checkpointClearable) {
         if (!autoClearArmedRef.current || autoClearArmedRef.current.stepId !== liveStep.id) {
