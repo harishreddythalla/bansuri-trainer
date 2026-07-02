@@ -249,11 +249,11 @@ function sequence(
     },
     ragaRules: ragaRules
       ? {
-          ...ragaRules,
-          arohana: ragaRules.arohana?.map(normalizeSequenceStep),
-          avarohana: ragaRules.avarohana?.map(normalizeSequenceStep),
-          pakad: ragaRules.pakad?.map((phrase) => phrase.map(normalizeSequenceStep)),
-        }
+        ...ragaRules,
+        arohana: ragaRules.arohana?.map(normalizeSequenceStep),
+        avarohana: ragaRules.avarohana?.map(normalizeSequenceStep),
+        pakad: ragaRules.pakad?.map((phrase) => phrase.map(normalizeSequenceStep)),
+      }
       : undefined,
     stage,
   };
@@ -704,7 +704,7 @@ export const curriculumTracks: CurriculumTrack[] = [
             [
               sequence(
                 `${moduleId}-aaroh-checkpoint`,
-                `${definition.title} — Aaroh`,
+                `Aaroh`,
                 `${definition.title} — ascending form`,
                 parseNotation(definition.aarohNotation, definition.sustainTargetMs),
                 1,
@@ -734,7 +734,7 @@ export const curriculumTracks: CurriculumTrack[] = [
             [
               sequence(
                 `${moduleId}-avaroh-checkpoint`,
-                `${definition.title} — Avaroh`,
+                `Avaroh`,
                 `${definition.title} — descending form`,
                 parseNotation(definition.avarohNotation, definition.sustainTargetMs),
                 1,
