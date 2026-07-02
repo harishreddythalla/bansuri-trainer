@@ -74,6 +74,9 @@ export function storeFluteProfile(profile: FluteProfile) {
 export function FluteFinder(props: {
   title?: string;
   compact?: boolean;
+  minimal?: boolean;
+  inline?: boolean;
+  autoStart?: boolean;
   onDetected?: (profile: FluteProfile) => void;
 }) {
   const [running, setRunning] = useState(false);
@@ -96,12 +99,22 @@ export function FluteFinder(props: {
   const frameRef = useRef<number | null>(null);
   const candidateLockRef = useRef<{ profileId: string; startedAt: number; stableSince: number } | null>(null);
   const lastCommitRef = useRef(0);
+  const autoStartedRef = useRef(false);
 
   useEffect(() => {
     return () => {
       stop();
     };
   }, []);
+
+  useEffect(() => {
+    if (!props.autoStart || autoStartedRef.current) {
+      return;
+    }
+
+    autoStartedRef.current = true;
+    void start();
+  }, [props.autoStart]);
 
   async function start() {
     setError(null);
@@ -250,78 +263,119 @@ export function FluteFinder(props: {
 
   return (
     <div
-      className="glass"
       style={{
-        borderRadius: props.compact ? 24 : 28,
-        padding: props.compact ? 16 : 20,
-        background: "rgba(255,255,255,0.04)",
+        borderRadius: props.inline ? 0 : props.compact ? 20 : 28,
+        padding: props.inline ? 0 : props.compact ? 14 : 20,
+        background: props.inline ? "transparent" : "rgba(255,255,255,0.04)",
         display: "grid",
-        gap: 12,
+        gap: props.inline ? 8 : props.minimal ? 10 : 12,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", flexWrap: "wrap" }}>
-        <div>
-          <div className="pill">Know your flute</div>
-          <div style={{ marginTop: 10, fontSize: props.compact ? 20 : 24, fontWeight: 700, letterSpacing: "-0.04em" }}>
-            {props.title ?? "Auto-detect tonic and flute register"}
+      {props.inline ? null : (
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", flexWrap: "wrap" }}>
+          <div>
+            {props.minimal ? null : <div className="pill">Know your flute</div>}
+            {props.title ? (
+              <div style={{ marginTop: 10, fontSize: props.minimal ? 16 : props.compact ? 20 : 24, fontWeight: 700, letterSpacing: "-0.04em" }}>
+                {props.title}
+              </div>
+            ) : null}
+            {props.minimal ? null : (
+              <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 14, lineHeight: 1.5, maxWidth: 680 }}>
+                Play a soft, steady Sa with the upper three holes closed. The detector identifies the nearest standard flute profile and stores it for the trainer.
+              </div>
+            )}
           </div>
-          <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 14, lineHeight: 1.5, maxWidth: 680 }}>
-            Play a soft, steady Sa with the upper three holes closed. The detector identifies the nearest standard flute profile and stores it for the trainer.
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button className="button button-primary" onClick={() => void start()} disabled={running}>
+              {running ? "Listening..." : "Detect flute"}
+            </button>
+            <button className="button button-secondary" onClick={stop} disabled={!running}>
+              Stop
+            </button>
           </div>
         </div>
+      )}
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button className="button button-primary" onClick={() => void start()} disabled={running}>
-            {running ? "Listening..." : "Detect flute"}
-          </button>
-          <button className="button button-secondary" onClick={stop} disabled={!running}>
-            Stop
-          </button>
+      {props.inline ? (
+        <div style={{ display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <span
+              className="pill"
+              style={{
+                width: "fit-content",
+                padding: "5px 10px",
+                fontSize: 11.5,
+                opacity: running ? 1 : 0.72,
+              }}
+            >
+              {running ? "Listening..." : "Idle"}
+            </span>
+          </div>
+          <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.45 }}>{state.status}</div>
+          {error ? (
+            <div
+              style={{
+                padding: 10,
+                borderRadius: 14,
+                border: "1px solid rgba(255, 142, 142, 0.35)",
+                color: "var(--danger)",
+                background: "rgba(255, 142, 142, 0.08)",
+                fontSize: 13,
+                lineHeight: 1.45,
+              }}
+            >
+              {error}
+            </div>
+          ) : null}
         </div>
-      </div>
+      ) : null}
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-          gap: 10,
-        }}
-      >
-        <MiniStat label="Likely flute" value={state.candidate ? `${state.candidate.tonicLabel} ${state.candidate.registerLabel}` : "—"} />
-        <MiniStat label="Sa frequency" value={state.frequency ? `${state.frequency.toFixed(1)} Hz` : "—"} />
-        <MiniStat label="Offset" value={state.centsOffset != null ? `${state.centsOffset > 0 ? "+" : ""}${Math.round(state.centsOffset)}¢` : "—"} />
-        <MiniStat label="Hold" value={`${(state.holdMs / 1000).toFixed(1)}s`} />
-      </div>
-
-      <div
-        style={{
-          height: 10,
-          borderRadius: 999,
-          background: "rgba(255,255,255,0.08)",
-          overflow: "hidden",
-        }}
-      >
+      {props.inline || props.minimal ? null : (
         <div
           style={{
-            width: `${Math.min(100, (state.holdMs / DETECT_HOLD_MS) * 100)}%`,
-            height: "100%",
-            borderRadius: 999,
-            background: "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))",
-            transition: "width 180ms ease",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: 10,
           }}
-        />
-      </div>
+        >
+          <MiniStat label="Likely flute" value={state.candidate ? `${state.candidate.tonicLabel} ${state.candidate.registerLabel}` : "—"} />
+          <MiniStat label="Sa frequency" value={state.frequency ? `${state.frequency.toFixed(1)} Hz` : "—"} />
+          <MiniStat label="Offset" value={state.centsOffset != null ? `${state.centsOffset > 0 ? "+" : ""}${Math.round(state.centsOffset)}¢` : "—"} />
+          <MiniStat label="Hold" value={`${(state.holdMs / 1000).toFixed(1)}s`} />
+        </div>
+      )}
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <span className="pill">{state.status}</span>
-        {state.candidate ? (
-          <span className="pill">
-            Target Sa {state.candidate.saFrequency.toFixed(1)} Hz
-          </span>
-        ) : null}
-      </div>
+      {props.inline ? null : (
+        <>
+          <div
+            style={{
+              height: props.minimal ? 8 : 10,
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.08)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                width: `${Math.min(100, (state.holdMs / DETECT_HOLD_MS) * 100)}%`,
+                height: "100%",
+                borderRadius: 999,
+                background: "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))",
+                transition: "width 180ms ease",
+              }}
+            />
+          </div>
 
-      {error ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <span className="pill">{state.status}</span>
+            {state.candidate ? <span className="pill">Target Sa {state.candidate.saFrequency.toFixed(1)} Hz</span> : null}
+          </div>
+        </>
+      )}
+
+      {props.inline ? null : error ? (
         <div
           style={{
             padding: 12,

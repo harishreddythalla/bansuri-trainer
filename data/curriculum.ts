@@ -301,391 +301,462 @@ function group(
   };
 }
 
+function notationTarget(glyph: string): SwaraTarget | null {
+  const normalized = glyph.normalize("NFC");
+
+  switch (normalized) {
+    case "P̣":
+      return { swara: "Pa", octave: "Mandra" };
+    case "Ḍ":
+      return { swara: "Dha", octave: "Mandra" };
+    case "Ṇ":
+      return { swara: "Ni", octave: "Mandra" };
+    case "Ṡ":
+      return { swara: "Sa", octave: "Taar" };
+    case "Ṙ":
+      return { swara: "Re", octave: "Taar" };
+    case "Ṗ":
+      return { swara: "Pa", octave: "Taar" };
+    case "ṁ":
+    case "Ṁ":
+      return { swara: "Ma", octave: "Taar" };
+    case "Ġ":
+      return { swara: "Ga", octave: "Taar" };
+    case "S":
+      return { swara: "Sa", octave: "Madhya" };
+    case "R":
+      return { swara: "Re", octave: "Madhya" };
+    case "G":
+      return { swara: "Ga", octave: "Madhya" };
+    case "M":
+    case "m":
+      return { swara: "Ma", octave: "Madhya" };
+    case "P":
+      return { swara: "Pa", octave: "Madhya" };
+    case "D":
+      return { swara: "Dha", octave: "Madhya" };
+    case "N":
+      return { swara: "Ni", octave: "Madhya" };
+    default:
+      return null;
+  }
+}
+
+const notationGlyphs = ["P̣", "Ḍ", "Ṇ", "Ṡ", "Ṙ", "Ṗ", "ṁ", "Ṁ", "Ġ", "S", "R", "G", "M", "m", "P", "D", "N"].sort(
+  (first, second) => second.length - first.length,
+);
+
+function parseNotation(notation: string, sustainTargetMs: number): SequenceStep[] {
+  const normalized = notation.normalize("NFC").replace(/\s+/g, "");
+  const steps: SequenceStep[] = [];
+  let cursor = 0;
+
+  while (cursor < normalized.length) {
+    const glyph = notationGlyphs.find((candidate) => normalized.startsWith(candidate.normalize("NFC"), cursor));
+
+    if (!glyph) {
+      cursor += 1;
+      continue;
+    }
+
+    const target = notationTarget(glyph);
+
+    if (target) {
+      steps.push({
+        target,
+        sustainTargetMs,
+        isAnchor: steps.length === 0,
+      });
+    }
+
+    cursor += glyph.length;
+  }
+
+  if (steps.length) {
+    steps[steps.length - 1] = {
+      ...steps[steps.length - 1],
+      isAnchor: true,
+    };
+  }
+
+  return steps;
+}
+
+type AlankarPairDefinition = {
+  id: string;
+  title: string;
+  description: string;
+  aarohNotation: string;
+  avarohNotation: string;
+  aarohCoaching: string;
+  avarohCoaching: string;
+  aarohMistakes: string[];
+  avarohMistakes: string[];
+  minimumScore: number;
+  pitchToleranceCents: number;
+  lockBandCents: number;
+  releaseBandCents: number;
+  noiseMax: number;
+  stabilityMin: number;
+  sustainTargetMs: number;
+  maxGapMs: number;
+  requireStrictTempo?: boolean;
+};
+
+const alankarPairs: AlankarPairDefinition[] = [
+  {
+    id: "core-ladder",
+    title: "Ekgun Sargam",
+    description: "Straight ascent and descent across the base octave.",
+    aarohNotation: "S R G m P D N Ṡ",
+    avarohNotation: "Ṡ N D P m G R S",
+    aarohCoaching: "Keep the ascent even and let the top Sa settle cleanly.",
+    avarohCoaching: "Return smoothly and keep the descent centered.",
+    aarohMistakes: ["Rushing the upper turn", "Sagging through the middle notes"],
+    avarohMistakes: ["Dropping pitch on the way down", "Softening the return too early"],
+    minimumScore: 72,
+    pitchToleranceCents: 18,
+    lockBandCents: 10,
+    releaseBandCents: 24,
+    noiseMax: 35,
+    stabilityMin: 64,
+    sustainTargetMs: 1000,
+    maxGapMs: 280,
+    requireStrictTempo: true,
+  },
+  {
+    id: "mirror-ladder",
+    title: "Dugun Sargam",
+    description: "Lower, middle, and upper notes folded into mirrored paths.",
+    aarohNotation: "P̣ P Ḍ D Ṇ N S Ṡ R Ṙ Ṗ P ṁ m Ġ G Ṙ G Ġ m ṁ P Ṗ",
+    avarohNotation: "R Ṡ S N Ṇ D Ḍ P P̣",
+    aarohCoaching: "Treat each octave change as a clean shape shift, not a jump.",
+    avarohCoaching: "Land the return with the same shape and tone.",
+    aarohMistakes: ["Forcing the upper notes", "Dropping the mandra notes flat"],
+    avarohMistakes: ["Returning too abruptly", "Letting the bottom notes sag"],
+    minimumScore: 74,
+    pitchToleranceCents: 16,
+    lockBandCents: 10,
+    releaseBandCents: 22,
+    noiseMax: 34,
+    stabilityMin: 66,
+    sustainTargetMs: 950,
+    maxGapMs: 300,
+  },
+  {
+    id: "wide-return-ladder",
+    title: "Tigun Sargam",
+    description: "A wider octave span with a full return to the starting zone.",
+    aarohNotation: "P̣ Ḍ Ṇ S R G m P D N Ṡ Ṙ Ṗ ṁ Ġ Ṙ Ġ ṁ Ṗ",
+    avarohNotation: "Ṡ N D P m G R S Ṇ Ḍ P̣",
+    aarohCoaching: "Keep the reach wide, but never lose the center note shape.",
+    avarohCoaching: "Return with control; do not let the line collapse.",
+    aarohMistakes: ["Letting the line flatten", "Overblowing the high turn"],
+    avarohMistakes: ["Missing the low anchor", "Rushing the descending arc"],
+    minimumScore: 76,
+    pitchToleranceCents: 15,
+    lockBandCents: 10,
+    releaseBandCents: 22,
+    noiseMax: 32,
+    stabilityMin: 68,
+    sustainTargetMs: 925,
+    maxGapMs: 300,
+  },
+  {
+    id: "leap-link-chain",
+    title: "Chaugun Sargam",
+    description: "Short links that train compact jumps and reversals.",
+    aarohNotation: "P̣Ṇ ḌS ṆR SG Rm GP mD PN DṠ NṘ ṠĠ Ṙṁ ĠṖ",
+    avarohNotation: "ṖĠ ṁṘ ĠṠ ṘN ṠD NP Dm PG mR GS RṆ SḌ ṆP̣",
+    aarohCoaching: "Do not connect the notes too softly; each leap should still read clearly.",
+    avarohCoaching: "Keep the return compact and balanced.",
+    aarohMistakes: ["Smearing the leaps", "Landing late on the return"],
+    avarohMistakes: ["Over-extending the backwards move", "Blurring the landing note"],
+    minimumScore: 78,
+    pitchToleranceCents: 14,
+    lockBandCents: 9,
+    releaseBandCents: 20,
+    noiseMax: 30,
+    stabilityMin: 70,
+    sustainTargetMs: 900,
+    maxGapMs: 260,
+  },
+  {
+    id: "chain-weave-1",
+    title: "Panchgun Sargam",
+    description: "A denser weave through short phrase cells.",
+    aarohNotation: `P̣ḌṆ ḌṆS ṆSR SRG RGm GmP mPD PDN DNṠ NṠṘ
+ṠṘĠ ṘĠṁ ĠṁṖ
+ṖṁĠ ṁĠṘ ĠṘṠ ṘṠN ṠND NDP DPM PmG mGR GRS
+RSṆ SṆḌ ṆḌP̣`,
+    avarohNotation: "P̣ḌṆ SṆḌP̣",
+    aarohCoaching: "Play it as linked cells, not as disconnected fragments.",
+    avarohCoaching: "Use the return to reset the hand shape.",
+    aarohMistakes: ["Breaking the cell boundary", "Rushing the last note of each cell"],
+    avarohMistakes: ["Collapsing the final return", "Squeezing the ending"],
+    minimumScore: 80,
+    pitchToleranceCents: 14,
+    lockBandCents: 8,
+    releaseBandCents: 20,
+    noiseMax: 28,
+    stabilityMin: 72,
+    sustainTargetMs: 875,
+    maxGapMs: 250,
+  },
+  {
+    id: "chain-weave-2",
+    title: "Chhegun Sargam",
+    description: "Longer cells that stretch the same pattern logic.",
+    aarohNotation: `P̣ḌṆS ḌṆSR ṆSRG SRGm RGmP GmPD mPDN PDNṠ DNṠṘ NṠṘĠ ṠṘĠṁ ṘĠṁṖ
+ṖṁĠṘ ṁĠṘṠ ĠṘṠN ṘṠND ṠNDP NDPm DPmG PmGR mGRS GRSṆ RSṆḌ SṆḌP̣`,
+    avarohNotation: "P̣ḌṆS ḌṆSR ṆSRG SRGm RGmP GmPD mPDN PDNṠ DNṠṘ NṠṘĠ ṠṘĠṁ ṘĠṁṖ",
+    aarohCoaching: "Hold the geometry of each cell while the line keeps moving forward.",
+    avarohCoaching: "Reverse the same geometry without losing the shape.",
+    aarohMistakes: ["Over-lifting between cells", "Losing the octave anchor"],
+    avarohMistakes: ["Rushing the retrograde", "Breaking the mirrored contour"],
+    minimumScore: 82,
+    pitchToleranceCents: 13,
+    lockBandCents: 8,
+    releaseBandCents: 18,
+    noiseMax: 26,
+    stabilityMin: 74,
+    sustainTargetMs: 850,
+    maxGapMs: 240,
+  },
+  {
+    id: "full-sweep",
+    title: "Saatgun Sargam",
+    description: "A complete sweep across the phrase family.",
+    aarohNotation: `P̣ḌṆSR ḌṆSRG ṆSRGm SRGmP RGmPD GmPDN mPDNṠ PDNṠṘ DNṠṘĠ NṠṘĠṁ ṠṘĠṁṖ
+ṖṁĠṘṠ ṁĠṘṠN ĠṘṠND ṘṠNDP ṠNDPm NDPMG DPmGR PmGRS mGRSṆ GRSṆḌ RSṆḌP̣`,
+    avarohNotation: "P̣ḌṆSR ḌṆSRG ṆSRGm SRGmP RGmPD GmPDN mPDNṠ PDNṠṘ DNṠṘĠ NṠṘĠṁ ṠṘĠṁṖ",
+    aarohCoaching: "Keep the sweep broad but balanced; do not let the upper line outrun the lower.",
+    avarohCoaching: "Return the sweep without thinning the tone.",
+    aarohMistakes: ["Letting the middle blur", "Pushing the upper notes too hard"],
+    avarohMistakes: ["Dropping the dynamic too much", "Skipping the return weight"],
+    minimumScore: 84,
+    pitchToleranceCents: 12,
+    lockBandCents: 8,
+    releaseBandCents: 18,
+    noiseMax: 24,
+    stabilityMin: 76,
+    sustainTargetMs: 825,
+    maxGapMs: 230,
+  },
+  {
+    id: "expansion-sprint",
+    title: "Aathgun Sargam",
+    description: "Fast expansion through the full register line.",
+    aarohNotation: `P̣ḌṆSRGmP ḌṆSRGmPD ṆSRGmPDN SRGmPDNṠ RGmPDNṠṘ GmPDNṠṘĠ mPDNṠṘĠṁ PDNṠṘĠṁṖ
+ṖṁĠṘṠNDP ṁĠṘṠNDPm ĠṘṠNDPmG ṘṠNDPmGR ṠNDPmGRS NDPmGRSṆ DPmGRSṆḌ PmGRSṆḌP̣`,
+    avarohNotation: "P̣ḌṆSRGmP ḌṆSRGmPD ṆSRGmPDN SRGmPDNṠ RGmPDNṠṘ GmPDNṠṘĠ mPDNṠṘĠṁ PDNṠṘĠṁṖ",
+    aarohCoaching: "This is a speed test only after the line is already clean.",
+    avarohCoaching: "The return should stay fast, but never sloppy.",
+    aarohMistakes: ["Starting too fast", "Chasing speed before tone"],
+    avarohMistakes: ["Losing control on the way back", "Flattening the top notes"],
+    minimumScore: 86,
+    pitchToleranceCents: 12,
+    lockBandCents: 8,
+    releaseBandCents: 16,
+    noiseMax: 22,
+    stabilityMin: 78,
+    sustainTargetMs: 800,
+    maxGapMs: 220,
+  },
+  {
+    id: "alternating-matrix",
+    title: "Naugun Sargam",
+    description: "Alternating leaps and returns with a strong inner pulse.",
+    aarohNotation: `P̣ḌS ḌṆR ṆSG SRm RGP GmD mPN PDṠ DNṘ NṠĠ ṠṘṁ ṘĠṖ
+ṖṁṘ ṁĠṠ ĠṘN ṘṠD ṠNP NDM DPG PmR mGS GRṆ RSḌ SṆP̣`,
+    avarohNotation: "P̣ḌS ḌṆR ṆSG SRm RGP GmD mPN PDṠ DNṘ NṠĠ ṠṘṁ ṘĠṖ",
+    aarohCoaching: "Keep every leap compact, then reset the breath immediately.",
+    avarohCoaching: "Mirror the same compact motion on the way down.",
+    aarohMistakes: ["Over-extending the jump", "Dragging the return note"],
+    avarohMistakes: ["Losing the beat after the turn", "Making the return too heavy"],
+    minimumScore: 86,
+    pitchToleranceCents: 11,
+    lockBandCents: 8,
+    releaseBandCents: 16,
+    noiseMax: 22,
+    stabilityMin: 78,
+    sustainTargetMs: 775,
+    maxGapMs: 220,
+  },
+  {
+    id: "triple-mirror-matrix",
+    title: "Dasgun Sargam",
+    description: "A mirrored matrix of repeated directional cells.",
+    aarohNotation: `P̣ḌṆP̣ḌP̣ ḌṆSḌṆḌ ṆSRṆSṆ SRGSRS RGmRGR GmPGmG mPDmPm PDNPDP DNṠDND ĠṁṖĠṁĠ
+NṠṘNṠN ṠṘĠṠṘṠ ṘĠṁṘĠṘ ṖṁĠṖṁṖ ṁĠṘṁĠṁ ĠṘṠĠṘĠ ṘṠNṘṠṘ ṠNDṠNS NDPNDN DPmDPD PmGPmP mGRmGm GRSGRG RSNRSR SṆḌSṆS ṆḌP̣ṆḌṆ`,
+    avarohNotation: "P̣ḌṆP̣ḌP̣ ḌṆSḌṆḌ ṆSRṆSṆ SRGSRS RGmRGR GmPGmG mPDmPm PDNPDP DNṠDND ĠṁṖĠṁĠ",
+    aarohCoaching: "This one should sound symmetrical from start to finish.",
+    avarohCoaching: "Keep the mirrored return equally weighted.",
+    aarohMistakes: ["Making one side louder than the other", "Breaking the mirror shape"],
+    avarohMistakes: ["Widening the second half", "Letting the tone sag on the return"],
+    minimumScore: 88,
+    pitchToleranceCents: 11,
+    lockBandCents: 8,
+    releaseBandCents: 16,
+    noiseMax: 20,
+    stabilityMin: 80,
+    sustainTargetMs: 750,
+    maxGapMs: 200,
+  },
+  {
+    id: "dense-link-matrix",
+    title: "Gyarahgun Sargam",
+    description: "Compressed transitions with repeated directional changes.",
+    aarohNotation: `P̣ḌṆSṆḌ P̣ḌṆḌ P̣ḌṆS ḌṆSRSṆ ḌṆSṆ ḌṆSR ṆSRGRS ṆSRS ṆSRG SRGMGR SRGR SRGm RGMPmG RGmG RGmP GmPDPm GmPmGmPD mPDNDP mPDP mPDN PDNṠND PDND PDNṠ DNṠṘSN DNṠN DNṠṘ NṠṘĠṘṠ NṠṘṠ NṠṘĠ ṠṘĠṁĠṘ ṠṘĠṘ ṠṘĠṁ ṘĠṁṖṁĠ ṘĠṁĠ ṘĠṁṖ ṖṁĠṘĠṁ ṖṁĠṁ ṖṁĠṘ ṁĠṘṠṘĠ ṁĠṘĠ ṁĠṘṠ ĠṘṠNSṘ ĠṘṠṘ ĠṘṠN ṘṠNDNṠ ṘṠNṠ ṘṠND ṠNDPDN ṠNDN ṠNDP NDPMPD NDPD NDPm DPmGmP DPmP DPmG PmGRGm PmGm PmGR mGRSRG mGRG mGRS GRSṆSR GRSR GRSṆ RSṆḌṆS RSṆS RSṆḌ SṆḌP̣ḌṆ SṆḌṆ SṆḌP̣`,
+    avarohNotation: "P̣ḌṆSṆḌ P̣ḌṆḌ P̣ḌṆS ḌṆSRSṆ ḌṆSṆ ḌṆSR ṆSRGRS ṆSRS ṆSRG SRGMGR SRGR SRGm",
+    aarohCoaching: "Stay compact. This drill rewards precision more than reach.",
+    avarohCoaching: "Mirror the compression without opening the gaps.",
+    aarohMistakes: ["Blurring the repeated cells", "Losing the pulse in the compression"],
+    avarohMistakes: ["Stretching the return", "Letting one cell dominate"],
+    minimumScore: 88,
+    pitchToleranceCents: 10,
+    lockBandCents: 6,
+    releaseBandCents: 14,
+    noiseMax: 18,
+    stabilityMin: 82,
+    sustainTargetMs: 725,
+    maxGapMs: 190,
+  },
+  {
+    id: "pair-ladder",
+    title: "Barahgun Sargam",
+    description: "Repeated-note ladders that lock in finger memory.",
+    aarohNotation: `P̣ḌḌ P̣ḌḌ P̣Ḍ ḌṆṆ ḌṆṆ ḌṆ ṆSS ṆSS ṆS SRR SRR SR RGG RGG RG Gmm Gmm Gm mPP mPP MP PDD PDD PD DNN DNN DN NṠṠ NṠṠ NṠ ṠṘṘ ṠṘṘ ṠṘ ṘĠĠ ṘĠĠ ṘĠ Ġṁṁ Ġṁṁ Ġṁ ṁṖṖ ṁṖṖ ṁṖ Ṗṁṁ Ṗṁṁ Ṗṁ ṁĠĠ ṁĠĠ ṁĠ ĠṘṘ ĠṘṘ ĠṘ ṘṠṠ ṘṠṠ ṘṠ ṠNN ṠNN ṠN NDD NDD ND DPP DPP DP Pmm Pmm Pm mGG mGG mG GRR GRR GR RSS RSS RS SṆṆ SṆṆ SṆ ṆḌḌ ṆḌḌ ṆḌ ḌP̣P̣ ḌP̣P̣ ḌP̣`,
+    avarohNotation: "P̣ḌḌ P̣ḌḌ P̣Ḍ ḌṆṆ ḌṆṆ ḌṆ ṆSS ṆSS ṆS SRR SRR SR",
+    aarohCoaching: "Make each pair feel identical; the second hit should sound like the first.",
+    avarohCoaching: "Keep the return pairs just as even as the ascent.",
+    aarohMistakes: ["Uneven double strikes", "Trailing off on the second repetition"],
+    avarohMistakes: ["Skipping the second hit", "Letting the line weaken at the turn"],
+    minimumScore: 90,
+    pitchToleranceCents: 10,
+    lockBandCents: 6,
+    releaseBandCents: 12,
+    noiseMax: 18,
+    stabilityMin: 84,
+    sustainTargetMs: 700,
+    maxGapMs: 180,
+  },
+  {
+    id: "final-bridge",
+    title: "Terahgun Sargam",
+    description: "A long bridge drill that links the short cells into a single run.",
+    aarohNotation: `P̣ḌP̣ GRSṆḌ PmGRSṆḌP̣
+ḌṆḌ mGRSṆ DPmGRSṆḌ
+ṆSṆ PmGRS NDPmGRSṆ
+SRS DPmGR ṠNDPmGRS
+RGR NDPMG ṘṠNDPMGR
+GmG ṠNDPM ĠṘṠNDPmG
+MPM ṘṠNDP ṀĠṘṠNDPM
+PDP ĠṘṠND ṖṁĠṘṠNDP
+ṖṁṖ NṠṘĠṁ PDNṠṘĠṁṖ
+ṁĠṁ DNṠṘĠ mPDNṠṘĠṁ
+ĠṘĠ PDNṠṘ GmPDNṠṘĠ
+ṘṠṘ mPDNṠ RGmPDNṠṘ
+ṠNṠ GmPDN SRGmPDNṠ
+NDN RGmPD ṆSRGmPDN
+DPD SRGmP ḌṆSRGmPD
+PmP ṆSRGm P̣ḌṆSRGmP`,
+    avarohNotation: "P̣ḌP̣ GRSṆḌ PmGRSṆḌP̣",
+    aarohCoaching: "Keep the line steady while the cells change quickly.",
+    avarohCoaching: "End with the same balance you began with.",
+    aarohMistakes: ["Speeding up in the middle", "Losing the bridge note between cells"],
+    avarohMistakes: ["Dropping the final landing", "Rushing the close"],
+    minimumScore: 92,
+    pitchToleranceCents: 9,
+    lockBandCents: 6,
+    releaseBandCents: 12,
+    noiseMax: 16,
+    stabilityMin: 86,
+    sustainTargetMs: 675,
+    maxGapMs: 170,
+  },
+];
+
 export const curriculumTracks: CurriculumTrack[] = [
   {
-    id: "hindustani-path",
-    title: "Hindustani Path",
-    description: "From clean Sa to alankars and raga phrases, with a slow ramp and strict gating.",
+    id: "alankar-path",
+    title: "Alankar Path",
+    description: "The curriculum is now only the supplied alankar ladder, split into separate Aaroh and Avaroh practice.",
     order: 1,
-    modules: [
-      curriculumModule("tone-foundation", "Tone Foundation", "Sound first. Breath, embouchure, and a stable Madhya Sa.", 1, [], [
-        group(
-          "tone-foundation-core",
-          "Stable Sa",
-          "tone",
-          1,
-          "none",
-          "Find a centered Sa and then hold it without drifting.",
-          [
-            single(
-              "madhya-sa-center",
-              "Center and hold your first Sa",
-              "Find a clean Madhya Sa and keep it stable.",
-              { swara: "Sa", octave: "Madhya", state: "Shuddha" },
-              2.4,
-              65,
-              25,
-              12,
-              28,
-              45,
-              55,
-              cMediumAndUp,
-              "Relax the embouchure and let the note settle before moving on.",
-              ["Overblowing", "Tilting the flute too steeply", "Squeezing the corners of the mouth"],
-              "disable",
-            ),
-            single(
-              "madhya-sa-steadiness",
-              "Hold Sa steadily",
-              "Extend the same Sa with cleaner breath control.",
-              { swara: "Sa", octave: "Madhya", state: "Shuddha" },
-              5,
-              75,
-              18,
-              10,
-              24,
-              40,
-              65,
-              cMediumAndUp,
-              "Keep the airflow soft and even; do not chase volume.",
-              ["Letting the pitch sag near the end", "Breath pressure spikes", "Finger leaks"],
-              "disable",
-            ),
-          ],
-        ),
-      ]),
-      curriculumModule("swara-placement", "Swara Placement", "Place each Madhya swara accurately before combining them.", 2, ["tone-foundation"], [
-        group(
-          "madhya-swaras",
-          "Seven swaras in Madhya",
-          "swara",
-          1,
-          "clear_previous_group",
-          "Map each swara to its hole pattern and settle it in tune.",
-          [
-            single("madhya-re", "Find Re", "Place Madhya Re cleanly.", { swara: "Re", octave: "Madhya", state: "Shuddha" }, 2.2, 72, 20, 12, 25, 35, 60, cMediumAndUp, "Lift fingers gently and avoid overshooting sharp.", ["Jumping sharp", "Half-hole leakage"], "disable"),
-            single("madhya-ga", "Find Ga", "Place Madhya Ga cleanly.", { swara: "Ga", octave: "Madhya", state: "Shuddha" }, 2.2, 72, 20, 12, 25, 35, 60, cMediumAndUp, "Let the note settle before pushing more air.", ["Raising the breath too quickly", "Half-covered holes"], "disable"),
-            single("madhya-ma", "Find Ma", "Place Madhya Ma cleanly.", { swara: "Ma", octave: "Madhya", state: "Shuddha" }, 2.2, 74, 18, 10, 22, 30, 65, cMediumAndUp, "Seal the holes fully to reduce airy leakage.", ["Air leaks", "Overturning the flute"], "disable"),
-            single("madhya-pa", "Find Pa", "Place Madhya Pa cleanly.", { swara: "Pa", octave: "Madhya", state: "Shuddha" }, 2.2, 74, 18, 10, 22, 30, 65, cMediumAndUp, "Keep the note centered before sustaining.", ["Forcing extra breath", "Wobbling the embouchure"], "disable"),
-            single("madhya-dha", "Find Dha", "Place Madhya Dha cleanly.", { swara: "Dha", octave: "Madhya", state: "Shuddha" }, 2.2, 74, 18, 10, 22, 30, 65, cMediumAndUp, "Use a relaxed, focused airstream.", ["Pitching too low", "Covered hole leaks"], "disable"),
-            single("madhya-ni", "Find Ni", "Place Madhya Ni cleanly.", { swara: "Ni", octave: "Madhya", state: "Shuddha" }, 2.2, 74, 18, 10, 22, 30, 65, cMediumAndUp, "Let the top note ring without pinching.", ["Overtightening the lips", "Chasing volume"], "disable"),
-          ],
-        ),
-      ]),
-      curriculumModule("interval-links", "Interval Links", "Learn adjacent swara motion as real musical motion.", 3, ["swara-placement"], [
-        group(
-          "adjacent-links",
-          "Adjacent pairs",
-          "interval",
-          1,
-          "clear_previous_group",
-          "Move one clean step at a time and keep the line smooth.",
-          [
-            sequence("sa-re-link", "Sa to Re", "Link Sa and Re as a two-note interval.", [
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 1, 72, 18, 10, 24, 35, 65, cMediumAndUp, "Keep the transition relaxed and let the second note land cleanly.", ["Sliding too slowly", "Missing the target by forcing the change"], { maxGapMs: 650, requireStrictTempo: false }),
-            sequence("re-ga-link", "Re to Ga", "Move Re to Ga without collapsing the tone.", [
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 1, 72, 18, 10, 24, 35, 65, cMediumAndUp, "Use only the fingers needed for the next note.", ["Lift too many fingers", "Overblowing at the transition"], { maxGapMs: 650, requireStrictTempo: false }),
-            sequence("ga-ma-link", "Ga to Ma", "Move Ga to Ma cleanly.", [
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 1, 72, 18, 10, 24, 35, 65, cMediumAndUp, "Hold the airflow steady; do not let the pitch jump.", ["Air spike", "Incomplete finger closure"], { maxGapMs: 650, requireStrictTempo: false }),
-            sequence("ma-pa-link", "Ma to Pa", "Move Ma to Pa cleanly.", [
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 1, 74, 18, 10, 22, 35, 68, cMediumAndUp, "Keep the embouchure steady across the jump.", ["Pitch sliding out of center", "Breath becoming noisy"], { maxGapMs: 650, requireStrictTempo: false }),
-            sequence("pa-dha-link", "Pa to Dha", "Move Pa to Dha cleanly.", [
-              { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 1, 74, 18, 10, 22, 35, 68, cMediumAndUp, "Shift fingers with less motion, not more air.", ["Forcing the note higher", "Unstable hole coverage"], { maxGapMs: 650, requireStrictTempo: false }),
-            sequence("dha-ni-link", "Dha to Ni", "Move Dha to Ni cleanly.", [
-              { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Ni", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 1, 74, 18, 10, 22, 35, 68, cMediumAndUp, "Let the last note settle rather than jumping past it.", ["Breath pulse too strong", "Over-rotating the flute"], { maxGapMs: 650, requireStrictTempo: false }),
-            sequence("ni-sa-link", "Ni back to Sa", "Return from Ni to Sa cleanly.", [
-              { target: { swara: "Ni", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Sa", octave: "Taar", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 1, 75, 18, 10, 22, 35, 68, cMediumAndUp, "Keep the top Sa centered even as the register shifts.", ["Missing the octave jump", "Overblowing the upper Sa"], { maxGapMs: 650, requireStrictTempo: false }),
-          ],
-        ),
-      ]),
-      curriculumModule("scale-runs-alankars", "Scale Runs and Alankars", "Turn notes into patterns, not isolated targets.", 4, ["interval-links"], [
-        group(
-          "simple-alankars",
-          "Pattern drills",
-          "sequence",
-          1,
-          "clear_previous_group",
-          "Build speed only after the sequence is clean and even.",
-          [
-            sequence("basic-arohana-avarohana", "Simple ascent/descent", "Play a full ascent and descent.", [
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ni", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Sa", octave: "Taar", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Ni", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 2, 78, 15, 10, 30, 30, 70, cMediumAndUp, "Read the whole line before playing. Do not rush the turnback.", ["Uneven spacing", "Forgetting the octave anchor"], { maxGapMs: 300, requireStrictTempo: true }),
-            sequence("four-note-climb", "Four-note climb", "Climb in four-note groups.", [
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 2, 78, 15, 10, 30, 30, 70, cMediumAndUp, "Keep the pattern shape consistent across each four-note cell.", ["Rushing the middle note", "Squeezing the final note"], { maxGapMs: 560, requireStrictTempo: false }),
-            sequence("repeated-notes", "Repeated note taps", "Repeat notes without losing clarity.", [
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 2, 80, 15, 10, 28, 28, 72, cMediumAndUp, "Make the repeated note feel like one controlled pulse, not two separate guesses.", ["Delayed finger release", "Air spikes between repeats"], { maxGapMs: 260, requireStrictTempo: true }),
-            sequence("zigzag-pattern", "Zig-zag pattern", "Move up and down without losing the line.", [
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            ], 2, 80, 15, 10, 28, 28, 72, cMediumAndUp, "Keep each turn compact and consistent.", ["Jumping too far between notes", "Losing breath consistency"], { maxGapMs: 260, requireStrictTempo: true }),
-          ],
-        ),
-      ]),
-      curriculumModule("raga-grammar", "Raga Grammar", "Learn actual phrasing instead of generic scales.", 5, ["scale-runs-alankars"], [
-        group(
-          "raga-bhoopali",
-          "Bhoopali",
-          "raga_grammar",
-          1,
-          "clear_previous_group",
-          "Teach the pentatonic feel and the Bhoopali vowel-like contour.",
-          [
-            sequence("bhoopali-pakad", "Bhoopali pakad", "Play the defining Bhoopali phrase.", [
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Sa", octave: "Taar", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 2, 82, 12, 8, 25, 25, 75, cMediumAndUp, "Lean on Ga and Dha, and avoid sounding like a major scale exercise.", ["Touching Ma or Ni", "Rushing the cadential notes"], { maxGapMs: 320, requireStrictTempo: false }, "disable", 2, "active", {
-              allowedSwaras: ["Sa", "Re", "Ga", "Pa", "Dha"],
-              arohana: [
-                { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Sa", octave: "Taar", state: "Shuddha" }, sustainTargetMs: 1000 },
-              ],
-              avarohana: [
-                { target: { swara: "Sa", octave: "Taar", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              ],
-              pakad: [[
-                { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-                { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              ]],
-              vadi: "Ga",
-              samvadi: "Dha",
-              nyas: ["Ga", "Dha"],
-              forbiddenPhrases: ["Sa Re Ga Ma", "Sa Re Ga Ma Pa"],
-            }),
-          ],
-        ),
-        group(
-          "raga-yaman",
-          "Yaman",
-          "raga_grammar",
-          2,
-          "clear_previous_group",
-          "Introduce Teevra Ma and the bright upward pull of Yaman.",
-          [
-            sequence("yaman-pakad", "Yaman entry", "Play the Yaman entry phrase with Teevra Ma.", [
-              { target: { swara: "Ni", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ma", octave: "Madhya", state: "Teevra" }, sustainTargetMs: 1000, isAnchor: true },
-              { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ni", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Sa", octave: "Taar", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 2, 84, 12, 8, 25, 25, 76, cMediumAndUp, "Hear the raised Ma before you move into it; do not make it sound like a natural Ma.", ["Using Shuddha Ma by habit", "Forcing the upper register"], { maxGapMs: 320, requireStrictTempo: false }, "disable", 2, "active", {
-              allowedSwaras: ["Ni", "Re", "Ga", "Ma", "Pa", "Dha", "Sa"],
-              vadi: "Ga",
-              samvadi: "Ni",
-              nyas: ["Ma", "Ni"],
-              forbiddenPhrases: ["Ma (Shuddha)", "Sa Re Ga Ma"],
-            }),
-          ],
-        ),
-        group(
-          "raga-bilawal",
-          "Bilawal",
-          "raga_grammar",
-          3,
-          "clear_previous_group",
-          "Keep the notes natural and clear in a major-like frame.",
-          [
-            sequence("bilawal-pakad", "Bilawal phrase", "Play a clean Bilawal phrase with no altered notes.", [
-              { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Ni", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-              { target: { swara: "Sa", octave: "Taar", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            ], 2, 82, 12, 8, 25, 25, 75, cMediumAndUp, "Keep the scale natural but phrased like music, not a run.", ["Flattening the line into a generic scale", "Rushing the top Sa"], { maxGapMs: 320, requireStrictTempo: false }, "disable", 2, "active", {
-              allowedSwaras: ["Sa", "Re", "Ga", "Ma", "Pa", "Dha", "Ni"],
-              vadi: "Pa",
-              samvadi: "Re",
-              nyas: ["Pa", "Sa"],
-              forbiddenPhrases: ["Ma#"],
-            }),
-          ],
-        ),
-      ]),
-      curriculumModule("ornamentation", "Ornamentation", "Advanced bends, oscillations, and rapid clusters.", 6, ["raga-grammar"], [
-        group(
-          "ornamentation-preview",
-          "Future ornamentation",
-          "ornamentation",
-          1,
-          "clear_module",
-          "Meend, Gamak, Khatka, and Murki belong here once the pitch engine is extended.",
-          [
-            single("ornamentation-placeholder", "Coming soon", "Reserved for continuous glides and oscillations.", { swara: "Sa", octave: "Madhya", state: "Shuddha" }, 0.5, 0, 0, 0, 0, 0, 0, bassAndMedium, "This block is intentionally hidden from the current flow.", ["Placeholder"], "hide", 1, "planned"),
-          ],
-          undefined,
-          "planned",
-        ),
-      ]),
-    ],
-  },
-  {
-    id: "carnatic-path",
-    title: "Carnatic Path",
-    description: "Varisais first, then rhythm and phrase discipline in Mayamalavagowla.",
-    order: 2,
-    modules: [
-      curriculumModule("tone-sruti", "Tone and Sruti Alignment", "Center the flute tone against the drone before the varisais begin.", 1, [], [
-        group("sruti-basics", "Tone checks", "tone", 1, "none", "Get one clean stable Sa and hold it against the tanpura.", [
-          single("carnatic-sa", "Stable Sa", "Hold the Carnatic tonic cleanly.", { swara: "Sa", octave: "Madhya", state: "Shuddha" }, 2.4, 68, 22, 12, 26, 40, 60, cMediumAndUp, "Match the shruti before worrying about speed.", ["Overblowing", "Ignoring the drone"], "disable"),
-        ]),
-      ]),
-      curriculumModule("varisai-foundations", "Varisai Foundations", "Sarali, Janta, Dhatu, and Melstayi build the grammar of Carnatic practice.", 2, ["tone-sruti"], [
-        group("sarali-varisai", "Sarali Varisai", "sequence", 1, "clear_previous_group", "Straight line movement in Mayamalavagowla.", [
-          sequence("sarali-1", "Sarali 1", "Basic ascent and descent.", [
-            { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ni", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Sa", octave: "Taar", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-          ], 1, 76, 16, 10, 30, 30, 70, cMediumAndUp, "Keep the line even and the talam steady.", ["Rushing the ascent", "Losing shruti on the upper Sa"], { maxGapMs: 260, requireStrictTempo: true }),
-        ]),
-        group("janta-varisai", "Janta Varisai", "sequence", 2, "clear_previous_group", "Double each note so the fingers and breath learn repetition.", [
-          sequence("janta-1", "Janta 1", "Repeat each swara as a pair.", [
-            { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-          ], 1, 78, 15, 10, 30, 30, 72, cMediumAndUp, "Use crisp, equal taps on both iterations of the note.", ["Second note too weak", "Uneven spacing"], { maxGapMs: 240, requireStrictTempo: true }),
-        ]),
-        group("dhatu-varisai", "Dhatu Varisai", "sequence", 3, "clear_previous_group", "Skip-note patterns train leaps and finger control.", [
-          sequence("dhatu-1", "Dhatu 1", "Move in zig-zag patterns.", [
-            { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Pa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Dha", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-          ], 1, 78, 15, 10, 30, 30, 72, cMediumAndUp, "Keep the skipped notes intentional, not accidental.", ["Confusing the zig-zag shape", "Losing breath stability"], { maxGapMs: 260, requireStrictTempo: true }),
-        ]),
-        group("melstayi-varisai", "Melstayi and Mandhra", "sequence", 4, "clear_previous_group", "Test octave command without rushing the jump.", [
-          sequence("melstayi-1", "Melstayi 1", "Move into the higher octave and back.", [
-            { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Sa", octave: "Taar", state: "Shuddha" }, sustainTargetMs: 1000, isAnchor: true },
-            { target: { swara: "Ni", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-          ], 2, 80, 15, 10, 28, 28, 72, cMediumAndUp, "Treat the octave move as one breath decision, not a random jump.", ["Overblowing the upper Sa", "Missing the return to Madhya"], { maxGapMs: 300, requireStrictTempo: true }),
-        ]),
-      ]),
-    ],
-  },
-  {
-    id: "riyaaz-engine",
-    title: "Riyaaz Engine",
-    description: "Daily drill loops that keep tone, time, and memory in shape.",
-    order: 3,
-    modules: [
-      curriculumModule("riyaaz-core", "Core Conditioning", "Daily long notes and breath stability.", 1, [], [
-        group("long-swaras", "Long swaras", "riyaaz", 1, "none", "Play one note per breath and keep the line centered.", [
-          single("daily-sa", "Long Sa", "Hold Sa with a long, even breath.", { swara: "Sa", octave: "Madhya", state: "Shuddha" }, 6, 78, 15, 10, 20, 30, 70, cMediumAndUp, "Aim for a stable tone, not just a long one.", ["Pitch drift", "Breath sag"], "disable"),
-        ]),
-      ]),
-      curriculumModule("riyaaz-intervals", "Motor Skills", "Intervals and repeat-pattern motor memory.", 2, ["riyaaz-core"], [
-        group("daily-ladder", "Swara ladder", "sequence", 1, "clear_previous_group", "Move through the scale in a daily loop.", [
-          sequence("daily-ladder-1", "Daily ladder", "Step through a short practice ladder.", [
-            { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-          ], 2, 78, 15, 10, 30, 30, 70, cMediumAndUp, "Use this as a warm-up rather than a sprint.", ["Rushing the first note", "Losing tone at the fourth note"], { maxGapMs: 280, requireStrictTempo: true }),
-        ]),
-      ]),
-      curriculumModule("riyaaz-patterns", "Pattern Work", "Alankars and short cycles for daily fluency.", 3, ["riyaaz-intervals"], [
-        group("daily-alankar", "Daily alankar", "sequence", 1, "clear_previous_group", "Repeat a core alankar in a daily cadence.", [
-          sequence("daily-alankar-1", "Alankar loop", "Practice a short daily alankar loop.", [
-            { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ma", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Ga", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Re", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-            { target: { swara: "Sa", octave: "Madhya", state: "Shuddha" }, sustainTargetMs: 1000 },
-          ], 2, 80, 15, 10, 28, 28, 72, cMediumAndUp, "Keep the loop exact each time; daily practice should feel predictable.", ["Letting the middle note blur", "Varying the return path"], { maxGapMs: 260, requireStrictTempo: true }),
-        ]),
-      ]),
-      curriculumModule("riyaaz-review", "Review and Endurance", "Rote revision keeps old checkpoints alive.", 4, ["riyaaz-patterns"], [
-        group("daily-review", "Revision loop", "riyaaz", 1, "clear_module", "Review older checkpoints and build endurance.", [
-          single("daily-review-sa", "Revision Sa", "Revisit a stable Sa after the warm-up.", { swara: "Sa", octave: "Madhya", state: "Shuddha" }, 10, 82, 12, 8, 20, 25, 75, cMediumAndUp, "Use the same embouchure every day so the body learns the shape.", ["Changing breath angle", "Growing tired halfway through"], "disable"),
-        ]),
-      ]),
-    ],
+    modules: alankarPairs.map((definition, index) => {
+      const moduleId = definition.id;
+      const previousModule = alankarPairs[index - 1]?.id;
+
+      return curriculumModule(
+        moduleId,
+        definition.title,
+        definition.description,
+        index + 1,
+        previousModule ? [previousModule] : [],
+        [
+          group(
+            `${moduleId}-aaroh`,
+            "Aaroh",
+            "sequence",
+            1,
+            index === 0 ? "none" : "clear_previous_group",
+            `${definition.title} — ascending form`,
+            [
+              sequence(
+                `${moduleId}-aaroh-checkpoint`,
+                `${definition.title} — Aaroh`,
+                `${definition.title} — ascending form`,
+                parseNotation(definition.aarohNotation, definition.sustainTargetMs),
+                1,
+                definition.minimumScore,
+                definition.pitchToleranceCents,
+                definition.lockBandCents,
+                definition.releaseBandCents,
+                definition.noiseMax,
+                definition.stabilityMin,
+                cMediumAndUp,
+                definition.aarohCoaching,
+                definition.aarohMistakes,
+                {
+                  maxGapMs: definition.maxGapMs,
+                  requireStrictTempo: definition.requireStrictTempo ?? false,
+                },
+              ),
+            ],
+          ),
+          group(
+            `${moduleId}-avaroh`,
+            "Avaroh",
+            "sequence",
+            2,
+            "clear_previous_group",
+            `${definition.title} — descending form`,
+            [
+              sequence(
+                `${moduleId}-avaroh-checkpoint`,
+                `${definition.title} — Avaroh`,
+                `${definition.title} — descending form`,
+                parseNotation(definition.avarohNotation, definition.sustainTargetMs),
+                1,
+                definition.minimumScore,
+                definition.pitchToleranceCents,
+                definition.lockBandCents,
+                definition.releaseBandCents,
+                definition.noiseMax,
+                definition.stabilityMin,
+                cMediumAndUp,
+                definition.avarohCoaching,
+                definition.avarohMistakes,
+                {
+                  maxGapMs: definition.maxGapMs,
+                  requireStrictTempo: definition.requireStrictTempo ?? false,
+                },
+              ),
+            ],
+          ),
+        ],
+      );
+    }),
   },
 ];
 

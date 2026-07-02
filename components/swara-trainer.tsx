@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Settings } from "lucide-react";
 import { foundationModules } from "@/data/lesson-plan";
 import {
   defaultFluteProfile,
@@ -165,7 +166,6 @@ type SequenceLoopHistoryEntry = {
 
 type PitchDifficulty = "easy" | "medium" | "hard";
 type PitchTrendWindowMs = 5000 | 15000 | 30000;
-type TrainerVisualMode = "blocks" | "flute";
 type FluteRoadPracticeMode = "rainfall" | "reverse";
 
 type PitchDifficultyConfig = {
@@ -202,8 +202,7 @@ const FLUTE_ROAD_MODE_STORAGE_KEY = "bansuri.fluteRoadMode";
 const DEBUG_LOG_LIMIT = 900;
 const DEBUG_LOG_SINK_URL = "http://127.0.0.1:4010/log";
 const SEQUENCE_MIN_PRACTICE_SCORE = 72;
-const TRAINER_VISUAL_MODE_STORAGE_KEY = "bansuri.trainerVisualMode";
-const FLUTE_BOARD_WIDTH = 1100;
+const FLUTE_BOARD_WIDTH = 1000;
 const FLUTE_BOARD_HEIGHT = 620;
 const FLUTE_BODY_OFFSET_Y = 510;
 const FLUTE_LANES = [
@@ -247,11 +246,6 @@ const pitchTrendWindowOptions: Array<{ value: PitchTrendWindowMs; label: string;
   { value: 5000, label: "5s", description: "Most detail and most labels" },
   { value: 15000, label: "15s", description: "Balanced overview" },
   { value: 30000, label: "30s", description: "Wider history view" },
-];
-
-const fluteRoadModeOptions: Array<{ value: FluteRoadPracticeMode; label: string; description: string }> = [
-  { value: "rainfall", label: "Rainfall", description: "Notes fall toward the flute" },
-  { value: "reverse", label: "Reverse", description: "Your played notes fall from the flute" },
 ];
 
 function readStoredPitchDifficulty(): PitchDifficulty {
@@ -382,49 +376,6 @@ function storePitchTrendWindow(value: PitchTrendWindowMs) {
     }
 
     storage.setItem(PITCH_TREND_WINDOW_STORAGE_KEY, String(value));
-  } catch {
-    // best-effort
-  }
-}
-
-function readStoredTrainerVisualMode(): TrainerVisualMode {
-  if (!canUsePersistentStorage) {
-    return "blocks";
-  }
-
-  try {
-    if (typeof window === "undefined") {
-      return "blocks";
-    }
-
-    const storage = window.localStorage;
-    if (typeof storage?.getItem !== "function") {
-      return "blocks";
-    }
-
-    const stored = storage.getItem(TRAINER_VISUAL_MODE_STORAGE_KEY);
-    return stored === "flute" || stored === "blocks" ? stored : "blocks";
-  } catch {
-    return "blocks";
-  }
-}
-
-function storeTrainerVisualMode(value: TrainerVisualMode) {
-  if (!canUsePersistentStorage) {
-    return;
-  }
-
-  try {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const storage = window.localStorage;
-    if (typeof storage?.setItem !== "function") {
-      return;
-    }
-
-    storage.setItem(TRAINER_VISUAL_MODE_STORAGE_KEY, value);
   } catch {
     // best-effort
   }
@@ -779,12 +730,12 @@ export function SwaraTrainer() {
   const [selectedRegister, setSelectedRegister] = useState<FluteRegister>(defaultFluteProfile.register);
   const [pitchDifficulty, setPitchDifficulty] = useState<PitchDifficulty>("medium");
   const [pitchTrendWindowMs, setPitchTrendWindowMs] = useState<PitchTrendWindowMs>(15000);
-  const [trainerVisualMode, setTrainerVisualMode] = useState<TrainerVisualMode>("blocks");
   const [fluteRoadMode, setFluteRoadMode] = useState<FluteRoadPracticeMode>("rainfall");
   const [pitchFullscreen, setPitchFullscreen] = useState(false);
   const [micStatusToast, setMicStatusToast] = useState<string | null>(null);
-  const [controlsOpen, setControlsOpen] = useState(false);
-  const [leftRailOpen, setLeftRailOpen] = useState(false);
+  const [fluteMenuOpen, setFluteMenuOpen] = useState(false);
+  const [fluteDetectOpen, setFluteDetectOpen] = useState(false);
+  const [leftRailOpen] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkpointNotice, setCheckpointNotice] = useState<string | null>(null);
@@ -844,6 +795,7 @@ export function SwaraTrainer() {
   const debugLogRef = useRef<DebugLogEntry[]>([]);
   const debugSessionIdRef = useRef(`session-${Date.now()}`);
   const pitchFullscreenRef = useRef<HTMLDivElement | null>(null);
+  const fluteMenuRef = useRef<HTMLDivElement | null>(null);
   const autoStartAttemptedRef = useRef(false);
   const lastDebugNoteKeyRef = useRef<string | null>(null);
   const lastDebugStepRef = useRef<string>("");
@@ -963,10 +915,6 @@ export function SwaraTrainer() {
   }, []);
 
   useEffect(() => {
-    setTrainerVisualMode(readStoredTrainerVisualMode());
-  }, []);
-
-  useEffect(() => {
     setFluteRoadMode(readStoredFluteRoadMode());
   }, []);
 
@@ -1081,22 +1029,14 @@ export function SwaraTrainer() {
   }, [pitchTrendWindowMs]);
 
   useEffect(() => {
-    storeTrainerVisualMode(trainerVisualMode);
-  }, [trainerVisualMode]);
-
-  useEffect(() => {
     storeFluteRoadMode(fluteRoadMode);
   }, [fluteRoadMode]);
 
   useEffect(() => {
     setFluteViewStartedAt(Date.now());
-  }, [selectedStepId, trainerVisualMode]);
+  }, [selectedStepId]);
 
   useEffect(() => {
-    if (trainerVisualMode !== "flute") {
-      return;
-    }
-
     const timer = window.setInterval(() => {
       if (!isFluteRoadPausedRef.current) {
         setFluteViewTick(Date.now());
@@ -1106,7 +1046,7 @@ export function SwaraTrainer() {
     return () => {
       window.clearInterval(timer);
     };
-  }, [trainerVisualMode]);
+  }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -1122,6 +1062,41 @@ export function SwaraTrainer() {
       document.body.style.overflow = previousOverflow;
     };
   }, [pitchFullscreen]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!fluteMenuOpen) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (fluteMenuRef.current?.contains(target)) {
+        return;
+      }
+
+      setFluteMenuOpen(false);
+      setFluteDetectOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFluteMenuOpen(false);
+        setFluteDetectOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [fluteMenuOpen]);
 
   useEffect(() => {
     if (typeof document === "undefined") {
@@ -2277,17 +2252,6 @@ export function SwaraTrainer() {
     }
   }
 
-  function resetPath() {
-    setCompletedStepIds([]);
-    setCheckpointNotice(null);
-    setClearedCheckpoint(null);
-    setFluteViewStartedAt(Date.now());
-    if (firstStep) {
-      setSelectedStepId(firstStep.id);
-      setTarget(firstStep.target ?? FALLBACK_TARGET);
-    }
-  }
-
   const scoreValue = analysis.detected ? result.score : null;
   const sequenceDrill = selectedStep && isSequenceStep(selectedStep) ? selectedStep : null;
   const sequenceRagaGrammar = isRagaGrammarSequence(sequenceDrill);
@@ -2327,7 +2291,6 @@ export function SwaraTrainer() {
   const sequenceProgressPercent = sequenceDrill && sequenceProgressTotal
     ? clamp(sequenceProgressCount / sequenceProgressTotal, 0, 1) * 100
     : 0;
-  const showFluteRoad = trainerVisualMode === "flute";
   const currentModuleIndex = foundationModules.findIndex((module) =>
     module.steps.some((step) => step.id === selectedStepId),
   );
@@ -2338,7 +2301,6 @@ export function SwaraTrainer() {
   const checkpointFocus = checkpointTargets(selectedStep, sequenceProgress);
   const pitchZoneCents = pitchConfig.noteToleranceCents;
   const pitchReleaseCents = pitchConfig.releaseToleranceCents;
-  const currentTargetFrequency = targetFrequencyFor(checkpointFocus.target, fluteProfile.saFrequency);
   const currentCheckpointCleared = completedStepIds.includes(selectedStepId);
   const detectedIsCorrect =
     Boolean(
@@ -2357,11 +2319,6 @@ export function SwaraTrainer() {
       : 0;
   const tonicLabel = fluteProfile.tonicLabel;
   const liveTargetTitle = sequenceDrill ? sequenceDrill.title : formatTargetLabel(checkpointFocus.target);
-  const liveTargetSubtitle = sequenceDrill
-    ? `Play ${formatTargetLabel(checkpointFocus.target)} next${
-        sequenceNextStep && sequenceNextStep !== sequenceCurrentStep ? `, then ${formatTargetLabel(sequenceNextStep.target)}` : ""
-      }`
-    : `${checkpointFocus.label} · ${currentTargetFrequency.toFixed(1)} Hz`;
   const sequenceCoachText = sequenceDrill
     ? `Play the phrase ${summarizeSequencePath(sequenceDrill)}. Aim for clean swara order and steadier pitch; the final phrase score matters more than exact timing.`
     : "The detector now judges the checkpoint only when note, octave, pitch band, and sustain all agree.";
@@ -2433,298 +2390,62 @@ export function SwaraTrainer() {
         </div>
       ) : null}
       <div
-        className="trainer-hero glass"
-        style={{
-          borderRadius: 36,
-          padding: "18px clamp(16px, 2.4vw, 28px)",
-          display: "grid",
-          gap: 14,
-        }}
-      >
-        <div
-          className="trainer-header"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 16,
-            alignItems: "start",
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div className="pill">Interactive MVP</div>
-            <h1 className="section-title" style={{ fontSize: "clamp(26px, 3.4vw, 40px)", marginTop: 10 }}>
-              Guided swara trainer
-            </h1>
-            <p className="section-copy" style={{ maxWidth: 840, marginBottom: 0 }}>
-              Set the actual flute tonic and register first, then clear each guided checkpoint with
-              live pitch, octave, sustain, and tone feedback on one screen.
-            </p>
-          </div>
-          <div className="pill">{analysis.status}</div>
-        </div>
-
-        <div
-          className="trainer-setup glass"
-          style={{
-            borderRadius: 28,
-            padding: 14,
-            background: "rgba(255,255,255,0.04)",
-            display: "grid",
-            gap: 12,
-          }}
-        >
-            <div
-              className="trainer-setup-bar"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1fr) auto",
-              gap: 12,
-              alignItems: "center",
-            }}
-          >
-            <div className="trainer-setup-pills" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <span className="pill">Tonic {tonicLabel}</span>
-              <span className="pill">Register {fluteProfile.registerLabel}</span>
-            </div>
-
-            <div className="trainer-setup-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <button className="button button-primary" onClick={markStepComplete} disabled={!masteryReady}>
-                Clear checkpoint
-              </button>
-              <button className="button button-secondary" onClick={() => setControlsOpen((current) => !current)}>
-                {controlsOpen ? "Hide setup" : "Open setup"}
-              </button>
-            </div>
-          </div>
-
-          {controlsOpen ? (
-            <div
-              className="trainer-setup-grid"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: 10,
-                alignItems: "end",
-              }}
-            >
-              <label className="label">
-                Tonic / Sa
-                <select
-                  className="select"
-                  value={selectedTonic}
-                  onChange={(event) => setSelectedTonic(event.target.value as TonicName)}
-                >
-                  {tonicOptions.map((option) => (
-                    <option key={option.tonic} value={option.tonic}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="label">
-                Flute register
-                <select
-                  className="select"
-                  value={selectedRegister}
-                  onChange={(event) => setSelectedRegister(event.target.value as FluteRegister)}
-                >
-                  {fluteRegisterOptions.map((option) => (
-                    <option key={option.register} value={option.register}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="label">
-                Guided checkpoint
-                <select
-                  className="select"
-                  value={selectedStepId}
-                  onChange={(event) => {
-                    const nextStep = allLessonSteps.find((step) => step.id === event.target.value);
-
-                    if (nextStep) {
-                      setCheckpointNotice(null);
-                      setClearedCheckpoint(null);
-                      setSelectedStepId(nextStep.id);
-                    }
-                  }}
-                >
-                  {foundationModules.map((module) => (
-                    <optgroup key={module.id} label={module.title}>
-                      {module.steps.map((step) => (
-                        <option
-                          key={step.id}
-                          value={step.id}
-                        >
-                          {step.checkpointGroupTitle} · {step.title}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
-
-              <button className="button button-secondary" onClick={resetPath}>
-                Reset path
-              </button>
-
-              {error ? (
-                <div
-                  style={{
-                    padding: 12,
-                    borderRadius: 16,
-                    border: "1px solid rgba(255, 142, 142, 0.35)",
-                    color: "var(--danger)",
-                    background: "rgba(255, 142, 142, 0.08)",
-                    fontSize: 14,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  {error}
-                </div>
-              ) : null}
-
-            </div>
-          ) : null}
-
-          {controlsOpen ? (
-            <FluteFinder
-              compact
-              title="Not sure which flute you have?"
-              onDetected={(profile: FluteProfile) => {
-                setSelectedTonic(profile.tonic);
-                setSelectedRegister(profile.register);
-              }}
-            />
-          ) : null}
-        </div>
-
-      <div
         className="trainer-layout"
         style={{
           display: "grid",
-          gridTemplateColumns: leftRailOpen ? "minmax(280px, 0.82fr) minmax(0, 1.9fr)" : "minmax(0, 1fr)",
+          gridTemplateColumns: "minmax(280px, 0.82fr) minmax(0, 1.9fr)",
           gap: 12,
           alignItems: "start",
           minHeight: "calc(100vh - 260px)",
         }}
       >
-        {leftRailOpen ? (
-          <aside
-            className="trainer-rail glass"
-            style={{
-              minWidth: 0,
-              display: "grid",
-              gap: 12,
-              padding: 12,
-              borderRadius: 28,
-              background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-              <div style={{ display: "grid", gap: 2 }}>
-                <div className="pill" style={{ width: "fit-content" }}>
-                  Practice map
-                </div>
-                <div style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.4 }}>
-                  Journey and swara reference
-                </div>
-              </div>
-              <button
-                type="button"
-                className="button button-secondary"
-                onClick={() => setLeftRailOpen(false)}
-                aria-label="Collapse practice map"
-                title="Collapse practice map"
-                style={{
-                  minHeight: 36,
-                  minWidth: 36,
-                  width: 36,
-                  padding: 0,
-                  borderRadius: 999,
-                  display: "grid",
-                  placeItems: "center",
-                }}
-              >
-                <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                  <path
-                    d="M10 4l-4 4 4 4"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
+        <aside
+          className="trainer-rail"
+          style={{
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            alignSelf: "start",
+          }}
+        >
+          <div style={{ display: "grid", gap: 2, flexShrink: 0 }}>
+            <div className="pill" style={{ width: "fit-content" }}>
+              Practice map
             </div>
+          </div>
 
-            <div style={{ display: "grid", gap: 12 }}>
-              <JourneySummary
-                overallProgress={overallProgress}
-                completedCount={completedStepIds.length}
-                totalCount={allLessonSteps.length}
-                completedStepIds={completedStepIds}
-                currentStepTitle={selectedStep?.title ?? "Choose a checkpoint"}
-                modules={foundationModules.map((module) => ({
-                  id: module.id,
-                  title: module.title,
-                  description: module.description,
-                  steps: module.steps.map((step) => ({
-                    id: step.id,
-                    title: step.title,
-                  })),
-                  completedCount: module.steps.filter((step) => completedStepIds.includes(step.id)).length,
-                  isCurrent: module.id === currentModule?.id,
-                }))}
-              />
+          <JourneySummary
+            overallProgress={overallProgress}
+            completedCount={completedStepIds.length}
+            totalCount={allLessonSteps.length}
+            completedStepIds={completedStepIds}
+            currentStepTitle={selectedStep?.title ?? "Choose a checkpoint"}
+            modules={foundationModules.map((module) => ({
+              id: module.id,
+              title: module.title,
+              description: module.description,
+              steps: module.steps.map((step) => ({
+                id: step.id,
+                title: step.title,
+              })),
+              completedCount: module.steps.filter((step) => completedStepIds.includes(step.id)).length,
+              isCurrent: module.id === currentModule?.id,
+            }))}
+          />
 
-              <SwaraReferencePanel
-                tonicLabel={tonicLabel}
-                registerLabel={fluteProfile.registerLabel}
-                tonicFrequency={fluteProfile.saFrequency}
-                profile={fluteProfile}
-                rows={swaraReference}
-              />
-            </div>
-          </aside>
-        ) : null}
+          <div style={{ flexShrink: 0 }}>
+            <SwaraReferencePanel
+              tonicLabel={tonicLabel}
+              registerLabel={fluteProfile.registerLabel}
+              tonicFrequency={fluteProfile.saFrequency}
+              profile={fluteProfile}
+              rows={swaraReference}
+            />
+          </div>
+        </aside>
 
         <section className="trainer-main" style={{ minWidth: 0, display: "grid", gap: 12, position: "relative" }}>
-          {!leftRailOpen ? (
-            <button
-              type="button"
-              className="button button-secondary"
-              onClick={() => setLeftRailOpen(true)}
-              aria-label="Expand practice map"
-              title="Expand practice map"
-              style={{
-                minHeight: 44,
-                padding: "0 14px",
-                borderRadius: 999,
-                display: "inline-flex",
-                gap: 8,
-                alignItems: "center",
-                width: "fit-content",
-              }}
-              >
-              <span style={{ fontWeight: 650 }}>Practice map</span>
-              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                <path
-                  d="M6 4l4 4-4 4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          ) : null}
 
           {checkpointNotice ? (
             <div
@@ -2798,287 +2519,167 @@ export function SwaraTrainer() {
                     gap: 12,
                     alignItems: "start",
                     flexWrap: "wrap",
+                    position: "relative",
                   }}
                 >
                   <div style={{ display: "grid", gap: 10 }}>
-                    <div className="pill">Live target</div>
                     <div style={{ fontSize: 28, fontWeight: 750, letterSpacing: "-0.05em" }}>
                       {liveTargetTitle}
                     </div>
-                    <div style={{ color: "var(--muted)", fontSize: 14 }}>
-                      {liveTargetSubtitle} · {currentTargetFrequency.toFixed(1)} Hz
-                      {checkpointFocus.progressLabel ? ` · ${checkpointFocus.progressLabel}` : ""}
-                    </div>
                   </div>
 
-                  <div
-                    role="group"
-                    aria-label="Live target view mode"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: 4,
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.03)",
-                    }}
-                  >
+                  <div style={{ position: "relative", marginLeft: "auto" }}>
                     <button
                       type="button"
-                      className="button"
-                      aria-pressed={!showFluteRoad}
-                      onClick={() => setTrainerVisualMode("blocks")}
+                      className="button button-secondary"
+                      onClick={() => setFluteMenuOpen((current) => !current)}
+                      aria-expanded={fluteMenuOpen}
+                      aria-haspopup="dialog"
                       style={{
-                        minHeight: 34,
+                        minHeight: 38,
                         padding: "0 12px",
                         borderRadius: 999,
-                        border: !showFluteRoad ? "1px solid rgba(103,240,202,0.34)" : "1px solid transparent",
-                        background: !showFluteRoad
-                          ? "linear-gradient(180deg, rgba(103,240,202,0.18), rgba(103,240,202,0.08))"
-                          : "transparent",
-                        color: !showFluteRoad ? "var(--text)" : "var(--muted)",
-                        fontSize: 12,
-                        fontWeight: 700,
+                        display: "inline-flex",
+                        gap: 8,
+                        alignItems: "center",
+                        fontSize: 13,
+                        fontWeight: 650,
                       }}
                     >
-                      Blocks
+                      <span style={{ opacity: 0.72 }}>Flute</span>
+                      <span>{`${tonicLabel}-${fluteProfile.registerLabel}`}</span>
+                      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                        <path
+                          d="M11.2 2.8l2 2L6 12h-2v-2l7.2-7.2zM2 13h12"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
                     </button>
-                    <button
-                      type="button"
-                      className="button"
-                      aria-pressed={showFluteRoad}
-                      onClick={() => setTrainerVisualMode("flute")}
-                      style={{
-                        minHeight: 34,
-                        padding: "0 12px",
-                        borderRadius: 999,
-                        border: showFluteRoad ? "1px solid rgba(103,240,202,0.34)" : "1px solid transparent",
-                        background: showFluteRoad
-                          ? "linear-gradient(180deg, rgba(103,240,202,0.18), rgba(103,240,202,0.08))"
-                          : "transparent",
-                        color: showFluteRoad ? "var(--text)" : "var(--muted)",
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      Flute road
-                    </button>
-                  </div>
-                </div>
 
-                {showFluteRoad ? (
-                  <FluteRoadView
-                    now={fluteViewTick}
-                    startedAt={fluteViewStartedAt}
-                    analysis={analysis}
-                    checkpointFocus={checkpointFocus}
-                    fluteRoadMode={fluteRoadMode}
-                    onFluteRoadModeChange={setFluteRoadMode}
-                    sequenceDrill={sequenceDrill}
-                    sequenceCurrentIndex={sequenceCurrentIndex}
-                    sequenceCurrentStep={sequenceCurrentStep}
-                    sequenceNextStep={sequenceNextStep}
-                    pitchToleranceCents={pitchZoneCents}
-                    isPaused={isFluteRoadPaused}
-                    onTogglePause={handleToggleFluteRoadPause}
-                    onRetry={handleRetryFluteRoad}
-                    isLooping={isFluteRoadLooping}
-                    onToggleLoop={handleToggleFluteRoadLoop}
-                  />
-                ) : sequenceDrill ? (
-                  <div
-                    className="trainer-sequence"
-                    style={{
-                      borderRadius: 22,
-                      padding: 14,
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.03)",
-                      display: "grid",
-                      gap: 12,
-                    }}
-                  >
-                    <div className="trainer-sequence-header" style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                      <div style={{ display: "grid", gap: 4 }}>
-                        <div className="pill" style={{ width: "fit-content" }}>Compound note tracker</div>
-                        <div style={{ color: "var(--muted)", fontSize: 13.5 }}>
-                          {sequenceLoopsCompleted} full loops cleared. Follow the phrase left to right.
-                        </div>
-                        <div style={{ color: "var(--muted)", fontSize: 12.5 }}>
-                          Current loop score {currentLoopScore != null ? `${currentLoopScore}/100` : "—"}
-                        </div>
-                      </div>
-                      <div style={{ minWidth: 180, display: "grid", gap: 6 }}>
-                        <div style={{ color: "var(--muted)", fontSize: 12 }}>Phrase progress</div>
-                        <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
-                          <div
-                            style={{
-                              width: `${sequenceProgressPercent}%`,
-                              height: "100%",
-                              borderRadius: 999,
-                              background: "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))",
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="trainer-sequence-steps" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {sequenceDrill.steps.map((step, index) => {
-                        const isDone = index < sequenceCurrentIndex;
-                        const isCurrent = index === sequenceCurrentIndex;
-                        const tone = isCurrent
-                          ? "linear-gradient(180deg, rgba(103,240,202,0.22), rgba(103,240,202,0.08))"
-                          : isDone
-                            ? "rgba(117,184,255,0.12)"
-                            : "rgba(255,255,255,0.04)";
-                        const heldMs = sequenceStepDurationsMs[index] ?? 0;
+                    {fluteMenuOpen ? (
+                      <div
+                        ref={fluteMenuRef}
+                        role="dialog"
+                        aria-label="Flute selection"
+                        style={{
+                          position: "absolute",
+                          top: 46,
+                          right: 0,
+                          zIndex: 40,
+                          width: "min(380px, calc(100vw - 24px))",
+                          display: "grid",
+                          gap: 12,
+                          borderRadius: 24,
+                          padding: 14,
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          background: "rgba(7, 14, 24, 0.96)",
+                          boxShadow: "0 28px 60px rgba(0,0,0,0.45)",
+                          backdropFilter: "blur(18px)",
+                        }}
+                      >
+                        <div style={{ display: "grid", gap: 10 }}>
+                          <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
+                            <label className="label">
+                              Tonic
+                              <select
+                                className="select"
+                                value={selectedTonic}
+                                disabled={fluteDetectOpen}
+                                onChange={(event) => setSelectedTonic(event.target.value as TonicName)}
+                                style={{ opacity: fluteDetectOpen ? 0.55 : 1, cursor: fluteDetectOpen ? "not-allowed" : "pointer" }}
+                              >
+                                {tonicOptions.map((option) => (
+                                  <option key={option.tonic} value={option.tonic}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
 
-                        return (
-                          <div
-                            key={`${sequenceDrill.id}-${index}`}
-                            style={{
-                              minWidth: 108,
-                              borderRadius: 18,
-                              padding: "10px 12px",
-                              border: isCurrent ? "1px solid rgba(103,240,202,0.28)" : "1px solid rgba(255,255,255,0.08)",
-                              background: tone,
-                              display: "grid",
-                              gap: 4,
-                            }}
-                          >
-                            <div style={{ color: "var(--muted)", fontSize: 11.5 }}>
-                              {isDone ? "Done" : isCurrent ? "Now" : "Next"}
-                            </div>
-                            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.03em" }}>
-                              {step.target.swara}
-                            </div>
-                            <div style={{ color: "var(--muted)", fontSize: 12 }}>
-                              {step.target.octave} · Held {(heldMs / 1000).toFixed(1)}s
-                            </div>
-                            <div style={{ color: "var(--muted)", fontSize: 11.5 }}>
-                              Target {(step.sustainTargetMs / 1000).toFixed(1)}s
-                            </div>
-                            <div style={{ color: "var(--muted)", fontSize: 11.5 }}>
-                              Score {currentLoopStepScores[index] != null ? `${currentLoopStepScores[index]}/100` : "—"}
-                            </div>
+                            <label className="label">
+                              Register
+                              <select
+                                className="select"
+                                value={selectedRegister}
+                                disabled={fluteDetectOpen}
+                                onChange={(event) => setSelectedRegister(event.target.value as FluteRegister)}
+                                style={{ opacity: fluteDetectOpen ? 0.55 : 1, cursor: fluteDetectOpen ? "not-allowed" : "pointer" }}
+                              >
+                                {fluteRegisterOptions.map((option) => (
+                                  <option key={option.register} value={option.register}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
                           </div>
-                        );
-                      })}
-                    </div>
-                    {sequenceLoopHistory.length ? (
-                      <div className="trainer-loop-history" style={{ display: "grid", gap: 8, paddingTop: 4 }}>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <div className="pill" style={{ width: "fit-content" }}>Loop history</div>
-                          {sequenceLoopHistory.slice(-3).map((entry, index) => (
-                            <div
-                              key={`${entry.repeatIndex}-${entry.kind}-${index}`}
-                              className="pill"
-                              style={{
-                                width: "fit-content",
-                                background:
-                                  entry.kind === "success"
-                                    ? "rgba(103,240,202,0.12)"
-                                    : "rgba(255,142,142,0.12)",
-                                borderColor:
-                                  entry.kind === "success"
-                                    ? "rgba(103,240,202,0.22)"
-                                    : "rgba(255,142,142,0.22)",
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                            <button
+                              className="button button-primary"
+                              disabled={fluteDetectOpen}
+                              onClick={() => {
+                                setFluteMenuOpen(false);
+                                setFluteDetectOpen(false);
                               }}
-                              title={entry.message}
+                              style={{ minHeight: 32, padding: "0 10px", fontSize: 12.5, opacity: fluteDetectOpen ? 0.5 : 1 }}
                             >
-                              Loop {entry.repeatIndex + 1} {entry.score != null ? `${entry.score}/100` : "—"}
-                            </div>
-                          ))}
+                              Use this flute
+                            </button>
+                            <span style={{ color: "var(--muted)", fontSize: 12.5, fontWeight: 600, letterSpacing: "0.02em" }}>OR</span>
+                            <button
+                              className="button button-secondary"
+                              onClick={() => setFluteDetectOpen((current) => !current)}
+                              aria-expanded={fluteDetectOpen}
+                              style={{ minHeight: 32, padding: "0 10px", fontSize: 12.5 }}
+                            >
+                              {fluteDetectOpen ? "Stop" : "Detect flute"}
+                            </button>
+                          </div>
                         </div>
-                        {latestLoopHistoryEntry ? (
-                          <div
-                            style={{
-                              borderRadius: 16,
-                              padding: 10,
-                              border: "1px solid rgba(255,255,255,0.08)",
-                              background: "rgba(255,255,255,0.03)",
-                              display: "grid",
-                              gap: 8,
-                            }}
-                          >
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                              <div style={{ fontSize: 12.5, color: "var(--muted)" }}>
-                                {latestLoopHistoryEntry.kind === "success" ? "Last loop passed" : "Last loop failed"}
-                              </div>
-                              <div style={{ fontSize: 12.5, fontWeight: 650 }}>
-                                {latestLoopHistoryEntry.score != null ? `${latestLoopHistoryEntry.score}/100` : "—"}
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                              {sequenceDrill.steps.map((step, index) => (
-                                <span
-                                  key={`${latestLoopHistoryEntry.repeatIndex}-${index}-${step.target.swara}`}
-                                  className="pill"
-                                  style={{
-                                    padding: "5px 8px",
-                                    fontSize: 11,
-                                    width: "fit-content",
-                                    background: "rgba(255,255,255,0.04)",
-                                  }}
-                                >
-                                  {step.target.swara} {latestLoopHistoryEntry.stepScores[index] != null ? `${latestLoopHistoryEntry.stepScores[index]}` : "—"}
-                                </span>
-                              ))}
-                            </div>
+
+                        {fluteDetectOpen ? (
+                          <div style={{ paddingTop: 2 }}>
+                            <FluteFinder
+                              inline
+                              autoStart
+                              onDetected={(profile: FluteProfile) => {
+                                setSelectedTonic(profile.tonic);
+                                setSelectedRegister(profile.register);
+                                setFluteMenuOpen(false);
+                                setFluteDetectOpen(false);
+                              }}
+                            />
                           </div>
                         ) : null}
                       </div>
                     ) : null}
                   </div>
-                ) : null}
 
-                {!showFluteRoad ? (
-                  <div
-                    className="trainer-summary-grid"
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-                      gap: 10,
-                    }}
-                  >
-                    <LiveStat
-                      label="Current note"
-                      value={analysis.detected ? `${analysis.detected.octave} ${analysis.detected.swara}` : "—"}
-                      detail={
-                        analysis.detected
-                          ? `${analysis.rawFrequency != null ? `${analysis.rawFrequency.toFixed(1)} Hz` : "Raw pitch"} · ${signedCents(analysis.centsOffset ?? 0)}¢`
-                          : "Waiting for stable tone"
-                      }
-                      background={
-                        analysis.detected
-                          ? detectedIsCorrect
-                            ? "linear-gradient(180deg, rgba(103,240,202,0.24), rgba(103,240,202,0.08))"
-                            : "linear-gradient(180deg, rgba(255,99,99,0.22), rgba(255,99,99,0.08))"
-                          : "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(117,184,255,0.05))"
-                      }
-                    />
-                    <MiniProgressPanel
-                      label={sequenceDrill ? "Phrase score" : "Goal"}
-                      value={scoreValue != null ? `${scoreValue}` : "—"}
-                      caption={selectedStep ? `Need ${selectedStep.minimumScore}+` : "Need a checkpoint"}
-                      progress={goalProgress * 100}
-                      target={selectedStep?.minimumScore ?? null}
-                      active={Boolean(analysis.detected)}
-                      mode="goal"
-                    />
-                    <MiniProgressPanel
-                      label={sequenceDrill ? "Current hold" : "Sustain"}
-                      value={analysis.sustainMs != null ? `${(analysis.sustainMs / 1000).toFixed(1)}s` : "—"}
-                      caption={sequenceDrill
-                        ? `Counts after ${(Math.max(checkpointFocus.sustainTargetMs, PRACTICE_HOLD_FLOOR_MS) / 1000).toFixed(1)}s`
-                        : `Target ${(checkpointFocus.sustainTargetMs / 1000).toFixed(1)}s`}
-                      progress={sustainProgress * 100}
-                      target={checkpointFocus.sustainTargetMs}
-                      active={Boolean(analysis.detected)}
-                      mode="sustain"
-                    />
-                  </div>
-                ) : null}
+                </div>
+
+                <FluteRoadView
+                  now={fluteViewTick}
+                  startedAt={fluteViewStartedAt}
+                  analysis={analysis}
+                  checkpointFocus={checkpointFocus}
+                  fluteRoadMode={fluteRoadMode}
+                  onFluteRoadModeChange={setFluteRoadMode}
+                  sequenceDrill={sequenceDrill}
+                  sequenceCurrentIndex={sequenceCurrentIndex}
+                  sequenceCurrentStep={sequenceCurrentStep}
+                  sequenceNextStep={sequenceNextStep}
+                  pitchToleranceCents={pitchZoneCents}
+                  isPaused={isFluteRoadPaused}
+                  onTogglePause={handleToggleFluteRoadPause}
+                  onRetry={handleRetryFluteRoad}
+                  isLooping={isFluteRoadLooping}
+                  onToggleLoop={handleToggleFluteRoadLoop}
+                />
               </div>
 
               <div
@@ -3281,7 +2882,6 @@ export function SwaraTrainer() {
 
           </section>
         </div>
-      </div>
     </main>
   );
 }
@@ -3420,10 +3020,6 @@ function JourneySummary(props: {
     isCurrent: boolean;
   }>;
 }) {
-  const currentModule = props.modules.find((module) => module.isCurrent) ?? props.modules[0] ?? null;
-  const currentIndex = currentModule ? props.modules.findIndex((module) => module.id === currentModule.id) : -1;
-  const currentModuleNumber = currentIndex >= 0 ? currentIndex + 1 : 0;
-
   return (
     <div
       className="glass"
@@ -3431,19 +3027,20 @@ function JourneySummary(props: {
         borderRadius: 24,
         padding: 14,
         background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
-        display: "grid",
+        display: "flex",
+        flexDirection: "column",
         gap: 12,
+        height: 520,
       }}
     >
-      <div style={{ display: "grid", gap: 6 }}>
-        <div className="pill">Journey</div>
+      <div style={{ display: "grid", gap: 6, flexShrink: 0 }}>
         <div style={{ fontSize: 24, fontWeight: 750, letterSpacing: "-0.05em" }}>{props.overallProgress}%</div>
         <div style={{ color: "var(--muted)", fontSize: 13.5, lineHeight: 1.5 }}>
           {props.completedCount} of {props.totalCount} checkpoints cleared
         </div>
       </div>
 
-      <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+      <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden", flexShrink: 0 }}>
         <div
           style={{
             width: `${clamp(props.overallProgress, 0, 100)}%`,
@@ -3454,8 +3051,14 @@ function JourneySummary(props: {
         />
       </div>
 
-      <div style={{ display: "grid", gap: 10 }}>
-        <div style={{ color: "var(--muted)", fontSize: 12 }}>Module map</div>
+      <div
+        style={{
+          overflowY: "auto",
+          flex: "1 1 0%",
+          minHeight: 0,
+          paddingRight: 4,
+        }}
+      >
         <div style={{ display: "grid", gap: 8 }}>
           {props.modules.map((module) => (
             <details
@@ -3476,7 +3079,7 @@ function JourneySummary(props: {
                     <div style={{ display: "grid", gap: 3, minWidth: 0 }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <span className="pill" style={{ padding: "5px 10px", fontSize: 10.5 }}>
-                          Module {props.modules.findIndex((entry) => entry.id === module.id) + 1}
+                          {props.modules.findIndex((entry) => entry.id === module.id) + 1}
                         </span>
                         <span
                           style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.03em" }}
@@ -3486,7 +3089,7 @@ function JourneySummary(props: {
                         </span>
                       </div>
                       <div style={{ color: "var(--muted)", fontSize: 12.5, lineHeight: 1.4 }}>
-                        {module.completedCount} of {module.steps.length} checkpoints cleared
+                        {module.completedCount}/{module.steps.length} cleared
                       </div>
                       {module.isCurrent ? (
                         <div style={{ color: "var(--muted)", fontSize: 12, lineHeight: 1.45, maxWidth: 320 }}>
@@ -3494,7 +3097,6 @@ function JourneySummary(props: {
                         </div>
                       ) : null}
                     </div>
-                    <div className="pill" style={{ padding: "6px 10px", fontSize: 10.5 }}>{module.steps.length} steps</div>
                   </div>
                   <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
                     <div
@@ -3958,7 +3560,7 @@ function JourneyRibbon(props: {
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", alignSelf: "center" }}>
           <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
-            Module {props.currentModule?.title ?? "Foundation"}
+            {props.currentModule?.title ?? "Foundation"}
           </span>
           <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>
             Step {props.currentStep?.title ?? "Center your first Sa"}
@@ -4085,6 +3687,20 @@ function SignalTrace(props: {
   const width = props.fullscreen ? 1440 : 860;
   const height = props.height ?? (props.fullscreen ? 420 : 132);
   const [segmentationEnabled, setSegmentationEnabled] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [settingsOpen]);
+
   const minCents = -60;
   const maxCents = 60;
   const usableWidth = width - 24;
@@ -4297,6 +3913,130 @@ function SignalTrace(props: {
           </button>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div style={{ position: "relative" }} ref={settingsRef}>
+            <button
+              type="button"
+              className="button"
+              onClick={() => setSettingsOpen((open) => !open)}
+              aria-label="Pitch settings"
+              title="Pitch settings"
+              style={{
+                width: 28,
+                height: 28,
+                minWidth: 28,
+                minHeight: 28,
+                padding: 0,
+                borderRadius: 10,
+                display: "grid",
+                placeItems: "center",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: settingsOpen ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
+                color: settingsOpen ? "var(--text)" : "var(--muted)",
+                cursor: "pointer",
+              }}
+            >
+              <Settings size={14} />
+            </button>
+
+            {settingsOpen && (
+              <div
+                role="dialog"
+                aria-label="Pitch tracking settings"
+                style={{
+                  position: "absolute",
+                  top: 34,
+                  right: 0,
+                  zIndex: 100,
+                  width: 260,
+                  padding: 14,
+                  borderRadius: 20,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background: "rgba(7, 14, 24, 0.96)",
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+                  backdropFilter: "blur(18px)",
+                  display: "grid",
+                  gap: 12,
+                }}
+              >
+                {/* Time Window Option */}
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", textAlign: "left" }}>
+                    Time Window
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                    {props.pitchTrendWindowOptions.map((option) => {
+                      const active = props.pitchTrendWindowMs === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className="button"
+                          onClick={() => {
+                            props.onPitchTrendWindowChange(option.value);
+                          }}
+                          style={{
+                            minHeight: 28,
+                            padding: 0,
+                            borderRadius: 8,
+                            border: active ? "1px solid rgba(117,184,255,0.38)" : "1px solid rgba(255,255,255,0.08)",
+                            background: active
+                              ? "rgba(117,184,255,0.18)"
+                              : "rgba(255,255,255,0.04)",
+                            color: active ? "var(--text)" : "var(--muted)",
+                            fontSize: 11,
+                            fontWeight: 650,
+                            cursor: "pointer",
+                          }}
+                          title={option.description}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Difficulty Option */}
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted)", textAlign: "left" }}>
+                    Difficulty
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+                    {props.pitchDifficultyOptions.map((option) => {
+                      const active = props.pitchDifficulty === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          className="button"
+                          onClick={() => {
+                            props.onPitchDifficultyChange(option.value);
+                          }}
+                          style={{
+                            minHeight: 28,
+                            padding: 0,
+                            borderRadius: 8,
+                            border: active ? "1px solid rgba(103,240,202,0.38)" : "1px solid rgba(255,255,255,0.08)",
+                            background: active
+                              ? "rgba(103,240,202,0.18)"
+                              : "rgba(255,255,255,0.04)",
+                            color: active ? "var(--text)" : "var(--muted)",
+                            fontSize: 11,
+                            fontWeight: 650,
+                            cursor: "pointer",
+                          }}
+                          title={option.description}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             type="button"
             className="button"
@@ -4325,80 +4065,12 @@ function SignalTrace(props: {
       <div
         className="trainer-signal-title-row"
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr auto",
-          gap: 12,
-          alignItems: "center",
+          display: "block",
+          marginTop: 4,
         }}
       >
         <div className="trainer-signal-title" style={{ fontSize: 17, fontWeight: 650 }}>
           Pitch movement over the last {formatPitchWindowLabel(props.pitchTrendWindowMs)}
-        </div>
-        <div className="trainer-pitch-controls" style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {props.pitchTrendWindowOptions.map((option) => {
-              const active = props.pitchTrendWindowMs === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  className="button"
-                  onClick={() => props.onPitchTrendWindowChange(option.value)}
-                  aria-pressed={active}
-                  style={{
-                    minHeight: 34,
-                    padding: "0 12px",
-                    borderRadius: 999,
-                    border: active ? "1px solid rgba(117,184,255,0.38)" : "1px solid rgba(255,255,255,0.08)",
-                    background: active
-                      ? "linear-gradient(180deg, rgba(117,184,255,0.18), rgba(117,184,255,0.08))"
-                      : "rgba(255,255,255,0.04)",
-                    color: active ? "var(--text)" : "var(--muted)",
-                    fontSize: 11.5,
-                    fontWeight: 650,
-                    display: "grid",
-                    alignContent: "center",
-                    gap: 2,
-                  }}
-                  title={option.description}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {props.pitchDifficultyOptions.map((option) => {
-              const active = props.pitchDifficulty === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  className="button"
-                  onClick={() => props.onPitchDifficultyChange(option.value)}
-                  aria-pressed={active}
-                  style={{
-                    minHeight: 34,
-                    padding: "0 12px",
-                    borderRadius: 999,
-                    border: active ? "1px solid rgba(103,240,202,0.38)" : "1px solid rgba(255,255,255,0.08)",
-                    background: active
-                      ? "linear-gradient(180deg, rgba(103,240,202,0.18), rgba(103,240,202,0.08))"
-                      : "rgba(255,255,255,0.04)",
-                    color: active ? "var(--text)" : "var(--muted)",
-                    fontSize: 11.5,
-                    fontWeight: 650,
-                    display: "grid",
-                    alignContent: "center",
-                    gap: 2,
-                  }}
-                  title={option.description}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
         </div>
       </div>
 
@@ -4877,64 +4549,11 @@ function FluteRoadView(props: {
     <div className="trainer-flute-view" style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "grid", gap: 4 }}>
-          <div className="pill" style={{ width: "fit-content" }}>
-            {isReverseMode ? "Reverse practice" : "Rainfall practice"}
-          </div>
           <div style={{ fontSize: 18, fontWeight: 750, letterSpacing: "-0.04em" }}>
             {props.sequenceDrill ? summarizeSequencePath(props.sequenceDrill) : formatTargetLabel(props.checkpointFocus.target)}
           </div>
-          <div style={{ color: "var(--muted)", fontSize: 13 }}>
-            {props.sequenceDrill
-              ? isReverseMode
-                ? `Play the phrase ${summarizeSequencePath(props.sequenceDrill)} and let each played swara fall from the flute.`
-                : `Now ${formatTargetLabel(activeTarget)}${props.sequenceNextStep && props.sequenceNextStep !== props.sequenceCurrentStep ? ` · Next ${formatTargetLabel(props.sequenceNextStep.target)}` : ""}`
-              : isReverseMode
-                ? `Play ${formatTargetLabel(activeTarget)} and let it fall from the flute.`
-                : `Countdown then ${formatTargetLabel(activeTarget)}`}
-          </div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <div
-            role="group"
-            aria-label="Flute road practice mode"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: 4,
-              borderRadius: 999,
-              border: "1px solid rgba(255,255,255,0.08)",
-              background: "rgba(255,255,255,0.03)",
-            }}
-          >
-            {fluteRoadModeOptions.map((option) => {
-              const active = props.fluteRoadMode === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  className="button"
-                  aria-pressed={active}
-                  onClick={() => props.onFluteRoadModeChange(option.value)}
-                  title={option.description}
-                  style={{
-                    minHeight: 30,
-                    padding: "0 11px",
-                    borderRadius: 999,
-                    border: active ? "1px solid rgba(117,184,255,0.36)" : "1px solid transparent",
-                    background: active
-                      ? "linear-gradient(180deg, rgba(117,184,255,0.18), rgba(117,184,255,0.08))"
-                      : "transparent",
-                    color: active ? "var(--text)" : "var(--muted)",
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                  }}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
           {props.onToggleLoop && (
             <button
               onClick={props.onToggleLoop}
@@ -5136,7 +4755,7 @@ function FluteRoadView(props: {
               filter: fluteGlowActive ? "drop-shadow(0 0 18px rgba(0,224,255,0.26))" : undefined,
             }}
           >
-            <rect x="40" y="60" width="1020" height="40" rx="20" fill="url(#trainerFluteWood)" />
+            <rect x="40" y="60" width="920" height="40" rx="20" fill="url(#trainerFluteWood)" />
             <rect x="40" y="60" width="25" height="40" fill="#111" />
             <rect x="65" y="60" width="45" height="40" fill="#B87333" />
             <rect x="110" y="60" width="30" height="40" fill="#111" />
@@ -5161,10 +4780,6 @@ function FluteRoadView(props: {
                 />
               );
             })}
-
-            <rect x="960" y="60" width="50" height="40" fill="#B87333" />
-            <rect x="1010" y="60" width="35" height="40" fill="#111" />
-            <ellipse id="tune" cx="985" cy="92" rx="8" ry="5.5" fill="#111" />
           </g>
 
           {noteTiles.map(tile => {
