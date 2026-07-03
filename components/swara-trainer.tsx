@@ -5108,7 +5108,7 @@ function FluteRoadView(props: {
                   key={tile.key}
                   style={{
                     transform: `translate(0px, ${y}px)`,
-                    opacity,
+                    opacity: opacity * 0.7,
                   }}
                 >
                   {/* Thick glowing background bar */}
@@ -5117,7 +5117,7 @@ function FluteRoadView(props: {
                     y1={0}
                     x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
                     y2={0}
-                    stroke="rgba(0, 224, 255, 0.14)"
+                    stroke="rgba(0, 224, 255, 0.05)"
                     strokeWidth={5}
                   />
                   {/* Sharp dashed line */}
@@ -5126,7 +5126,7 @@ function FluteRoadView(props: {
                     y1={0}
                     x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
                     y2={0}
-                    stroke="rgba(0, 224, 255, 0.62)"
+                    stroke="rgba(0, 224, 255, 0.28)"
                     strokeWidth={1.8}
                     strokeDasharray="6 4"
                   />
