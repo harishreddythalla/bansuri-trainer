@@ -15,6 +15,7 @@ export type SequenceStep = {
   sustainTargetMs: number;
   isAnchor?: boolean;
   hasSpaceAfter?: boolean;
+  hasNewlineAfter?: boolean;
   glyph?: string;
 };
 
@@ -23,10 +24,14 @@ function parseNotation(notation: string, sustainTargetMs: number): SequenceStep[
   const steps: SequenceStep[] = [];
   let cursor = 0;
   let hadSpace = false;
+  let hadNewline = false;
 
   while (cursor < normalized.length) {
     const char = normalized[cursor];
     if (/\s/.test(char)) {
+      if (char === "\n" || char === "\r") {
+        hadNewline = true;
+      }
       hadSpace = true;
       cursor += 1;
       continue;
@@ -42,17 +47,24 @@ function parseNotation(notation: string, sustainTargetMs: number): SequenceStep[
     const target = notationTarget(glyph);
 
     if (target) {
-      if (steps.length > 0 && hadSpace) {
-        steps[steps.length - 1].hasSpaceAfter = true;
+      if (steps.length > 0) {
+        if (hadNewline) {
+          steps[steps.length - 1].hasNewlineAfter = true;
+          steps[steps.length - 1].hasSpaceAfter = true;
+        } else if (hadSpace) {
+          steps[steps.length - 1].hasSpaceAfter = true;
+        }
       }
       steps.push({
         target,
         sustainTargetMs,
         isAnchor: steps.length === 0,
         hasSpaceAfter: false,
+        hasNewlineAfter: false,
         glyph,
       });
       hadSpace = false;
+      hadNewline = false;
     }
 
     cursor += glyph.length;

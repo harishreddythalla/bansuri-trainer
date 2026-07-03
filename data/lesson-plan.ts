@@ -6,6 +6,7 @@ type LegacySequenceStep = {
   sustainTargetMs: number;
   isAnchor?: boolean;
   hasSpaceAfter?: boolean;
+  hasNewlineAfter?: boolean;
   glyph?: string;
 };
 
@@ -88,6 +89,7 @@ function flattenModule(module: CurriculumModule): LessonModule {
               sustainTargetMs: step.sustainTargetMs,
               isAnchor: step.isAnchor,
               hasSpaceAfter: step.hasSpaceAfter,
+              hasNewlineAfter: step.hasNewlineAfter,
               glyph: step.glyph,
             })),
             sequenceRules: checkpoint.sequenceRules,

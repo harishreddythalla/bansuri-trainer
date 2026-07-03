@@ -1232,23 +1232,81 @@ export function SwaraTrainer() {
     }
   }, [clearedCheckpoint, selectedStepId]);
 
-  const [headerTranslateX, setHeaderTranslateX] = useState(0);
+  const noteLines = useMemo(() => {
+    if (!sequenceDrill) return [];
+    
+    const lines: Array<{
+      lineIndex: number;
+      groups: Array<{
+        startIndex: number;
+        endIndex: number;
+        steps: typeof sequenceDrill.steps;
+      }>;
+    }> = [];
+    
+    let currentLineGroups: Array<{
+      startIndex: number;
+      endIndex: number;
+      steps: typeof sequenceDrill.steps;
+    }> = [];
+    
+    let currentGroupSteps: typeof sequenceDrill.steps = [];
+    let groupStartIdx = 0;
+    
+    sequenceDrill.steps.forEach((step, idx) => {
+      currentGroupSteps.push(step);
+      
+      const isLastStep = idx === sequenceDrill.steps.length - 1;
+      const shouldCloseGroup = step.hasSpaceAfter || step.hasNewlineAfter || isLastStep;
+      const shouldCloseLine = step.hasNewlineAfter || isLastStep;
+      
+      if (shouldCloseGroup) {
+        currentLineGroups.push({
+          startIndex: groupStartIdx,
+          endIndex: idx,
+          steps: currentGroupSteps,
+        });
+        currentGroupSteps = [];
+        groupStartIdx = idx + 1;
+      }
+      
+      if (shouldCloseLine) {
+        lines.push({
+          lineIndex: lines.length,
+          groups: currentLineGroups,
+        });
+        currentLineGroups = [];
+      }
+    });
+    
+    return lines;
+  }, [sequenceDrill]);
+
+  const activeLineIndex = useMemo(() => {
+    return noteLines.findIndex((line) => {
+      const start = line.groups[0].startIndex;
+      const end = line.groups[line.groups.length - 1].endIndex;
+      return activeVisualIndex >= start && activeVisualIndex <= end;
+    });
+  }, [noteLines, activeVisualIndex]);
+
+  const [headerTranslateY, setHeaderTranslateY] = useState(0);
   const headerScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const wrapper = headerScrollRef.current;
     if (!wrapper) return;
-    const activeSpan = wrapper.querySelector(".active-note");
-    if (activeSpan instanceof HTMLElement) {
+    const activeLine = wrapper.querySelector(".active-line");
+    if (activeLine instanceof HTMLElement) {
       const parent = wrapper.parentElement;
       if (parent) {
-        const viewportWidth = parent.clientWidth;
-        const noteCenter = activeSpan.offsetLeft + activeSpan.offsetWidth / 2;
-        setHeaderTranslateX(-noteCenter + viewportWidth / 2);
+        const viewportHeight = parent.clientHeight;
+        const lineCenter = activeLine.offsetTop + activeLine.offsetHeight / 2;
+        setHeaderTranslateY(-lineCenter + viewportHeight / 2);
       }
     } else {
-      setHeaderTranslateX(0);
+      setHeaderTranslateY(0);
     }
-  }, [activeVisualIndex]);
+  }, [activeLineIndex]);
 
   function noteKeyForReading(reading: DetectedSwara | null | undefined) {
     return reading ? `${reading.swara}-${reading.octave}` : null;
@@ -2324,31 +2382,6 @@ export function SwaraTrainer() {
   }
 
   const scoreValue = analysis.detected ? result.score : null;
-
-  const noteGroups = useMemo(() => {
-    if (!sequenceDrill) return [];
-    const groups: Array<{
-      startIndex: number;
-      endIndex: number;
-      steps: typeof sequenceDrill.steps;
-    }> = [];
-    let currentGroupSteps: typeof sequenceDrill.steps = [];
-    let groupStartIdx = 0;
-
-    sequenceDrill.steps.forEach((step, idx) => {
-      currentGroupSteps.push(step);
-      if (step.hasSpaceAfter || idx === sequenceDrill.steps.length - 1) {
-        groups.push({
-          startIndex: groupStartIdx,
-          endIndex: idx,
-          steps: currentGroupSteps,
-        });
-        currentGroupSteps = [];
-        groupStartIdx = idx + 1;
-      }
-    });
-    return groups;
-  }, [sequenceDrill]);
   const sequenceRagaGrammar = isRagaGrammarSequence(sequenceDrill);
   const sequenceCurrentIndex = sequenceDrill
     ? Math.min(sequenceProgress.stepIndex, Math.max(0, sequenceDrill.steps.length - 1))
@@ -2722,103 +2755,129 @@ export function SwaraTrainer() {
                     {sequenceDrill && (
                       <div
                         style={{
-                          width: "min(600px, 50vw)",
+                          height: 110,
                           overflow: "hidden",
                           position: "relative",
+                          width: "min(600px, 95vw)",
                           padding: "4px 0",
-                          maskImage: "linear-gradient(to right, transparent, white 15%, white 85%, transparent)",
-                          WebkitMaskImage: "linear-gradient(to right, transparent, white 15%, white 85%, transparent)",
+                          maskImage: "linear-gradient(to bottom, transparent, white 20%, white 80%, transparent)",
+                          WebkitMaskImage: "linear-gradient(to bottom, transparent, white 20%, white 80%, transparent)",
                         }}
                       >
                         <div
                           ref={headerScrollRef}
                           style={{
                             display: "flex",
-                            alignItems: "center",
-                            gap: 10,
-                            transform: `translate3d(${headerTranslateX}px, 0, 0)`,
+                            flexDirection: "column",
+                            gap: 8,
+                            transform: `translate3d(0, ${headerTranslateY}px, 0)`,
                             transition: "transform 0.4s cubic-bezier(0.25, 1, 0.25, 1)",
                             willChange: "transform",
                           }}
                         >
-                          {noteGroups.map((group, groupIdx) => {
-                            let isGroupActive = false;
-                            let isGroupPassed = true;
-
-                            for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
-                              const visual = sequenceVisualStates[idx];
-                              if (visual) {
-                                if (visual.isActive) isGroupActive = true;
-                                if (!visual.isPassed) isGroupPassed = false;
-                              } else {
-                                isGroupPassed = false;
-                              }
-                            }
-
-                            let bg = "rgba(255,255,255,0.02)";
-                            let border = "1px solid rgba(255,255,255,0.06)";
-
-                            if (isGroupPassed) {
-                              bg = "rgba(46, 213, 115, 0.03)";
-                              border = "1px solid rgba(46, 213, 115, 0.18)";
-                            } else if (isGroupActive) {
-                              bg = "rgba(0, 224, 255, 0.08)";
-                              border = "1px solid rgba(0, 224, 255, 0.4)";
-                            }
+                          {noteLines.map((line, lineIdx) => {
+                            const lineStart = line.groups[0].startIndex;
+                            const lineEnd = line.groups[line.groups.length - 1].endIndex;
+                            const isLineActive = activeVisualIndex >= lineStart && activeVisualIndex <= lineEnd;
+                            const isLinePassed = activeVisualIndex > lineEnd;
 
                             return (
                               <div
-                                key={groupIdx}
+                                key={lineIdx}
+                                className={isLineActive ? "active-line" : ""}
                                 style={{
-                                  display: "inline-flex",
+                                  display: "flex",
                                   alignItems: "center",
-                                  padding: "3px 6px",
-                                  borderRadius: 8,
-                                  background: bg,
-                                  border,
-                                  gap: 4,
-                                  flexShrink: 0,
-                                  transition: "all 0.25s ease",
+                                  gap: 8,
+                                  flexWrap: "wrap",
+                                  padding: "2px 0",
+                                  opacity: isLineActive ? 1 : isLinePassed ? 0.42 : 0.22,
+                                  transform: isLineActive ? "scale(1)" : "scale(0.96)",
+                                  transformOrigin: "left center",
+                                  transition: "all 0.3s ease",
                                 }}
                               >
-                                {group.steps.map((step, stepIdx) => {
-                                  const globalIdx = group.startIndex + stepIdx;
-                                  const visual = sequenceVisualStates[globalIdx];
-                                  const isPassed = visual ? visual.isPassed : false;
-                                  const isActive = visual ? visual.isActive : false;
+                                {line.groups.map((group, groupIdx) => {
+                                  let isGroupActive = false;
+                                  let isGroupPassed = true;
 
-                                  let color = "rgba(255,255,255,0.7)";
-                                  let fontWeight = 500;
-                                  let scale = 1;
+                                  for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
+                                    const visual = sequenceVisualStates[idx];
+                                    if (visual) {
+                                      if (visual.isActive) isGroupActive = true;
+                                      if (!visual.isPassed) isGroupPassed = false;
+                                    } else {
+                                      isGroupPassed = false;
+                                    }
+                                  }
 
-                                  if (isPassed) {
-                                    color = "rgba(46, 213, 115, 0.65)";
-                                  } else if (isActive) {
-                                    color = "rgba(219, 255, 247, 0.98)";
-                                    fontWeight = 750;
-                                    scale = 1.1;
+                                  let bg = "rgba(255,255,255,0.02)";
+                                  let border = "1px solid rgba(255,255,255,0.06)";
+
+                                  if (isGroupPassed) {
+                                    bg = "rgba(46, 213, 115, 0.03)";
+                                    border = "1px solid rgba(46, 213, 115, 0.18)";
+                                  } else if (isGroupActive) {
+                                    bg = "rgba(0, 224, 255, 0.08)";
+                                    border = "1px solid rgba(0, 224, 255, 0.4)";
                                   }
 
                                   return (
-                                    <span
-                                      key={`${step.target.swara}-${globalIdx}`}
-                                      className={isActive ? "active-note" : ""}
+                                    <div
+                                      key={groupIdx}
                                       style={{
                                         display: "inline-flex",
                                         alignItems: "center",
-                                        justifyContent: "center",
-                                        minWidth: 20,
-                                        height: 18,
-                                        fontSize: 11,
-                                        fontWeight,
-                                        color,
-                                        transform: `scale(${scale})`,
-                                        transition: "all 0.2s ease",
+                                        padding: "3px 6px",
+                                        borderRadius: 8,
+                                        background: bg,
+                                        border,
+                                        gap: 4,
                                         flexShrink: 0,
+                                        transition: "all 0.25s ease",
                                       }}
                                     >
-                                      {step.glyph ?? step.target.swara}
-                                    </span>
+                                      {group.steps.map((step, stepIdx) => {
+                                        const globalIdx = group.startIndex + stepIdx;
+                                        const visual = sequenceVisualStates[globalIdx];
+                                        const isPassed = visual ? visual.isPassed : false;
+                                        const isActive = visual ? visual.isActive : false;
+
+                                        let color = "rgba(255,255,255,0.7)";
+                                        let fontWeight = 500;
+                                        let scale = 1;
+
+                                        if (isPassed) {
+                                          color = "rgba(46, 213, 115, 0.65)";
+                                        } else if (isActive) {
+                                          color = "rgba(219, 255, 247, 0.98)";
+                                          fontWeight = 750;
+                                          scale = 1.1;
+                                        }
+
+                                        return (
+                                          <span
+                                            key={`${step.target.swara}-${globalIdx}`}
+                                            className={isActive ? "active-note" : ""}
+                                            style={{
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              justifyContent: "center",
+                                              minWidth: 20,
+                                              height: 18,
+                                              fontSize: 11,
+                                              fontWeight,
+                                              color,
+                                              transform: `scale(${scale})`,
+                                              transition: "all 0.2s ease",
+                                              flexShrink: 0,
+                                            }}
+                                          >
+                                            {step.glyph ?? step.target.swara}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
                                   );
                                 })}
                               </div>
