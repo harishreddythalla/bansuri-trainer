@@ -2510,10 +2510,9 @@ export function SwaraTrainer() {
   const metricCardReservedHeight = useTwoColMetrics ? 144 : 80;
   // Account for non-SVG height in SignalTrace card (108px) + overlay gap (10px) + margins (30px)
   const bottomSectionHeight = sequenceDrill ? 100 : 80;
-  const pitchTrackerBuffer = leftRailOpen ? 28 : 62;
   const computedPitchTrackerHeight = isLiveCardFullscreen
     ? 340
-    : Math.max(140, computedOverlayHeight - bottomSectionHeight - pitchTrackerBuffer);
+    : Math.max(140, computedOverlayHeight - bottomSectionHeight - 42);
 
   return (
     <main className="shell trainer-page" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
@@ -2588,13 +2587,13 @@ export function SwaraTrainer() {
         className="trainer-layout"
         style={{
           display: "grid",
-          gridTemplateColumns: leftRailOpen ? "minmax(280px, 0.82fr) minmax(0, 1.9fr)" : "1fr",
+          gridTemplateColumns: "minmax(280px, 0.82fr) minmax(0, 1.9fr)",
           gap: 12,
           alignItems: "start",
           minHeight: "calc(100vh - 260px)",
         }}
       >
-        {leftRailOpen && (
+        {true && (
           <aside
             className="trainer-rail"
             style={{
@@ -2726,30 +2725,6 @@ export function SwaraTrainer() {
                 }}
               >
                 <div style={{ display: "flex", gap: 12, alignItems: "start" }}>
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={handleToggleLeftRail}
-                    aria-label={leftRailOpen ? "Collapse sidebar panels" : "Expand sidebar panels"}
-                    title={leftRailOpen ? "Collapse sidebar panels" : "Expand sidebar panels"}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      minWidth: 32,
-                      minHeight: 32,
-                      padding: 0,
-                      borderRadius: 10,
-                      display: "grid",
-                      placeItems: "center",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                      background: "rgba(255,255,255,0.04)",
-                      color: "var(--muted)",
-                      cursor: "pointer",
-                      marginTop: 2,
-                    }}
-                  >
-                    {leftRailOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-                  </button>
                   <div style={{ display: "grid", gap: 4 }}>
                     {currentModule && (
                       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>
@@ -3047,13 +3022,12 @@ export function SwaraTrainer() {
                     left: 20,
                     width: computedOverlayWidth + "px",
                     top: 20,
-                    bottom: "auto",
-                    height: computedOverlayHeight + "px",
+                    bottom: layoutSvgRenderedHeight - layoutFluteBodyScreenY + 15,
                     zIndex: 10,
                     pointerEvents: "none",
                     display: "flex",
                     flexDirection: "column",
-                    justifyContent: "start",
+                    justifyContent: "flex-end",
                     gap: isLiveCardFullscreen ? 16 : 10,
                     padding: "0 8px",
                     overflow: "hidden",
