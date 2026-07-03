@@ -3064,7 +3064,7 @@ export function SwaraTrainer() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
+                      gridTemplateColumns: "2fr 3fr",
                       gap: 12,
                       pointerEvents: "auto",
                       flexShrink: 0,
