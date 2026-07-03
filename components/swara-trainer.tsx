@@ -3056,142 +3056,6 @@ export function SwaraTrainer() {
                     overflow: "hidden",
                   }}
                 >
-                  {sequenceDrill && (
-                    <div style={{ pointerEvents: "auto", flexShrink: 0, marginBottom: 4 }}>
-                      <div
-                        ref={headerViewportRef}
-                        onScroll={handleHeaderScroll}
-                        style={{
-                          height: 110,
-                          overflowY: "auto",
-                          position: "relative",
-                          width: "100%",
-                          padding: "4px 0",
-                          maskImage: "linear-gradient(to bottom, transparent, white 20%, white 80%, transparent)",
-                          WebkitMaskImage: "linear-gradient(to bottom, transparent, white 20%, white 80%, transparent)",
-                        }}
-                        className="hide-scrollbar"
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 8,
-                          }}
-                        >
-                          {noteLines.map((line, lineIdx) => {
-                            const lineStart = line.groups[0].startIndex;
-                            const lineEnd = line.groups[line.groups.length - 1].endIndex;
-                            const isLineActive = lineIdx === activeLineIndex;
-                            const isLinePassed = activeLineIndex > lineIdx;
-
-                            return (
-                              <div
-                                key={lineIdx}
-                                className={isLineActive ? "active-line" : ""}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 8,
-                                  flexWrap: "wrap",
-                                  padding: "2px 0",
-                                  opacity: isLineActive ? 1 : isLinePassed ? 0.70 : 0.55,
-                                  transform: isLineActive ? "scale(1)" : "scale(0.98)",
-                                  transformOrigin: "left center",
-                                  transition: "all 0.3s ease",
-                                }}
-                              >
-                                {line.groups.map((group, groupIdx) => {
-                                  let isGroupActive = false;
-                                  let isGroupPassed = true;
-
-                                  for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
-                                    const visual = sequenceVisualStates[idx];
-                                    if (visual) {
-                                      if (visual.isActive) isGroupActive = true;
-                                      if (!visual.isPassed) isGroupPassed = false;
-                                    } else {
-                                      isGroupPassed = false;
-                                    }
-                                  }
-
-                                  let bg = "rgba(255,255,255,0.02)";
-                                  let border = "1px solid rgba(255,255,255,0.06)";
-
-                                  if (isGroupPassed) {
-                                    bg = "rgba(46, 213, 115, 0.03)";
-                                    border = "1px solid rgba(46, 213, 115, 0.18)";
-                                  } else if (isGroupActive) {
-                                    bg = "rgba(0, 224, 255, 0.08)";
-                                    border = "1px solid rgba(0, 224, 255, 0.4)";
-                                  }
-
-                                  return (
-                                    <div
-                                      key={groupIdx}
-                                      style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        padding: "3px 5px",
-                                        borderRadius: 8,
-                                        background: bg,
-                                        border,
-                                        gap: 2,
-                                        flexShrink: 0,
-                                        transition: "all 0.25s ease",
-                                      }}
-                                    >
-                                      {group.steps.map((step, stepIdx) => {
-                                        const globalIdx = group.startIndex + stepIdx;
-                                        const visual = sequenceVisualStates[globalIdx];
-                                        const isPassed = visual ? visual.isPassed : false;
-                                        const isActive = visual ? visual.isActive : false;
-
-                                        let color = "rgba(255,255,255,0.7)";
-                                        let fontWeight = 500;
-                                        let scale = 1;
-
-                                        if (isPassed) {
-                                          color = "rgba(46, 213, 115, 0.65)";
-                                        } else if (isActive) {
-                                          color = "rgba(219, 255, 247, 0.98)";
-                                          fontWeight = 750;
-                                          scale = 1.1;
-                                        }
-
-                                        return (
-                                          <span
-                                            key={`${step.target.swara}-${globalIdx}`}
-                                            className={isActive ? "active-note" : ""}
-                                            style={{
-                                              display: "inline-flex",
-                                              alignItems: "center",
-                                              justifyContent: "center",
-                                              minWidth: 16,
-                                              height: 18,
-                                              fontSize: 11,
-                                              fontWeight,
-                                              color,
-                                              transform: `scale(${scale})`,
-                                              transition: "all 0.2s ease",
-                                              flexShrink: 0,
-                                            }}
-                                          >
-                                            {step.glyph ?? step.target.swara}
-                                          </span>
-                                        );
-                                      })}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   <div style={{ pointerEvents: "auto" }}>
                     <SignalTrace
                       className="trainer-signal-trace"
@@ -3222,52 +3086,214 @@ export function SwaraTrainer() {
 
                   <div
                     style={{
-                      pointerEvents: "auto",
                       display: "grid",
-                      gridTemplateColumns: useTwoColMetrics ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
-                      gap: 8,
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 12,
+                      pointerEvents: "auto",
+                      flexShrink: 0,
                     }}
                   >
-                    <MetricCard
-                      label="Stability"
-                      value={analysis.stability != null ? `${Math.round(analysis.stability)}` : null}
-                      subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "—"}
-                      hint="Less wobble is better"
-                      trend={analysis.trend}
-                      sparkMetric="stability"
-                      range={[0, 100]}
-                      sparkMode="high"
-                    />
-                    <MetricCard
-                      label="Tone clarity"
-                      value={analysis.confidence != null ? `${Math.round((analysis.confidence ?? 0) * 100)}%` : null}
-                      subvalue={analysis.detected ? describeConfidence(analysis.confidence ?? 0) : "—"}
-                      hint="Airy vs clear tone"
-                      trend={analysis.trend}
-                      sparkMetric="confidence"
-                      range={[0, 100]}
-                      sparkMode="high"
-                    />
-                    <MetricCard
-                      label="Noise"
-                      value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : null}
-                      subvalue={analysis.detected ? "Lower is cleaner" : "—"}
-                      hint="Background noise"
-                      trend={analysis.trend}
-                      sparkMetric="noise"
-                      range={[0, 100]}
-                      sparkMode="low"
-                    />
-                    <MetricCard
-                      label="Blow strength"
-                      value={analysis.energy != null ? `${Math.round(analysis.energy)}` : null}
-                      subvalue={analysis.detected ? describeEnergy(analysis.energy ?? 0) : "—"}
-                      hint="Blow strength"
-                      trend={analysis.trend}
-                      sparkMetric="energy"
-                      range={[0, 100]}
-                      sparkMode="high"
-                    />
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, 1fr)",
+                        gap: 8,
+                      }}
+                    >
+                      <MetricCard
+                        label="Stability"
+                        value={analysis.stability != null ? `${Math.round(analysis.stability)}` : null}
+                        subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "—"}
+                        hint="Less wobble is better"
+                        trend={analysis.trend}
+                        sparkMetric="stability"
+                        range={[0, 100]}
+                        sparkMode="high"
+                      />
+                      <MetricCard
+                        label="Tone clarity"
+                        value={analysis.confidence != null ? `${Math.round((analysis.confidence ?? 0) * 100)}%` : null}
+                        subvalue={analysis.detected ? describeConfidence(analysis.confidence ?? 0) : "—"}
+                        hint="Airy vs clear tone"
+                        trend={analysis.trend}
+                        sparkMetric="confidence"
+                        range={[0, 100]}
+                        sparkMode="high"
+                      />
+                      <MetricCard
+                        label="Noise"
+                        value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : null}
+                        subvalue={analysis.detected ? "Lower is cleaner" : "—"}
+                        hint="Background noise"
+                        trend={analysis.trend}
+                        sparkMetric="noise"
+                        range={[0, 100]}
+                        sparkMode="low"
+                      />
+                      <MetricCard
+                        label="Blow strength"
+                        value={analysis.energy != null ? `${Math.round(analysis.energy)}` : null}
+                        subvalue={analysis.detected ? describeEnergy(analysis.energy ?? 0) : "—"}
+                        hint="Blow strength"
+                        trend={analysis.trend}
+                        sparkMetric="energy"
+                        range={[0, 100]}
+                        sparkMode="high"
+                      />
+                    </div>
+
+                    <div
+                      style={{
+                        position: "relative",
+                        background: "rgba(255,255,255,0.02)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        borderRadius: 12,
+                        padding: "6px 10px",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                        overflow: "hidden",
+                        minHeight: 80,
+                        height: "100%",
+                      }}
+                    >
+                      {sequenceDrill ? (
+                        <div
+                          ref={headerViewportRef}
+                          onScroll={handleHeaderScroll}
+                          style={{
+                            height: 72,
+                            overflowY: "auto",
+                            position: "relative",
+                            width: "100%",
+                            maskImage: "linear-gradient(to bottom, transparent, white 20%, white 80%, transparent)",
+                            WebkitMaskImage: "linear-gradient(to bottom, transparent, white 20%, white 80%, transparent)",
+                          }}
+                          className="hide-scrollbar"
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 6,
+                            }}
+                          >
+                            {noteLines.map((line, lineIdx) => {
+                              const lineStart = line.groups[0].startIndex;
+                              const lineEnd = line.groups[line.groups.length - 1].endIndex;
+                              const isLineActive = lineIdx === activeLineIndex;
+                              const isLinePassed = activeLineIndex > lineIdx;
+
+                              return (
+                                <div
+                                  key={lineIdx}
+                                  className={isLineActive ? "active-line" : ""}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    flexWrap: "wrap",
+                                    padding: "2px 0",
+                                    opacity: isLineActive ? 1 : isLinePassed ? 0.70 : 0.55,
+                                    transform: isLineActive ? "scale(1)" : "scale(0.98)",
+                                    transformOrigin: "left center",
+                                    transition: "all 0.3s ease",
+                                  }}
+                                >
+                                  {line.groups.map((group, groupIdx) => {
+                                    let isGroupActive = false;
+                                    let isGroupPassed = true;
+
+                                    for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
+                                      const visual = sequenceVisualStates[idx];
+                                      if (visual) {
+                                        if (visual.isActive) isGroupActive = true;
+                                        if (!visual.isPassed) isGroupPassed = false;
+                                      } else {
+                                        isGroupPassed = false;
+                                      }
+                                    }
+
+                                    let bg = "rgba(255,255,255,0.02)";
+                                    let border = "1px solid rgba(255,255,255,0.06)";
+
+                                    if (isGroupPassed) {
+                                      bg = "rgba(46, 213, 115, 0.03)";
+                                      border = "1px solid rgba(46, 213, 115, 0.18)";
+                                    } else if (isGroupActive) {
+                                      bg = "rgba(0, 224, 255, 0.08)";
+                                      border = "1px solid rgba(0, 224, 255, 0.4)";
+                                    }
+
+                                    return (
+                                      <div
+                                        key={groupIdx}
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          padding: "3px 5px",
+                                          borderRadius: 8,
+                                          background: bg,
+                                          border,
+                                          gap: 2,
+                                          flexShrink: 0,
+                                          transition: "all 0.25s ease",
+                                        }}
+                                      >
+                                        {group.steps.map((step, stepIdx) => {
+                                          const globalIdx = group.startIndex + stepIdx;
+                                          const visual = sequenceVisualStates[globalIdx];
+                                          const isPassed = visual ? visual.isPassed : false;
+                                          const isActive = visual ? visual.isActive : false;
+
+                                          let color = "rgba(255,255,255,0.7)";
+                                          let fontWeight = 500;
+                                          let scale = 1;
+
+                                          if (isPassed) {
+                                            color = "rgba(46, 213, 115, 0.65)";
+                                          } else if (isActive) {
+                                            color = "rgba(219, 255, 247, 0.98)";
+                                            fontWeight = 750;
+                                            scale = 1.1;
+                                          }
+
+                                          return (
+                                            <span
+                                              key={`${step.target.swara}-${globalIdx}`}
+                                              className={isActive ? "active-note" : ""}
+                                              style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                minWidth: 16,
+                                                height: 16,
+                                                fontSize: 11,
+                                                fontWeight,
+                                                color,
+                                                transform: `scale(${scale})`,
+                                                transition: "all 0.2s ease",
+                                                flexShrink: 0,
+                                              }}
+                                            >
+                                              {step.glyph ?? step.target.swara}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 11.5, fontWeight: 600 }}>
+                          Select an Alankar sequence to view notes
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
