@@ -3122,10 +3122,10 @@ export function SwaraTrainer() {
                     <div
                       style={{
                         position: "relative",
-                        background: "rgba(255,255,255,0.02)",
+                        background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(7, 14, 24, 0.4) 50%, rgba(255,255,255,0.03) 100%)",
                         border: "1px solid rgba(255,255,255,0.06)",
                         borderRadius: 12,
-                        padding: "6px 10px",
+                        padding: "10px 12px",
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "center",
@@ -3134,6 +3134,33 @@ export function SwaraTrainer() {
                         height: "100%",
                       }}
                     >
+                      {/* Top subtle gradient overlay */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 18,
+                          background: "linear-gradient(180deg, rgba(6, 18, 16, 0.85) 0%, transparent 100%)",
+                          pointerEvents: "none",
+                          zIndex: 5,
+                        }}
+                      />
+                      {/* Bottom subtle gradient overlay */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
+                          height: 18,
+                          background: "linear-gradient(360deg, rgba(6, 18, 16, 0.85) 0%, transparent 100%)",
+                          pointerEvents: "none",
+                          zIndex: 5,
+                        }}
+                      />
+
                       {sequenceDrill ? (
                         <div
                           ref={headerViewportRef}
@@ -3156,10 +3183,19 @@ export function SwaraTrainer() {
                             }}
                           >
                             {noteLines.map((line, lineIdx) => {
-                              const lineStart = line.groups[0].startIndex;
-                              const lineEnd = line.groups[line.groups.length - 1].endIndex;
                               const isLineActive = lineIdx === activeLineIndex;
-                              const isLinePassed = activeLineIndex > lineIdx;
+                              const distance = Math.abs(lineIdx - activeLineIndex);
+
+                              let lineScale = 0.88;
+                              let lineOpacity = 0.40;
+
+                              if (distance === 0) {
+                                lineScale = 1.08;
+                                lineOpacity = 1.0;
+                              } else if (distance === 1) {
+                                lineScale = 0.98;
+                                lineOpacity = 0.70;
+                              }
 
                               return (
                                 <div
@@ -3172,8 +3208,8 @@ export function SwaraTrainer() {
                                     gap: 8,
                                     flexWrap: "wrap",
                                     padding: "2px 0",
-                                    opacity: isLineActive ? 1 : isLinePassed ? 0.70 : 0.55,
-                                    transform: isLineActive ? "scale(1)" : "scale(0.98)",
+                                    opacity: lineOpacity,
+                                    transform: `scale(${lineScale})`,
                                     transformOrigin: "center center",
                                     transition: "all 0.3s ease",
                                   }}
@@ -3870,7 +3906,7 @@ function SwaraReferencePanel(props: {
                           whiteSpace: "nowrap",
                         }}
                       >
-                         {row && playable ? `${Math.round(row.frequency)} Hz` : "—"}
+                        {row && playable ? `${Math.round(row.frequency)} Hz` : "—"}
                       </td>
                     );
                   })}
