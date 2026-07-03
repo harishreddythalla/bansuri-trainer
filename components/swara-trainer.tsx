@@ -1300,6 +1300,31 @@ export function SwaraTrainer() {
   const headerViewportRef = useRef<HTMLDivElement>(null);
   const userScrollTimeoutRef = useRef<number | null>(null);
   const isUserScrollingRef = useRef(false);
+  const [magnifiedLineIndex, setMagnifiedLineIndex] = useState(0);
+
+  const updateMagnifiedLine = useCallback(() => {
+    const viewport = headerViewportRef.current;
+    if (!viewport) return;
+    const scrollTop = viewport.scrollTop;
+    const viewportCenter = scrollTop + viewport.clientHeight / 2;
+
+    const lines = viewport.querySelectorAll(".prompter-line");
+    let closestIdx = 0;
+    let minDistance = Infinity;
+
+    lines.forEach((line, idx) => {
+      if (line instanceof HTMLElement) {
+        const lineCenter = line.offsetTop + line.offsetHeight / 2;
+        const dist = Math.abs(lineCenter - viewportCenter);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestIdx = idx;
+        }
+      }
+    });
+
+    setMagnifiedLineIndex(closestIdx);
+  }, []);
 
   const triggerAutoscroll = useCallback(() => {
     const viewport = headerViewportRef.current;
@@ -1316,6 +1341,7 @@ export function SwaraTrainer() {
   }, []);
 
   const handleHeaderScroll = () => {
+    updateMagnifiedLine();
     isUserScrollingRef.current = true;
 
     if (userScrollTimeoutRef.current) {
@@ -1333,6 +1359,10 @@ export function SwaraTrainer() {
       triggerAutoscroll();
     }
   }, [activeLineIndex, triggerAutoscroll]);
+
+  useEffect(() => {
+    updateMagnifiedLine();
+  }, [noteLines, activeLineIndex, updateMagnifiedLine]);
 
   function noteKeyForReading(reading: DetectedSwara | null | undefined) {
     return reading ? `${reading.swara}-${reading.octave}` : null;
@@ -3180,27 +3210,28 @@ export function SwaraTrainer() {
                               display: "flex",
                               flexDirection: "column",
                               gap: 6,
+                              padding: "38px 0",
                             }}
                           >
                             {noteLines.map((line, lineIdx) => {
                               const isLineActive = lineIdx === activeLineIndex;
-                              const distance = Math.abs(lineIdx - activeLineIndex);
+                              const distance = Math.abs(lineIdx - magnifiedLineIndex);
 
                               let lineScale = 0.88;
-                              let lineOpacity = 0.40;
+                              let lineOpacity = 0.70;
 
                               if (distance === 0) {
                                 lineScale = 1.08;
                                 lineOpacity = 1.0;
                               } else if (distance === 1) {
                                 lineScale = 0.98;
-                                lineOpacity = 0.70;
+                                lineOpacity = 0.85;
                               }
 
                               return (
                                 <div
                                   key={lineIdx}
-                                  className={isLineActive ? "active-line" : ""}
+                                  className={isLineActive ? "active-line prompter-line" : "prompter-line"}
                                   style={{
                                     display: "flex",
                                     justifyContent: "center",
@@ -3211,7 +3242,7 @@ export function SwaraTrainer() {
                                     opacity: lineOpacity,
                                     transform: `scale(${lineScale})`,
                                     transformOrigin: "center center",
-                                    transition: "all 0.3s ease",
+                                    transition: "opacity 0.4s cubic-bezier(0.25, 1, 0.25, 1), transform 0.4s cubic-bezier(0.25, 1, 0.25, 1)",
                                   }}
                                 >
                                   {line.groups.map((group, groupIdx) => {
@@ -3260,14 +3291,14 @@ export function SwaraTrainer() {
                                           const isPassed = visual ? visual.isPassed : false;
                                           const isActive = visual ? visual.isActive : false;
 
-                                          let color = "rgba(255,255,255,0.7)";
+                                          let color = "rgba(255,255,255,0.85)";
                                           let fontWeight = 500;
                                           let scale = 1;
 
                                           if (isPassed) {
-                                            color = "rgba(46, 213, 115, 0.65)";
+                                            color = "rgba(46, 213, 115, 0.9)";
                                           } else if (isActive) {
-                                            color = "rgba(219, 255, 247, 0.98)";
+                                            color = "rgba(219, 255, 247, 1)";
                                             fontWeight = 750;
                                             scale = 1.1;
                                           }
