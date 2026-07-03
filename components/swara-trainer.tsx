@@ -4952,7 +4952,6 @@ function FluteRoadView(props: {
     const results: any[] = [tile];
 
     if (step.hasSpaceAfter) {
-      const dividerArrivalAt = noteCursor + step.sustainTargetMs + 120; // 120ms (center of inter-group gap)
       results.push({
         kind: "divider" as const,
         key: `divider-${index}`,
@@ -4960,7 +4959,7 @@ function FluteRoadView(props: {
         swara: step.target.swara,
         octave: step.target.octave,
         x: 0,
-        startAt: dividerArrivalAt - MS_TO_FLUTE,
+        startAt: noteCursor + step.sustainTargetMs + 120, // 120ms (center of inter-group gap)
         startY: tileSpawnY,
         targetY: tileEndY,
         travelMs: tileTravelMs,
