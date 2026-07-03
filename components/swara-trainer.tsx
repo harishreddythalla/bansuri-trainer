@@ -2510,9 +2510,10 @@ export function SwaraTrainer() {
   const metricCardReservedHeight = useTwoColMetrics ? 144 : 80;
   // Account for non-SVG height in SignalTrace card (108px) + overlay gap (10px) + margins (30px)
   const bottomSectionHeight = sequenceDrill ? 100 : 80;
+  const pitchTrackerBuffer = leftRailOpen ? 28 : 62;
   const computedPitchTrackerHeight = isLiveCardFullscreen
     ? 340
-    : Math.max(140, computedOverlayHeight - bottomSectionHeight - 42);
+    : Math.max(140, computedOverlayHeight - bottomSectionHeight - pitchTrackerBuffer);
 
   return (
     <main className="shell trainer-page" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
@@ -3046,13 +3047,13 @@ export function SwaraTrainer() {
                     left: 20,
                     width: computedOverlayWidth + "px",
                     top: 20,
-                    bottom: isLiveCardFullscreen ? 20 : "auto",
-                    height: isLiveCardFullscreen ? "auto" : computedOverlayHeight + "px",
+                    bottom: "auto",
+                    height: computedOverlayHeight + "px",
                     zIndex: 10,
                     pointerEvents: "none",
                     display: "flex",
                     flexDirection: "column",
-                    justifyContent: isLiveCardFullscreen ? "flex-end" : "start",
+                    justifyContent: "start",
                     gap: isLiveCardFullscreen ? 16 : 10,
                     padding: "0 8px",
                     overflow: "hidden",
