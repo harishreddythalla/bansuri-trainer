@@ -836,7 +836,7 @@ export function SwaraTrainer() {
 
   const sequenceVisualStates = useMemo(() => {
     if (!sequenceDrill) return [];
-    
+
     const countdownDelayMs = 1000;
     const TILE_PX_PER_MS = 0.10;
     const countdownHeight = 100;
@@ -845,22 +845,22 @@ export function SwaraTrainer() {
     const SPAWN_MARGIN = 58;
     const TILE_SPAWN_Y = -maxTileHeight - SPAWN_MARGIN;
     const MS_TO_FLUTE = Math.round((455 - TILE_SPAWN_Y) / TILE_PX_PER_MS);
-    
+
     const firstNoteArrivalAt = fluteViewStartedAt + 3 * countdownDelayMs + MS_TO_FLUTE;
     let noteCursor = firstNoteArrivalAt - MS_TO_FLUTE;
-    
+
     const now = fluteViewTick;
-    
+
     return sequenceDrill.steps.map((step) => {
       const timeAtFluteTop = noteCursor + MS_TO_FLUTE;
       const timeAtFluteBottom = timeAtFluteTop + step.sustainTargetMs;
-      
+
       // Advance cursor for next step
       noteCursor += step.sustainTargetMs + (step.hasSpaceAfter ? 240 : 0);
-      
+
       const isPassed = now > timeAtFluteBottom;
       const isActive = now >= timeAtFluteTop && now <= timeAtFluteBottom;
-      
+
       return {
         isPassed,
         isActive,
@@ -1234,7 +1234,7 @@ export function SwaraTrainer() {
 
   const noteLines = useMemo(() => {
     if (!sequenceDrill) return [];
-    
+
     const lines: Array<{
       lineIndex: number;
       groups: Array<{
@@ -1243,23 +1243,23 @@ export function SwaraTrainer() {
         steps: typeof sequenceDrill.steps;
       }>;
     }> = [];
-    
+
     let currentLineGroups: Array<{
       startIndex: number;
       endIndex: number;
       steps: typeof sequenceDrill.steps;
     }> = [];
-    
+
     let currentGroupSteps: typeof sequenceDrill.steps = [];
     let groupStartIdx = 0;
-    
+
     sequenceDrill.steps.forEach((step, idx) => {
       currentGroupSteps.push(step);
-      
+
       const isLastStep = idx === sequenceDrill.steps.length - 1;
       const shouldCloseGroup = step.hasSpaceAfter || step.hasNewlineAfter || isLastStep;
       const shouldCloseLine = step.hasNewlineAfter || isLastStep;
-      
+
       if (shouldCloseGroup) {
         currentLineGroups.push({
           startIndex: groupStartIdx,
@@ -1269,7 +1269,7 @@ export function SwaraTrainer() {
         currentGroupSteps = [];
         groupStartIdx = idx + 1;
       }
-      
+
       if (shouldCloseLine) {
         lines.push({
           lineIndex: lines.length,
@@ -1278,7 +1278,7 @@ export function SwaraTrainer() {
         currentLineGroups = [];
       }
     });
-    
+
     return lines;
   }, [sequenceDrill]);
 
@@ -2781,7 +2781,7 @@ export function SwaraTrainer() {
                 </div>
 
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                   <button
+                  <button
                     type="button"
                     className="button button-secondary"
                     onClick={() => {
@@ -3162,7 +3162,7 @@ export function SwaraTrainer() {
                           ref={headerViewportRef}
                           onScroll={handleHeaderScroll}
                           style={{
-                            height: 72,
+                            height: 100,
                             overflowY: "auto",
                             position: "relative",
                             width: "100%",
@@ -3190,13 +3190,14 @@ export function SwaraTrainer() {
                                   className={isLineActive ? "active-line" : ""}
                                   style={{
                                     display: "flex",
+                                    justifyContent: "center",
                                     alignItems: "center",
                                     gap: 8,
                                     flexWrap: "wrap",
                                     padding: "2px 0",
                                     opacity: isLineActive ? 1 : isLinePassed ? 0.70 : 0.55,
                                     transform: isLineActive ? "scale(1)" : "scale(0.98)",
-                                    transformOrigin: "left center",
+                                    transformOrigin: "center center",
                                     transition: "all 0.3s ease",
                                   }}
                                 >
