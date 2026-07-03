@@ -1282,13 +1282,20 @@ export function SwaraTrainer() {
     return lines;
   }, [sequenceDrill]);
 
-  const activeLineIndex = useMemo(() => {
-    return noteLines.findIndex((line) => {
-      const start = line.groups[0].startIndex;
-      const end = line.groups[line.groups.length - 1].endIndex;
-      return activeVisualIndex >= start && activeVisualIndex <= end;
-    });
-  }, [noteLines, activeVisualIndex]);
+  const [activeLineIndex, setActiveLineIndex] = useState(0);
+
+  useEffect(() => {
+    if (activeVisualIndex >= 0) {
+      const foundIdx = noteLines.findIndex((line) => {
+        const start = line.groups[0].startIndex;
+        const end = line.groups[line.groups.length - 1].endIndex;
+        return activeVisualIndex >= start && activeVisualIndex <= end;
+      });
+      if (foundIdx >= 0) {
+        setActiveLineIndex(foundIdx);
+      }
+    }
+  }, [activeVisualIndex, noteLines]);
 
   const headerViewportRef = useRef<HTMLDivElement>(null);
   const userScrollTimeoutRef = useRef<number | null>(null);
@@ -2796,8 +2803,8 @@ export function SwaraTrainer() {
                           {noteLines.map((line, lineIdx) => {
                             const lineStart = line.groups[0].startIndex;
                             const lineEnd = line.groups[line.groups.length - 1].endIndex;
-                            const isLineActive = activeVisualIndex >= lineStart && activeVisualIndex <= lineEnd;
-                            const isLinePassed = activeVisualIndex > lineEnd;
+                            const isLineActive = lineIdx === activeLineIndex;
+                            const isLinePassed = activeLineIndex > lineIdx;
 
                             return (
                               <div
@@ -2809,8 +2816,8 @@ export function SwaraTrainer() {
                                   gap: 8,
                                   flexWrap: "wrap",
                                   padding: "2px 0",
-                                  opacity: isLineActive ? 1 : isLinePassed ? 0.42 : 0.22,
-                                  transform: isLineActive ? "scale(1)" : "scale(0.96)",
+                                  opacity: isLineActive ? 1 : isLinePassed ? 0.70 : 0.55,
+                                  transform: isLineActive ? "scale(1)" : "scale(0.98)",
                                   transformOrigin: "left center",
                                   transition: "all 0.3s ease",
                                 }}
