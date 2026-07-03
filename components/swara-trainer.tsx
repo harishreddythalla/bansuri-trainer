@@ -4895,7 +4895,7 @@ function FluteRoadView(props: {
     tile.startAt = arrivalAt - MS_TO_FLUTE;
   });
 
-  const noteTiles = phraseSteps.map((step, index) => {
+  const noteTiles = phraseSteps.flatMap((step, index) => {
     const lane = fluteLaneForSwara(step.target.swara);
     const palette = noteVisual(step.target.swara, step.target.octave);
     // Height is proportional to sustain so adjacent tiles are gapless
@@ -4949,9 +4949,35 @@ function FluteRoadView(props: {
       isPlayedCorrectly,
     };
 
+    const results: any[] = [tile];
+
+    if (step.hasSpaceAfter) {
+      const dividerArrivalAt = noteCursor + step.sustainTargetMs + 120; // 120ms (center of inter-group gap)
+      results.push({
+        kind: "divider" as const,
+        key: `divider-${index}`,
+        label: "",
+        swara: step.target.swara,
+        octave: step.target.octave,
+        x: 0,
+        startAt: dividerArrivalAt - MS_TO_FLUTE,
+        startY: tileSpawnY,
+        targetY: tileEndY,
+        travelMs: tileTravelMs,
+        height: 0,
+        width: 0,
+        fill: "",
+        stroke: "",
+        textFill: "",
+        glow: "",
+        active: false,
+        isPlayedCorrectly: false,
+      });
+    }
+
     // Advance cursor by the sustain duration. Add an inter-group gap if there is a space after this step in the notation.
     noteCursor += step.sustainTargetMs + (step.hasSpaceAfter ? 240 : 0);
-    return tile;
+    return results;
   });
 
   const visibleReverseTrail = reverseTrail.filter((event) => props.now - event.startedAt <= tileTravelMs + event.durationMs + 400);
@@ -4987,7 +5013,7 @@ function FluteRoadView(props: {
     };
   });
 
-  const tiles = isReverseMode ? reverseTiles : [...countdownTiles, ...noteTiles];
+  const tiles: any[] = isReverseMode ? reverseTiles : [...countdownTiles, ...noteTiles];
 
   const laneActive = (lane: (typeof FLUTE_LANES)[number]) =>
     Boolean(activeDetected && laneContainsSwara(lane, activeDetected.swara));
@@ -5076,6 +5102,39 @@ function FluteRoadView(props: {
               : progress <= 0
                 ? 0
                 : clamp(0.24 + progress * 0.86, 0, 1) * fadeProgress;
+
+            if (tile.kind === "divider") {
+              return (
+                <g
+                  key={tile.key}
+                  style={{
+                    transform: `translate(0px, ${y}px)`,
+                    opacity,
+                  }}
+                >
+                  {/* Thick glowing background bar */}
+                  <line
+                    x1={FLUTE_LANES[0].x - 15}
+                    y1={0}
+                    x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
+                    y2={0}
+                    stroke="rgba(0, 224, 255, 0.14)"
+                    strokeWidth={5}
+                  />
+                  {/* Sharp dashed line */}
+                  <line
+                    x1={FLUTE_LANES[0].x - 15}
+                    y1={0}
+                    x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
+                    y2={0}
+                    stroke="rgba(0, 224, 255, 0.62)"
+                    strokeWidth={1.8}
+                    strokeDasharray="6 4"
+                  />
+                </g>
+              );
+            }
+
             const isCountdown = tile.kind === "countdown";
             const tileWidth = tile.width;
             const noteLabelVisible = tile.kind === "note" && opacity > 0 && y < FLUTE_BOARD_HEIGHT && y + tile.height > 0;
