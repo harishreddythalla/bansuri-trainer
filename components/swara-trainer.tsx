@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Settings, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, Fragment } from "react";
+import { Settings, ChevronLeft, ChevronRight, Play, Pause, RotateCcw, Repeat, Music, Maximize2, Minimize2 } from "lucide-react";
 import { foundationModules } from "@/data/lesson-plan";
 import {
   defaultFluteProfile,
@@ -206,11 +206,11 @@ const FLUTE_BOARD_WIDTH = 1020;
 const FLUTE_BOARD_HEIGHT = 560;
 const FLUTE_BODY_OFFSET_Y = 455;
 const FLUTE_LANES = [
-  { swara: "Ga", targetSwaras: ["Ga", "Ma"], x: 575, hole: "circle" as const, roadLabel: "Ga / Ma" },
-  { swara: "Re", targetSwaras: ["Re"], x: 655, hole: "circle" as const, roadLabel: "Re" },
-  { swara: "Sa", targetSwaras: ["Sa"], x: 735, hole: "circle" as const, roadLabel: "Sa" },
-  { swara: "Ni", targetSwaras: ["Ni"], x: 815, hole: "circle" as const, roadLabel: "Ni" },
-  { swara: "Dha", targetSwaras: ["Dha"], x: 895, hole: "circle" as const, roadLabel: "Dha" },
+  { swara: "Ga", targetSwaras: ["Ga", "Ma"], x: 700, hole: "circle" as const, roadLabel: "Ga / Ma" },
+  { swara: "Re", targetSwaras: ["Re"], x: 755, hole: "circle" as const, roadLabel: "Re" },
+  { swara: "Sa", targetSwaras: ["Sa"], x: 810, hole: "circle" as const, roadLabel: "Sa" },
+  { swara: "Ni", targetSwaras: ["Ni"], x: 865, hole: "circle" as const, roadLabel: "Ni" },
+  { swara: "Dha", targetSwaras: ["Dha"], x: 920, hole: "circle" as const, roadLabel: "Dha" },
   { swara: "Pa", targetSwaras: ["Pa"], x: 975, hole: "circle" as const, roadLabel: "Pa" },
 ] satisfies Array<{ swara: SwaraName; targetSwaras: SwaraName[]; x: number; hole: "circle" | "ellipse"; roadLabel: string }>;
 
@@ -736,17 +736,7 @@ export function SwaraTrainer() {
   const [micStatusToast, setMicStatusToast] = useState<string | null>(null);
   const [fluteMenuOpen, setFluteMenuOpen] = useState(false);
   const [fluteDetectOpen, setFluteDetectOpen] = useState(false);
-  const [leftRailOpen, setLeftRailOpen] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("flute-left-rail-open");
-        if (stored != null) {
-          return stored === "true";
-        }
-      } catch { }
-    }
-    return true;
-  });
+  const [leftRailOpen, setLeftRailOpen] = useState<boolean>(true);
 
   const handleToggleLeftRail = () => {
     setLeftRailOpen((current) => {
@@ -940,6 +930,15 @@ export function SwaraTrainer() {
 
   useEffect(() => {
     setFluteRoadMode(readStoredFluteRoadMode());
+  }, []);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("flute-left-rail-open");
+      if (stored != null) {
+        setLeftRailOpen(stored === "true");
+      }
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -2344,12 +2343,14 @@ export function SwaraTrainer() {
   }));
 
   // Compute dynamic scale and offset in both normal and fullscreen modes for layout choices
+  const currentBoardMaxHeight = (!isLiveCardFullscreen && boardWrapperWidth > 1150) ? 610 : FLUTE_BOARD_HEIGHT;
+  const maxScale = currentBoardMaxHeight / FLUTE_BOARD_HEIGHT;
   let layoutSvgScale = 1;
   if (isLiveCardFullscreen) {
     const containerHeight = typeof window !== "undefined" ? window.innerHeight - 120 : 560;
     layoutSvgScale = Math.min(boardWrapperWidth / FLUTE_BOARD_WIDTH, containerHeight / FLUTE_BOARD_HEIGHT);
   } else {
-    layoutSvgScale = Math.min(boardWrapperWidth / FLUTE_BOARD_WIDTH, 1);
+    layoutSvgScale = Math.min(boardWrapperWidth / FLUTE_BOARD_WIDTH, maxScale);
   }
   const layoutSvgRenderedWidth = FLUTE_BOARD_WIDTH * layoutSvgScale;
   const layoutSvgLeftOffset = boardWrapperWidth - layoutSvgRenderedWidth; // xMaxYMid alignment
@@ -2360,18 +2361,18 @@ export function SwaraTrainer() {
 
   const layoutSvgRenderedHeight = isLiveCardFullscreen
     ? (typeof window !== "undefined" ? window.innerHeight - 120 : 560)
-    : Math.min(boardWrapperWidth * (FLUTE_BOARD_HEIGHT / FLUTE_BOARD_WIDTH), FLUTE_BOARD_HEIGHT);
+    : Math.min(boardWrapperWidth * (currentBoardMaxHeight / FLUTE_BOARD_WIDTH), currentBoardMaxHeight);
   const layoutFluteBodyScreenY = FLUTE_BODY_OFFSET_Y * layoutSvgScale;
-  // 20px top + 20px bottom from flute body; also cap to rendered SVG height with 40px margin
   const computedOverlayHeight = isLiveCardFullscreen
     ? (typeof window !== "undefined" ? window.innerHeight - 160 : 400)
     : Math.min(layoutFluteBodyScreenY - 40, layoutSvgRenderedHeight - 40);
 
   // Reserve space for metric cards: 80px for 4-col row, 144px for 2-col grid (2x rows)
   const metricCardReservedHeight = useTwoColMetrics ? 144 : 80;
+  // Account for non-SVG height in SignalTrace card (108px) + overlay gap (10px) + margins (30px)
   const computedPitchTrackerHeight = isLiveCardFullscreen
-    ? 480
-    : Math.max(140, computedOverlayHeight - metricCardReservedHeight - 20);
+    ? 340
+    : Math.max(140, computedOverlayHeight - metricCardReservedHeight - 148);
 
   return (
     <main className="shell trainer-page" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
@@ -2658,7 +2659,7 @@ export function SwaraTrainer() {
                 </div>
 
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <button
+                   <button
                     type="button"
                     className="button button-secondary"
                     onClick={() => {
@@ -2669,32 +2670,21 @@ export function SwaraTrainer() {
                       }
                     }}
                     style={{
-                      minHeight: 38,
-                      padding: "0 12px",
+                      minHeight: 28,
+                      padding: "0 10px",
                       borderRadius: 999,
-                      fontSize: 13,
+                      fontSize: 11.5,
                       fontWeight: 650,
                       background: "transparent",
                       border: "1px solid rgba(255,255,255,0.15)",
                       cursor: "pointer",
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: 6,
+                      gap: 5,
                     }}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-                    </svg>
-                    Fullscreen
+                    {isLiveCardFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                    <span>{isLiveCardFullscreen ? "Exit" : "Fullscreen"}</span>
                   </button>
 
                   <button
@@ -2702,53 +2692,67 @@ export function SwaraTrainer() {
                     className="button button-secondary"
                     onClick={handleToggleFluteRoadLoop}
                     style={{
-                      minHeight: 38,
-                      padding: "0 12px",
+                      minHeight: 28,
+                      padding: "0 10px",
                       borderRadius: 999,
-                      fontSize: 13,
+                      fontSize: 11.5,
                       fontWeight: 650,
                       background: isFluteRoadLooping ? "rgba(255,255,255,0.15)" : "transparent",
                       border: "1px solid rgba(255,255,255,0.15)",
                       cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
                     }}
                   >
-                    Loop {isFluteRoadLooping ? "ON" : "OFF"}
+                    <Repeat size={12} />
+                    <span>Loop</span>
                   </button>
 
                   <button
                     type="button"
                     className="button button-secondary"
                     onClick={handleToggleFluteRoadPause}
+                    aria-label={isFluteRoadPaused ? "Resume" : "Pause"}
+                    title={isFluteRoadPaused ? "Resume" : "Pause"}
                     style={{
-                      minHeight: 38,
-                      padding: "0 12px",
-                      borderRadius: 999,
-                      fontSize: 13,
-                      fontWeight: 650,
+                      width: 28,
+                      height: 28,
+                      minWidth: 28,
+                      minHeight: 28,
+                      padding: 0,
+                      borderRadius: "50%",
                       background: isFluteRoadPaused ? "rgba(255,255,255,0.15)" : "transparent",
                       border: "1px solid rgba(255,255,255,0.15)",
                       cursor: "pointer",
+                      display: "grid",
+                      placeItems: "center",
                     }}
                   >
-                    {isFluteRoadPaused ? "Resume" : "Pause"}
+                    {isFluteRoadPaused ? <Play size={12} fill="currentColor" /> : <Pause size={12} fill="currentColor" />}
                   </button>
 
                   <button
                     type="button"
                     className="button button-secondary"
                     onClick={handleRetryFluteRoad}
+                    aria-label="Retry"
+                    title="Retry"
                     style={{
-                      minHeight: 38,
-                      padding: "0 12px",
-                      borderRadius: 999,
-                      fontSize: 13,
-                      fontWeight: 650,
+                      width: 28,
+                      height: 28,
+                      minWidth: 28,
+                      minHeight: 28,
+                      padding: 0,
+                      borderRadius: "50%",
                       background: "transparent",
                       border: "1px solid rgba(255,255,255,0.15)",
                       cursor: "pointer",
+                      display: "grid",
+                      placeItems: "center",
                     }}
                   >
-                    Retry
+                    <RotateCcw size={12} />
                   </button>
 
                   <div style={{ position: "relative" }}>
@@ -2759,19 +2763,23 @@ export function SwaraTrainer() {
                       aria-expanded={fluteMenuOpen}
                       aria-haspopup="dialog"
                       style={{
-                        minHeight: 38,
-                        padding: "0 12px",
+                        minHeight: 28,
+                        padding: "0 10px",
                         borderRadius: 999,
                         display: "inline-flex",
-                        gap: 8,
+                        gap: 6,
                         alignItems: "center",
-                        fontSize: 13,
+                        fontSize: 11.5,
                         fontWeight: 650,
+                        background: "transparent",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        cursor: "pointer",
                       }}
                     >
+                      <Music size={12} />
                       <span style={{ opacity: 0.72 }}>Flute</span>
                       <span>{`${tonicLabel}-${fluteProfile.registerLabel}`}</span>
-                      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                      <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true" style={{ opacity: 0.8 }}>
                         <path
                           d="M11.2 2.8l2 2L6 12h-2v-2l7.2-7.2zM2 13h12"
                           fill="none"
@@ -2905,6 +2913,7 @@ export function SwaraTrainer() {
                   isLooping={isFluteRoadLooping}
                   onToggleLoop={handleToggleFluteRoadLoop}
                   isFullscreen={isLiveCardFullscreen}
+                  boardMaxHeight={currentBoardMaxHeight}
                 />
 
                 <div
@@ -4011,8 +4020,10 @@ function SignalTrace(props: {
       }}
     >
       <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div className="pill" style={{ width: "fit-content" }}>Pitch tracker</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.9 }}>
+            Pitch Tracker
+          </div>
           <button
             type="button"
             className="button"
@@ -4212,12 +4223,12 @@ function SignalTrace(props: {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 4,
-                  padding: "2px 6px",
-                  borderRadius: 999,
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(255,255,255,0.06)",
+                  gap: 5,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: "rgba(255, 255, 255, 0.72)",
                   lineHeight: 1,
+                  marginRight: 6,
                 }}
               >
                 <span
@@ -4249,7 +4260,7 @@ function SignalTrace(props: {
           viewBox={`0 0 ${width} ${height}`}
           width="100%"
           height={props.fullscreen ? height : undefined}
-          style={props.fullscreen ? undefined : { height: "auto", display: "block" }}
+          style={props.fullscreen ? undefined : { height: "auto", maxHeight: height, display: "block" }}
           aria-hidden="true"
         >
           {/* Background bands */}
@@ -4389,6 +4400,7 @@ function FluteRoadView(props: {
   sequenceDrill: SequenceLessonStep | null;
   sequenceCurrentIndex: number;
   isFullscreen?: boolean;
+  boardMaxHeight?: number;
   sequenceCurrentStep: SequenceLessonStep["steps"][number] | null;
   sequenceNextStep: SequenceLessonStep["steps"][number] | null;
   pitchToleranceCents: number;
@@ -4544,7 +4556,7 @@ function FluteRoadView(props: {
     targetY: TILE_EXIT_Y,
     travelMs: TILE_TRAVEL_MS,
     height: countdownHeight,
-    width: 42,
+    width: 16,
     fill: "linear-gradient(180deg, rgba(255,214,122,0.96), rgba(255,185,92,0.86))",
     stroke: "rgba(255,241,196,0.46)",
     textFill: "#fff8e7",
@@ -4611,7 +4623,7 @@ function FluteRoadView(props: {
       targetY: tileEndY,
       travelMs: tileTravelMs,
       height: tileHeight,
-      width: 28,
+      width: 16,
       fill: tileFill,
       stroke: tileStroke,
       textFill: "#ffffff",
@@ -4647,7 +4659,7 @@ function FluteRoadView(props: {
       targetY: tileEndY,
       travelMs: tileTravelMs,
       height: tileHeight,
-      width: 28,
+      width: 16,
       fill: event.correct ? tileFill : palette.fill,
       stroke: event.correct ? tileStroke : palette.stroke,
       textFill: "#ffffff",
@@ -4681,7 +4693,7 @@ function FluteRoadView(props: {
           viewBox={`0 0 ${FLUTE_BOARD_WIDTH} ${FLUTE_BOARD_HEIGHT}`}
           width="100%"
           preserveAspectRatio="xMaxYMid meet"
-          style={{ height: props.isFullscreen ? "calc(100dvh - 120px)" : "auto", maxHeight: props.isFullscreen ? undefined : FLUTE_BOARD_HEIGHT, display: "block", width: "100%" }}
+          style={{ height: props.isFullscreen ? "calc(100dvh - 120px)" : "auto", maxHeight: props.isFullscreen ? undefined : (props.boardMaxHeight ?? FLUTE_BOARD_HEIGHT), display: "block", width: "100%" }}
           aria-hidden="true"
         >
           <defs>
@@ -4728,7 +4740,7 @@ function FluteRoadView(props: {
             const roadStroke = active ? "rgba(0,224,255,0.26)" : "rgba(255,255,255,0.05)";
             return (
               <g key={lane.swara}>
-                <rect x={lane.x - 16} y={roadStartY} width={32} height={roadEndY - roadStartY} rx={16} fill={roadFill} stroke={roadStroke} strokeWidth={1} />
+                <rect x={lane.x - 10} y={roadStartY} width={20} height={roadEndY - roadStartY} rx={10} fill={roadFill} stroke={roadStroke} strokeWidth={1} />
                 <line x1={lane.x} y1={roadStartY + 4} x2={lane.x} y2={roadEndY - 4} stroke={active ? "rgba(0,224,255,0.32)" : "rgba(255,255,255,0.06)"} strokeWidth={2} strokeDasharray="8 10" />
                 <text
                   x={lane.x}
@@ -4763,7 +4775,7 @@ function FluteRoadView(props: {
             const noteLabelVisible = tile.kind === "note" && opacity > 0 && y < FLUTE_BOARD_HEIGHT && y + tile.height > 0;
             const noteLabelY = clamp(y + tile.height - 10, y + 16, FLUTE_BOARD_HEIGHT - 10);
             return (
-              <>
+              <Fragment key={tile.key}>
                 <g
                   key={`${tile.key}-shape`}
                   style={{
@@ -4816,7 +4828,7 @@ function FluteRoadView(props: {
                     {tile.label}
                   </text>
                 ) : null}
-              </>
+              </Fragment>
             );
           })}
 
