@@ -3050,7 +3050,7 @@ export function SwaraTrainer() {
                     pointerEvents: "none",
                     display: "flex",
                     flexDirection: "column",
-                    justifyContent: "start",
+                    justifyContent: "space-between",
                     gap: isLiveCardFullscreen ? 16 : 10,
                     padding: "0 8px",
                     overflow: "hidden",
@@ -4994,18 +4994,7 @@ function FluteRoadView(props: {
 
 
 
-          <g opacity="0.12">
-            {Array.from({ length: 13 }).map((_, index) => (
-              <rect
-                key={`stripe-${index}`}
-                x={index * 92}
-                y={0}
-                width={52}
-                height={FLUTE_BOARD_HEIGHT}
-                fill={index % 2 === 0 ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)"}
-              />
-            ))}
-          </g>
+
 
           {FLUTE_LANES.map((lane) => {
             const active = laneActive(lane);
