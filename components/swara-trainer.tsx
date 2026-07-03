@@ -1194,6 +1194,17 @@ export function SwaraTrainer() {
     }
   }, [clearedCheckpoint, selectedStepId]);
 
+  const activeNoteRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (activeNoteRef.current) {
+      activeNoteRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }
+  }, [sequenceProgress.stepIndex]);
+
   function noteKeyForReading(reading: DetectedSwara | null | undefined) {
     return reading ? `${reading.swara}-${reading.octave}` : null;
   }
@@ -2386,6 +2397,13 @@ export function SwaraTrainer() {
           20% { transform: scale(1.05); opacity: 1; }
           100% { transform: scale(1); opacity: 1; }
         }
+        .hide-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .hide-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
       `}</style>
       {celebrationPieces.length ? (
         <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 9999, overflow: "hidden" }}>
@@ -2630,31 +2648,67 @@ export function SwaraTrainer() {
                       ) : (
                         liveTargetTitle
                       )}
-
-                      {/* Swara sequence preview badge (with full list on hover) */}
-                      {sequenceDrill && (
-                        <span
-                          title={`Full note path:\n${sequenceDrill.steps.map((entry) => entry.target.swara).join(" - ")}`}
-                          style={{
-                            fontSize: 12.5,
-                            fontWeight: 650,
-                            letterSpacing: "0.02em",
-                            padding: "4px 10px",
-                            borderRadius: 99,
-                            background: "rgba(103,240,202,0.06)",
-                            border: "1px solid rgba(103,240,202,0.18)",
-                            color: "rgba(103,240,202,0.92)",
-                            cursor: "help",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            height: 24,
-                            marginLeft: 4,
-                          }}
-                        >
-                          {summarizeSequencePath(sequenceDrill, 4)}
-                        </span>
-                      )}
                     </div>
+
+                    {sequenceDrill && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          overflowX: "auto",
+                          padding: "4px 0",
+                          maxWidth: "min(600px, 50vw)",
+                          scrollbarWidth: "none",
+                        }}
+                        className="hide-scrollbar"
+                      >
+                        {sequenceDrill.steps.map((step, idx) => {
+                          const isPassed = idx < sequenceCurrentIndex;
+                          const isActive = idx === sequenceCurrentIndex;
+                          let bg = "rgba(255,255,255,0.04)";
+                          let border = "1px solid rgba(255,255,255,0.08)";
+                          let color = "rgba(255,255,255,0.7)";
+                          let fontWeight = 500;
+
+                          if (isPassed) {
+                            bg = "rgba(46, 213, 115, 0.05)";
+                            border = "1px solid rgba(46, 213, 115, 0.22)";
+                            color = "rgba(46, 213, 115, 0.65)";
+                          } else if (isActive) {
+                            bg = "rgba(0, 224, 255, 0.14)";
+                            border = "1px solid rgba(0, 224, 255, 0.6)";
+                            color = "rgba(219, 255, 247, 0.98)";
+                            fontWeight = 750;
+                          }
+
+                          return (
+                            <span
+                              key={`${step.target.swara}-${idx}`}
+                              ref={isActive ? activeNoteRef : undefined}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minWidth: 26,
+                                height: 20,
+                                padding: "0 6px",
+                                borderRadius: 6,
+                                fontSize: 11,
+                                fontWeight,
+                                background: bg,
+                                border,
+                                color,
+                                transition: "all 0.2s ease",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {step.target.swara}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
