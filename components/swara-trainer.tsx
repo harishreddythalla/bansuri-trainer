@@ -2587,7 +2587,7 @@ export function SwaraTrainer() {
         className="trainer-layout"
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(280px, 0.82fr) minmax(0, 1.9fr)",
+          gridTemplateColumns: "minmax(230px, 0.58fr) minmax(0, 2.42fr)",
           gap: 12,
           alignItems: "start",
           minHeight: "calc(100vh - 260px)",
@@ -3870,7 +3870,7 @@ function SwaraReferencePanel(props: {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {row && playable ? `${row.frequency.toFixed(1)} Hz` : "—"}
+                         {row && playable ? `${Math.round(row.frequency)} Hz` : "—"}
                       </td>
                     );
                   })}
