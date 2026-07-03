@@ -831,6 +831,44 @@ export function SwaraTrainer() {
     () => allLessonSteps.find((step) => step.id === selectedStepId) ?? firstStep,
     [selectedStepId],
   );
+
+  const sequenceDrill = selectedStep && isSequenceStep(selectedStep) ? selectedStep : null;
+
+  const sequenceVisualStates = useMemo(() => {
+    if (!sequenceDrill) return [];
+    
+    const countdownDelayMs = 1000;
+    const TILE_PX_PER_MS = 0.10;
+    const countdownHeight = 100;
+    const estimatedNoteHeights = sequenceDrill.steps.map((step) => Math.round(step.sustainTargetMs * TILE_PX_PER_MS));
+    const maxTileHeight = Math.max(countdownHeight, ...estimatedNoteHeights, 46);
+    const SPAWN_MARGIN = 58;
+    const TILE_SPAWN_Y = -maxTileHeight - SPAWN_MARGIN;
+    const MS_TO_FLUTE = Math.round((455 - TILE_SPAWN_Y) / TILE_PX_PER_MS);
+    
+    const firstNoteArrivalAt = fluteViewStartedAt + 3 * countdownDelayMs + MS_TO_FLUTE;
+    let noteCursor = firstNoteArrivalAt - MS_TO_FLUTE;
+    
+    const now = fluteViewTick;
+    
+    return sequenceDrill.steps.map((step) => {
+      const timeAtFluteTop = noteCursor + MS_TO_FLUTE;
+      const timeAtFluteBottom = timeAtFluteTop + step.sustainTargetMs;
+      
+      // Advance cursor for next step
+      noteCursor += step.sustainTargetMs + (step.hasSpaceAfter ? 240 : 0);
+      
+      const isPassed = now > timeAtFluteBottom;
+      const isActive = now >= timeAtFluteTop && now <= timeAtFluteBottom;
+      
+      return {
+        isPassed,
+        isActive,
+      };
+    });
+  }, [sequenceDrill, fluteViewStartedAt, fluteViewTick]);
+
+  const activeVisualIndex = sequenceVisualStates.findIndex((state) => state.isActive);
   const fluteProfile = useMemo(
     () => fluteProfileForSelection(selectedTonic, selectedRegister),
     [selectedRegister, selectedTonic],
@@ -1203,7 +1241,7 @@ export function SwaraTrainer() {
         inline: "center",
       });
     }
-  }, [sequenceProgress.stepIndex]);
+  }, [activeVisualIndex]);
 
   function noteKeyForReading(reading: DetectedSwara | null | undefined) {
     return reading ? `${reading.swara}-${reading.octave}` : null;
@@ -2279,7 +2317,7 @@ export function SwaraTrainer() {
   }
 
   const scoreValue = analysis.detected ? result.score : null;
-  const sequenceDrill = selectedStep && isSequenceStep(selectedStep) ? selectedStep : null;
+
   const noteGroups = useMemo(() => {
     if (!sequenceDrill) return [];
     const groups: Array<{
@@ -2688,8 +2726,18 @@ export function SwaraTrainer() {
                         className="hide-scrollbar"
                       >
                         {noteGroups.map((group, groupIdx) => {
-                          const isGroupActive = sequenceCurrentIndex >= group.startIndex && sequenceCurrentIndex <= group.endIndex;
-                          const isGroupPassed = sequenceCurrentIndex > group.endIndex;
+                          let isGroupActive = false;
+                          let isGroupPassed = true;
+
+                          for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
+                            const visual = sequenceVisualStates[idx];
+                            if (visual) {
+                              if (visual.isActive) isGroupActive = true;
+                              if (!visual.isPassed) isGroupPassed = false;
+                            } else {
+                              isGroupPassed = false;
+                            }
+                          }
 
                           let bg = "rgba(255,255,255,0.02)";
                           let border = "1px solid rgba(255,255,255,0.06)";
@@ -2719,8 +2767,9 @@ export function SwaraTrainer() {
                             >
                               {group.steps.map((step, stepIdx) => {
                                 const globalIdx = group.startIndex + stepIdx;
-                                const isPassed = globalIdx < sequenceCurrentIndex;
-                                const isActive = globalIdx === sequenceCurrentIndex;
+                                const visual = sequenceVisualStates[globalIdx];
+                                const isPassed = visual ? visual.isPassed : false;
+                                const isActive = visual ? visual.isActive : false;
 
                                 let color = "rgba(255,255,255,0.7)";
                                 let fontWeight = 500;
@@ -2752,7 +2801,7 @@ export function SwaraTrainer() {
                                       flexShrink: 0,
                                     }}
                                   >
-                                    {step.target.swara}
+                                    {step.glyph ?? step.target.swara}
                                   </span>
                                 );
                               })}

@@ -15,6 +15,7 @@ export type SequenceStep = {
   sustainTargetMs: number;
   isAnchor?: boolean;
   hasSpaceAfter?: boolean;
+  glyph?: string;
 };
 
 function parseNotation(notation: string, sustainTargetMs: number): SequenceStep[] {
@@ -49,6 +50,7 @@ function parseNotation(notation: string, sustainTargetMs: number): SequenceStep[
         sustainTargetMs,
         isAnchor: steps.length === 0,
         hasSpaceAfter: false,
+        glyph,
       });
       hadSpace = false;
     }
