@@ -178,7 +178,7 @@ type PitchDifficultyConfig = {
 };
 
 const allLessonSteps = foundationModules.flatMap((module) => module.steps);
-const firstStep = allLessonSteps.find((step) => step.id === "final-bridge-aaroh-checkpoint") ?? allLessonSteps[0];
+const firstStep = allLessonSteps[0];
 const FALLBACK_TARGET: SwaraTarget = { swara: "Sa", octave: "Madhya" };
 const UI_REFRESH_MS = 40;
 const SILENCE_HOLD_MS = 320;
@@ -3196,7 +3196,7 @@ export function SwaraTrainer() {
                           ref={headerViewportRef}
                           onScroll={handleHeaderScroll}
                           style={{
-                            height: 100,
+                            height: 130,
                             overflowY: "auto",
                             position: "relative",
                             width: "100%",
