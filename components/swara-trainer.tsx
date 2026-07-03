@@ -2280,6 +2280,30 @@ export function SwaraTrainer() {
 
   const scoreValue = analysis.detected ? result.score : null;
   const sequenceDrill = selectedStep && isSequenceStep(selectedStep) ? selectedStep : null;
+  const noteGroups = useMemo(() => {
+    if (!sequenceDrill) return [];
+    const groups: Array<{
+      startIndex: number;
+      endIndex: number;
+      steps: typeof sequenceDrill.steps;
+    }> = [];
+    let currentGroupSteps: typeof sequenceDrill.steps = [];
+    let groupStartIdx = 0;
+
+    sequenceDrill.steps.forEach((step, idx) => {
+      currentGroupSteps.push(step);
+      if (step.hasSpaceAfter || idx === sequenceDrill.steps.length - 1) {
+        groups.push({
+          startIndex: groupStartIdx,
+          endIndex: idx,
+          steps: currentGroupSteps,
+        });
+        currentGroupSteps = [];
+        groupStartIdx = idx + 1;
+      }
+    });
+    return groups;
+  }, [sequenceDrill]);
   const sequenceRagaGrammar = isRagaGrammarSequence(sequenceDrill);
   const sequenceCurrentIndex = sequenceDrill
     ? Math.min(sequenceProgress.stepIndex, Math.max(0, sequenceDrill.steps.length - 1))
@@ -2655,7 +2679,7 @@ export function SwaraTrainer() {
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: 5,
+                          gap: 10,
                           overflowX: "auto",
                           padding: "4px 0",
                           maxWidth: "min(600px, 50vw)",
@@ -2663,49 +2687,76 @@ export function SwaraTrainer() {
                         }}
                         className="hide-scrollbar"
                       >
-                        {sequenceDrill.steps.map((step, idx) => {
-                          const isPassed = idx < sequenceCurrentIndex;
-                          const isActive = idx === sequenceCurrentIndex;
-                          let bg = "rgba(255,255,255,0.04)";
-                          let border = "1px solid rgba(255,255,255,0.08)";
-                          let color = "rgba(255,255,255,0.7)";
-                          let fontWeight = 500;
+                        {noteGroups.map((group, groupIdx) => {
+                          const isGroupActive = sequenceCurrentIndex >= group.startIndex && sequenceCurrentIndex <= group.endIndex;
+                          const isGroupPassed = sequenceCurrentIndex > group.endIndex;
 
-                          if (isPassed) {
-                            bg = "rgba(46, 213, 115, 0.05)";
-                            border = "1px solid rgba(46, 213, 115, 0.22)";
-                            color = "rgba(46, 213, 115, 0.65)";
-                          } else if (isActive) {
-                            bg = "rgba(0, 224, 255, 0.14)";
-                            border = "1px solid rgba(0, 224, 255, 0.6)";
-                            color = "rgba(219, 255, 247, 0.98)";
-                            fontWeight = 750;
+                          let bg = "rgba(255,255,255,0.02)";
+                          let border = "1px solid rgba(255,255,255,0.06)";
+
+                          if (isGroupPassed) {
+                            bg = "rgba(46, 213, 115, 0.03)";
+                            border = "1px solid rgba(46, 213, 115, 0.18)";
+                          } else if (isGroupActive) {
+                            bg = "rgba(0, 224, 255, 0.08)";
+                            border = "1px solid rgba(0, 224, 255, 0.4)";
                           }
 
                           return (
-                            <span
-                              key={`${step.target.swara}-${idx}`}
-                              ref={isActive ? activeNoteRef : undefined}
+                            <div
+                              key={groupIdx}
                               style={{
                                 display: "inline-flex",
                                 alignItems: "center",
-                                justifyContent: "center",
-                                minWidth: 26,
-                                height: 20,
-                                padding: "0 6px",
-                                borderRadius: 6,
-                                fontSize: 11,
-                                fontWeight,
+                                padding: "3px 6px",
+                                borderRadius: 8,
                                 background: bg,
                                 border,
-                                color,
-                                transition: "all 0.2s ease",
+                                gap: 4,
                                 flexShrink: 0,
-                                marginRight: step.hasSpaceAfter ? 16 : 0,
+                                transition: "all 0.25s ease",
                               }}
                             >
-                              {step.target.swara}
-                            </span>
+                              {group.steps.map((step, stepIdx) => {
+                                const globalIdx = group.startIndex + stepIdx;
+                                const isPassed = globalIdx < sequenceCurrentIndex;
+                                const isActive = globalIdx === sequenceCurrentIndex;
+
+                                let color = "rgba(255,255,255,0.7)";
+                                let fontWeight = 500;
+                                let scale = 1;
+
+                                if (isPassed) {
+                                  color = "rgba(46, 213, 115, 0.65)";
+                                } else if (isActive) {
+                                  color = "rgba(219, 255, 247, 0.98)";
+                                  fontWeight = 750;
+                                  scale = 1.1;
+                                }
+
+                                return (
+                                  <span
+                                    key={`${step.target.swara}-${globalIdx}`}
+                                    ref={isActive ? activeNoteRef : undefined}
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      minWidth: 20,
+                                      height: 18,
+                                      fontSize: 11,
+                                      fontWeight,
+                                      color,
+                                      transform: `scale(${scale})`,
+                                      transition: "all 0.2s ease",
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {step.target.swara}
+                                  </span>
+                                );
+                              })}
+                            </div>
                           );
                         })}
                       </div>
