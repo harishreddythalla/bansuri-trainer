@@ -2512,7 +2512,7 @@ export function SwaraTrainer() {
   const bottomSectionHeight = sequenceDrill ? 100 : 80;
   const computedPitchTrackerHeight = isLiveCardFullscreen
     ? 340
-    : Math.max(140, computedOverlayHeight - bottomSectionHeight - 26);
+    : Math.max(140, computedOverlayHeight - bottomSectionHeight - 42);
 
   return (
     <main className="shell trainer-page" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
