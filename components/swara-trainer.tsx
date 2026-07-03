@@ -4303,11 +4303,43 @@ function SignalTrace(props: {
         gap: 12,
       }}
     >
-      <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+      <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.9 }}>
             Pitch Tracker
           </div>
+          {segmentationEnabled && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginLeft: 8 }}>
+              {noteLegend.map((note) => (
+                <span
+                  key={note.swara}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    color: "rgba(255, 255, 255, 0.72)",
+                    lineHeight: 1,
+                    marginRight: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background: note.color.stroke,
+                      boxShadow: `0 0 0 1px ${note.color.band}`,
+                    }}
+                  />
+                  {note.swara}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button
             type="button"
             className="button"
@@ -4357,8 +4389,7 @@ function SignalTrace(props: {
           >
             <SegmentationToggleIcon active={segmentationEnabled} />
           </button>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+
           <div style={{ position: "relative" }} ref={settingsRef}>
             <button
               type="button"
@@ -4486,50 +4517,7 @@ function SignalTrace(props: {
       </div>
 
 
-      {segmentationEnabled && (
-        <div
-          aria-hidden="true"
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-            gap: 10,
-            alignItems: "center",
-            marginTop: -2,
-            color: "rgba(255,255,255,0.62)",
-            fontSize: 10,
-          }}
-        >
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
-            {noteLegend.map((note) => (
-              <span
-                key={note.swara}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "rgba(255, 255, 255, 0.72)",
-                  lineHeight: 1,
-                  marginRight: 6,
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 999,
-                    background: note.color.stroke,
-                    boxShadow: `0 0 0 1px ${note.color.band}`,
-                  }}
-                />
-                {note.swara}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+
 
 
       <div
