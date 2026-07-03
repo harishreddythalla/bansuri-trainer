@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, Fragment } from "react";
+import { useEffect, useMemo, useRef, useState, Fragment, useCallback } from "react";
 import { Settings, ChevronLeft, ChevronRight, Play, Pause, RotateCcw, Repeat, Music, Maximize2, Minimize2 } from "lucide-react";
 import { foundationModules } from "@/data/lesson-plan";
 import {
@@ -1290,23 +1290,42 @@ export function SwaraTrainer() {
     });
   }, [noteLines, activeVisualIndex]);
 
-  const [headerTranslateY, setHeaderTranslateY] = useState(0);
-  const headerScrollRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const wrapper = headerScrollRef.current;
-    if (!wrapper) return;
-    const activeLine = wrapper.querySelector(".active-line");
+  const headerViewportRef = useRef<HTMLDivElement>(null);
+  const userScrollTimeoutRef = useRef<number | null>(null);
+  const isUserScrollingRef = useRef(false);
+
+  const triggerAutoscroll = useCallback(() => {
+    const viewport = headerViewportRef.current;
+    if (!viewport) return;
+    const activeLine = viewport.querySelector(".active-line");
     if (activeLine instanceof HTMLElement) {
-      const parent = wrapper.parentElement;
-      if (parent) {
-        const viewportHeight = parent.clientHeight;
-        const lineCenter = activeLine.offsetTop + activeLine.offsetHeight / 2;
-        setHeaderTranslateY(-lineCenter + viewportHeight / 2);
-      }
-    } else {
-      setHeaderTranslateY(0);
+      const viewportHeight = viewport.clientHeight;
+      const lineCenter = activeLine.offsetTop + activeLine.offsetHeight / 2;
+      viewport.scrollTo({
+        top: lineCenter - viewportHeight / 2,
+        behavior: "smooth"
+      });
     }
-  }, [activeLineIndex]);
+  }, []);
+
+  const handleHeaderScroll = () => {
+    isUserScrollingRef.current = true;
+
+    if (userScrollTimeoutRef.current) {
+      window.clearTimeout(userScrollTimeoutRef.current);
+    }
+
+    userScrollTimeoutRef.current = window.setTimeout(() => {
+      isUserScrollingRef.current = false;
+      triggerAutoscroll();
+    }, 3000);
+  };
+
+  useEffect(() => {
+    if (!isUserScrollingRef.current) {
+      triggerAutoscroll();
+    }
+  }, [activeLineIndex, triggerAutoscroll]);
 
   function noteKeyForReading(reading: DetectedSwara | null | undefined) {
     return reading ? `${reading.swara}-${reading.octave}` : null;
@@ -2754,25 +2773,24 @@ export function SwaraTrainer() {
 
                     {sequenceDrill && (
                       <div
+                        ref={headerViewportRef}
+                        onScroll={handleHeaderScroll}
                         style={{
                           height: 110,
-                          overflow: "hidden",
+                          overflowY: "auto",
                           position: "relative",
                           width: "min(600px, 95vw)",
                           padding: "4px 0",
                           maskImage: "linear-gradient(to bottom, transparent, white 20%, white 80%, transparent)",
                           WebkitMaskImage: "linear-gradient(to bottom, transparent, white 20%, white 80%, transparent)",
                         }}
+                        className="hide-scrollbar"
                       >
                         <div
-                          ref={headerScrollRef}
                           style={{
                             display: "flex",
                             flexDirection: "column",
                             gap: 8,
-                            transform: `translate3d(0, ${headerTranslateY}px, 0)`,
-                            transition: "transform 0.4s cubic-bezier(0.25, 1, 0.25, 1)",
-                            willChange: "transform",
                           }}
                         >
                           {noteLines.map((line, lineIdx) => {
@@ -2828,11 +2846,11 @@ export function SwaraTrainer() {
                                       style={{
                                         display: "inline-flex",
                                         alignItems: "center",
-                                        padding: "3px 6px",
+                                        padding: "3px 5px",
                                         borderRadius: 8,
                                         background: bg,
                                         border,
-                                        gap: 4,
+                                        gap: 2,
                                         flexShrink: 0,
                                         transition: "all 0.25s ease",
                                       }}
@@ -2863,7 +2881,7 @@ export function SwaraTrainer() {
                                               display: "inline-flex",
                                               alignItems: "center",
                                               justifyContent: "center",
-                                              minWidth: 20,
+                                              minWidth: 16,
                                               height: 18,
                                               fontSize: 11,
                                               fontWeight,
