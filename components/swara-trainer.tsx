@@ -4959,7 +4959,7 @@ function FluteRoadView(props: {
         swara: step.target.swara,
         octave: step.target.octave,
         x: 0,
-        startAt: noteCursor + step.sustainTargetMs + 120, // 120ms (center of inter-group gap)
+        startAt: noteCursor, // Pinned exactly at the trailing edge of the last note of this group
         startY: tileSpawnY,
         targetY: tileEndY,
         travelMs: tileTravelMs,
