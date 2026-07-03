@@ -178,7 +178,7 @@ type PitchDifficultyConfig = {
 };
 
 const allLessonSteps = foundationModules.flatMap((module) => module.steps);
-const firstStep = allLessonSteps[0];
+const firstStep = allLessonSteps.find((step) => step.id === "final-bridge-aaroh-checkpoint") ?? allLessonSteps[0];
 const FALLBACK_TARGET: SwaraTarget = { swara: "Sa", octave: "Madhya" };
 const UI_REFRESH_MS = 40;
 const SILENCE_HOLD_MS = 320;
@@ -2701,6 +2701,7 @@ export function SwaraTrainer() {
                                 color,
                                 transition: "all 0.2s ease",
                                 flexShrink: 0,
+                                marginRight: step.hasSpaceAfter ? 16 : 0,
                               }}
                             >
                               {step.target.swara}
@@ -4686,8 +4687,8 @@ function FluteRoadView(props: {
       isPlayedCorrectly,
     };
 
-    // Advance cursor by the sustain duration — gap is 0 by construction.
-    noteCursor += step.sustainTargetMs;
+    // Advance cursor by the sustain duration. Add an inter-group gap if there is a space after this step in the notation.
+    noteCursor += step.sustainTargetMs + (step.hasSpaceAfter ? 240 : 0);
     return tile;
   });
 

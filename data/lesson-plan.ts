@@ -5,6 +5,7 @@ type LegacySequenceStep = {
   target: SwaraTarget;
   sustainTargetMs: number;
   isAnchor?: boolean;
+  hasSpaceAfter?: boolean;
 };
 
 export type LessonStep = {
@@ -85,6 +86,7 @@ function flattenModule(module: CurriculumModule): LessonModule {
               target: step.target,
               sustainTargetMs: step.sustainTargetMs,
               isAnchor: step.isAnchor,
+              hasSpaceAfter: step.hasSpaceAfter,
             })),
             sequenceRules: checkpoint.sequenceRules,
             ragaRules: checkpoint.ragaRules

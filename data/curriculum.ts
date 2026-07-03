@@ -14,7 +14,57 @@ export type SequenceStep = {
   target: SwaraTarget;
   sustainTargetMs: number;
   isAnchor?: boolean;
+  hasSpaceAfter?: boolean;
 };
+
+function parseNotation(notation: string, sustainTargetMs: number): SequenceStep[] {
+  const normalized = notation.normalize("NFC");
+  const steps: SequenceStep[] = [];
+  let cursor = 0;
+  let hadSpace = false;
+
+  while (cursor < normalized.length) {
+    const char = normalized[cursor];
+    if (/\s/.test(char)) {
+      hadSpace = true;
+      cursor += 1;
+      continue;
+    }
+
+    const glyph = notationGlyphs.find((candidate) => normalized.startsWith(candidate.normalize("NFC"), cursor));
+
+    if (!glyph) {
+      cursor += 1;
+      continue;
+    }
+
+    const target = notationTarget(glyph);
+
+    if (target) {
+      if (steps.length > 0 && hadSpace) {
+        steps[steps.length - 1].hasSpaceAfter = true;
+      }
+      steps.push({
+        target,
+        sustainTargetMs,
+        isAnchor: steps.length === 0,
+        hasSpaceAfter: false,
+      });
+      hadSpace = false;
+    }
+
+    cursor += glyph.length;
+  }
+
+  if (steps.length) {
+    steps[steps.length - 1] = {
+      ...steps[steps.length - 1],
+      isAnchor: true,
+    };
+  }
+
+  return steps;
+}
 
 type CheckpointBase = {
   id: string;
@@ -345,42 +395,6 @@ function notationTarget(glyph: string): SwaraTarget | null {
 const notationGlyphs = ["P̣", "Ḍ", "Ṇ", "Ṡ", "Ṙ", "Ṗ", "ṁ", "Ṁ", "Ġ", "S", "R", "G", "M", "m", "P", "D", "N"].sort(
   (first, second) => second.length - first.length,
 );
-
-function parseNotation(notation: string, sustainTargetMs: number): SequenceStep[] {
-  const normalized = notation.normalize("NFC").replace(/\s+/g, "");
-  const steps: SequenceStep[] = [];
-  let cursor = 0;
-
-  while (cursor < normalized.length) {
-    const glyph = notationGlyphs.find((candidate) => normalized.startsWith(candidate.normalize("NFC"), cursor));
-
-    if (!glyph) {
-      cursor += 1;
-      continue;
-    }
-
-    const target = notationTarget(glyph);
-
-    if (target) {
-      steps.push({
-        target,
-        sustainTargetMs,
-        isAnchor: steps.length === 0,
-      });
-    }
-
-    cursor += glyph.length;
-  }
-
-  if (steps.length) {
-    steps[steps.length - 1] = {
-      ...steps[steps.length - 1],
-      isAnchor: true,
-    };
-  }
-
-  return steps;
-}
 
 type AlankarPairDefinition = {
   id: string;
