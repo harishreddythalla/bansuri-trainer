@@ -3045,7 +3045,7 @@ export function SwaraTrainer() {
                     position: "absolute",
                     left: 20,
                     width: computedOverlayWidth + "px",
-                    top: 20,
+                    bottom: layoutSvgRenderedHeight - layoutFluteBodyScreenY + 15,
                     height: computedOverlayHeight + "px",
                     zIndex: 10,
                     pointerEvents: "none",
