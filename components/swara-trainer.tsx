@@ -1325,7 +1325,7 @@ export function SwaraTrainer() {
     userScrollTimeoutRef.current = window.setTimeout(() => {
       isUserScrollingRef.current = false;
       triggerAutoscroll();
-    }, 3000);
+    }, 1200);
   };
 
   useEffect(() => {
