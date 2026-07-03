@@ -2512,7 +2512,7 @@ export function SwaraTrainer() {
   const bottomSectionHeight = sequenceDrill ? 100 : 80;
   const computedPitchTrackerHeight = isLiveCardFullscreen
     ? 340
-    : Math.max(140, computedOverlayHeight - bottomSectionHeight - 42);
+    : Math.max(120, computedOverlayHeight - bottomSectionHeight - 112);
 
   return (
     <main className="shell trainer-page" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
@@ -3125,7 +3125,7 @@ export function SwaraTrainer() {
                         background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(7, 14, 24, 0.4) 50%, rgba(255,255,255,0.03) 100%)",
                         border: "1px solid rgba(255,255,255,0.06)",
                         borderRadius: 12,
-                        padding: "10px 12px",
+                        padding: "5px 6px",
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "center",
