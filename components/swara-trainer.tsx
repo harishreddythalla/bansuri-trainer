@@ -1232,14 +1232,21 @@ export function SwaraTrainer() {
     }
   }, [clearedCheckpoint, selectedStepId]);
 
-  const activeNoteRef = useRef<HTMLSpanElement>(null);
+  const [headerTranslateX, setHeaderTranslateX] = useState(0);
+  const headerScrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (activeNoteRef.current) {
-      activeNoteRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center",
-      });
+    const wrapper = headerScrollRef.current;
+    if (!wrapper) return;
+    const activeSpan = wrapper.querySelector(".active-note");
+    if (activeSpan instanceof HTMLElement) {
+      const parent = wrapper.parentElement;
+      if (parent) {
+        const viewportWidth = parent.clientWidth;
+        const noteCenter = activeSpan.offsetLeft + activeSpan.offsetWidth / 2;
+        setHeaderTranslateX(-noteCenter + viewportWidth / 2);
+      }
+    } else {
+      setHeaderTranslateX(0);
     }
   }, [activeVisualIndex]);
 
@@ -2715,99 +2722,109 @@ export function SwaraTrainer() {
                     {sequenceDrill && (
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          overflowX: "auto",
+                          width: "min(600px, 50vw)",
+                          overflow: "hidden",
+                          position: "relative",
                           padding: "4px 0",
-                          maxWidth: "min(600px, 50vw)",
-                          scrollbarWidth: "none",
+                          maskImage: "linear-gradient(to right, transparent, white 15%, white 85%, transparent)",
+                          WebkitMaskImage: "linear-gradient(to right, transparent, white 15%, white 85%, transparent)",
                         }}
-                        className="hide-scrollbar"
                       >
-                        {noteGroups.map((group, groupIdx) => {
-                          let isGroupActive = false;
-                          let isGroupPassed = true;
+                        <div
+                          ref={headerScrollRef}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            transform: `translate3d(${headerTranslateX}px, 0, 0)`,
+                            transition: "transform 0.4s cubic-bezier(0.25, 1, 0.25, 1)",
+                            willChange: "transform",
+                          }}
+                        >
+                          {noteGroups.map((group, groupIdx) => {
+                            let isGroupActive = false;
+                            let isGroupPassed = true;
 
-                          for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
-                            const visual = sequenceVisualStates[idx];
-                            if (visual) {
-                              if (visual.isActive) isGroupActive = true;
-                              if (!visual.isPassed) isGroupPassed = false;
-                            } else {
-                              isGroupPassed = false;
+                            for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
+                              const visual = sequenceVisualStates[idx];
+                              if (visual) {
+                                if (visual.isActive) isGroupActive = true;
+                                if (!visual.isPassed) isGroupPassed = false;
+                              } else {
+                                isGroupPassed = false;
+                              }
                             }
-                          }
 
-                          let bg = "rgba(255,255,255,0.02)";
-                          let border = "1px solid rgba(255,255,255,0.06)";
+                            let bg = "rgba(255,255,255,0.02)";
+                            let border = "1px solid rgba(255,255,255,0.06)";
 
-                          if (isGroupPassed) {
-                            bg = "rgba(46, 213, 115, 0.03)";
-                            border = "1px solid rgba(46, 213, 115, 0.18)";
-                          } else if (isGroupActive) {
-                            bg = "rgba(0, 224, 255, 0.08)";
-                            border = "1px solid rgba(0, 224, 255, 0.4)";
-                          }
+                            if (isGroupPassed) {
+                              bg = "rgba(46, 213, 115, 0.03)";
+                              border = "1px solid rgba(46, 213, 115, 0.18)";
+                            } else if (isGroupActive) {
+                              bg = "rgba(0, 224, 255, 0.08)";
+                              border = "1px solid rgba(0, 224, 255, 0.4)";
+                            }
 
-                          return (
-                            <div
-                              key={groupIdx}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                padding: "3px 6px",
-                                borderRadius: 8,
-                                background: bg,
-                                border,
-                                gap: 4,
-                                flexShrink: 0,
-                                transition: "all 0.25s ease",
-                              }}
-                            >
-                              {group.steps.map((step, stepIdx) => {
-                                const globalIdx = group.startIndex + stepIdx;
-                                const visual = sequenceVisualStates[globalIdx];
-                                const isPassed = visual ? visual.isPassed : false;
-                                const isActive = visual ? visual.isActive : false;
+                            return (
+                              <div
+                                key={groupIdx}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  padding: "3px 6px",
+                                  borderRadius: 8,
+                                  background: bg,
+                                  border,
+                                  gap: 4,
+                                  flexShrink: 0,
+                                  transition: "all 0.25s ease",
+                                }}
+                              >
+                                {group.steps.map((step, stepIdx) => {
+                                  const globalIdx = group.startIndex + stepIdx;
+                                  const visual = sequenceVisualStates[globalIdx];
+                                  const isPassed = visual ? visual.isPassed : false;
+                                  const isActive = visual ? visual.isActive : false;
 
-                                let color = "rgba(255,255,255,0.7)";
-                                let fontWeight = 500;
-                                let scale = 1;
+                                  let color = "rgba(255,255,255,0.7)";
+                                  let fontWeight = 500;
+                                  let scale = 1;
 
-                                if (isPassed) {
-                                  color = "rgba(46, 213, 115, 0.65)";
-                                } else if (isActive) {
-                                  color = "rgba(219, 255, 247, 0.98)";
-                                  fontWeight = 750;
-                                  scale = 1.1;
-                                }
+                                  if (isPassed) {
+                                    color = "rgba(46, 213, 115, 0.65)";
+                                  } else if (isActive) {
+                                    color = "rgba(219, 255, 247, 0.98)";
+                                    fontWeight = 750;
+                                    scale = 1.1;
+                                  }
 
-                                return (
-                                  <span
-                                    key={`${step.target.swara}-${globalIdx}`}
-                                    ref={isActive ? activeNoteRef : undefined}
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      minWidth: 20,
-                                      height: 18,
-                                      fontSize: 11,
-                                      fontWeight,
-                                      color,
-                                      transform: `scale(${scale})`,
-                                      transition: "all 0.2s ease",
-                                      flexShrink: 0,
-                                    }}
-                                  >
-                                    {step.glyph ?? step.target.swara}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
+                                  return (
+                                    <span
+                                      key={`${step.target.swara}-${globalIdx}`}
+                                      className={isActive ? "active-note" : ""}
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        minWidth: 20,
+                                        height: 18,
+                                        fontSize: 11,
+                                        fontWeight,
+                                        color,
+                                        transform: `scale(${scale})`,
+                                        transition: "all 0.2s ease",
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {step.glyph ?? step.target.swara}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
