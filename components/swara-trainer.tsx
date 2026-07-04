@@ -868,9 +868,9 @@ export function SwaraTrainer() {
     const maxTileHeight = Math.max(countdownHeight, ...estimatedNoteHeights, 46);
     const SPAWN_MARGIN = 58;
     const TILE_SPAWN_Y = -maxTileHeight - SPAWN_MARGIN;
-    const MS_TO_FLUTE = Math.round((455 - TILE_SPAWN_Y) / TILE_PX_PER_MS);
+    const MS_TO_FLUTE = Math.round((515 - TILE_SPAWN_Y) / TILE_PX_PER_MS);
 
-    const firstNoteArrivalAt = fluteViewStartedAt + 3 * countdownDelayMs + MS_TO_FLUTE + dynamicSustainMs;
+    const firstNoteArrivalAt = fluteViewStartedAt + 3 * countdownDelayMs + MS_TO_FLUTE;
     let noteCursor = firstNoteArrivalAt - MS_TO_FLUTE;
 
     const now = fluteViewTick;
@@ -5223,10 +5223,11 @@ function FluteRoadView(props: {
   const TILE_TOTAL_DIST = TILE_EXIT_Y - TILE_SPAWN_Y;
   const TILE_TRAVEL_MS = Math.max(1, Math.round(TILE_TOTAL_DIST / TILE_PX_PER_MS));
 
-  // Time from spawn until the tile TOP reaches the flute line
-  const MS_TO_FLUTE = Math.round((FLUTE_BODY_OFFSET_Y - TILE_SPAWN_Y) / TILE_PX_PER_MS);
-
   const fluteBodyY = isReverseMode ? 30 : FLUTE_BODY_OFFSET_Y;
+
+  // Time from spawn until the tile reaches the visual top surface of the flute
+  const MS_TO_FLUTE = Math.round(((isReverseMode ? fluteBodyY + 100 : fluteBodyY + 60) - TILE_SPAWN_Y) / TILE_PX_PER_MS);
+
   const roadStartY = isReverseMode ? 112 : 18;
   const laneDrawStartY = isReverseMode ? roadStartY : 0;
   const roadEndY = FLUTE_BOARD_HEIGHT - 34;
@@ -5334,15 +5335,15 @@ function FluteRoadView(props: {
   }));
 
   // First note tile spawns so its top reaches the flute at:
-  //   props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE + dynamicSustainMs (after all 3 digits pass)
-  const firstNoteArrivalAt = props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE + dynamicSustainMs;
+  //   props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE (after all 3 digits pass)
+  const firstNoteArrivalAt = props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE;
   // => first note startAt = firstNoteArrivalAt - MS_TO_FLUTE
   let noteCursor = firstNoteArrivalAt - MS_TO_FLUTE;
 
   // Patch countdown startAts: digit[i] top should reach flute at
-  //   (firstNoteArrivalAt - dynamicSustainMs) - (3-1-i)*countdownDelayMs - countdownDelayMs
+  //   firstNoteArrivalAt - (3-1-i)*countdownDelayMs - countdownDelayMs
   countdownTiles.forEach((tile, i) => {
-    const arrivalAt = (firstNoteArrivalAt - dynamicSustainMs) - (2 - i) * countdownDelayMs - countdownDelayMs;
+    const arrivalAt = firstNoteArrivalAt - (2 - i) * countdownDelayMs - countdownDelayMs;
     tile.startAt = arrivalAt - MS_TO_FLUTE;
   });
 
@@ -5691,9 +5692,10 @@ function FluteRoadView(props: {
               const t = (props.now + i * 113) % maxLife;
               const progress = t / maxLife;
 
-              // Upward travel distance
+              // Spawns exactly on the contact surface of the flute
               const speed = 40 + ((i * 13) % 40); // 40px to 80px total height
-              const py = fluteBodyY - (progress * speed);
+              const particleSpawnY = isReverseMode ? fluteBodyY + 100 : fluteBodyY + 60;
+              const py = particleSpawnY - (progress * speed);
 
               // Lateral spread across the tile width (tile width is 28)
               const spread = -12 + ((i * 29) % 24);
