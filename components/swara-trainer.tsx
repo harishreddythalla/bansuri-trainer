@@ -3421,26 +3421,27 @@ function MetricCard(props: {
         overflow: "hidden",
         border: props.highlight ? "1px solid " + THEME.success.glow : undefined,
         boxShadow: props.highlight ? "0 0 0 1px " + THEME.primary.light + " inset" : undefined,
-        opacity: hasCurrentReading ? 1 : 0.4,
-        filter: hasCurrentReading ? "none" : "grayscale(70%)",
-        transition: "opacity 0.25s ease, filter 0.25s ease",
       }}
     >
-      <div style={{ position: "absolute", inset: 0, opacity: hasCurrentReading ? 0.14 : 0.06, pointerEvents: "none", transition: "opacity 0.25s ease" }}>
+      <div style={{ position: "absolute", inset: 0, opacity: hasCurrentReading ? 0.14 : 0.04, pointerEvents: "none", transition: "opacity 0.25s ease" }}>
         <Sparkline points={sparkline} mode={props.sparkMode} />
       </div>
       <div style={{ position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <div style={{ color: "var(--muted)", fontSize: 10, fontWeight: 650 }}>{props.label}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em" }}>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              letterSpacing: "-0.03em",
+              opacity: hasCurrentReading ? 1 : 0.35,
+              filter: hasCurrentReading ? "none" : "grayscale(1)",
+              transition: "opacity 0.25s ease, filter 0.25s ease",
+            }}
+          >
             {displayValue}
           </div>
         </div>
-        {/* {showTextDetails ? (
-          <div style={{ marginTop: 4, color: "var(--muted)", lineHeight: 1.45, fontSize: 11.5 }}>
-            {props.hint}
-          </div>
-        ) : null} */}
         {showDial ? (
           <PitchOffsetDial value={latestValue as number | null} />
         ) : showLinearMeter ? (
@@ -3452,6 +3453,9 @@ function MetricCard(props: {
               background: THEME.metrics.barBg,
               overflow: "hidden",
               position: "relative",
+              opacity: hasCurrentReading ? 1 : 0.3,
+              filter: hasCurrentReading ? "none" : "grayscale(1)",
+              transition: "opacity 0.25s ease, filter 0.25s ease",
             }}
           >
             <div
