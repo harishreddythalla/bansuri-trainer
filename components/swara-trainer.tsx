@@ -27,6 +27,7 @@ import {
 } from "@/lib/swara";
 import type { LessonStep } from "@/data/lesson-plan";
 import { FluteFinder, readStoredFluteProfile, storeFluteProfile } from "@/components/flute-finder";
+import { THEME } from "@/data/theme-colors";
 
 type TrendPoint = {
   score: number | null;
@@ -2727,8 +2728,8 @@ export function SwaraTrainer() {
               style={{
                 borderRadius: isLiveCardFullscreen ? 0 : 28,
                 padding: isLiveCardFullscreen ? "12px 20px" : 16,
-                background: "rgba(10, 10, 12, 0.94)", // Premium dark gray shade
-                border: "1px solid rgba(255, 255, 255, 0.05)",
+                background: THEME.card.bg,
+                border: THEME.card.border,
                 display: "grid",
                 gap: isLiveCardFullscreen ? 8 : 12,
                 minWidth: 880,
@@ -2736,7 +2737,7 @@ export function SwaraTrainer() {
                   position: "fixed" as const,
                   inset: 0,
                   zIndex: 9000,
-                  background: "rgba(6, 6, 8, 0.99)", // Premium dark black/gray fullscreen bg
+                  background: THEME.background.dark,
                   height: "100dvh",
                   boxSizing: "border-box" as const,
                   overflowY: "hidden" as const,
@@ -4347,8 +4348,8 @@ function SignalTrace(props: {
         padding: 14,
         display: "grid",
         gap: 12,
-        background: "rgba(6, 6, 8, 0.95)", // Premium dark black shade
-        border: "1px solid rgba(255, 255, 255, 0.05)",
+        background: THEME.cardStrong.bg,
+        border: THEME.cardStrong.border,
       }}
     >
       <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
@@ -4584,9 +4585,9 @@ function SignalTrace(props: {
           aria-hidden="true"
         >
           {/* Background bands */}
-          <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill="rgba(117, 184, 255, 0.06)" />
-          <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill="rgba(117, 184, 255, 0.06)" />
-          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(124, 173, 238, 0.15)" />
+          <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill={THEME.pitch.releaseZone} />
+          <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill={THEME.pitch.releaseZone} />
+          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill={THEME.pitch.targetZone} />
 
           {/* Dynamic note sections */}
           {segmentationEnabled
@@ -4640,7 +4641,7 @@ function SignalTrace(props: {
           {/* Color-coded line segments by swara */}
           {segments.map((seg, si) => {
             if (seg.points.length < 2) return null;
-            const color = "rgba(117, 184, 255, 0.95)";
+            const color = THEME.pitch.trace;
             const d = buildSmoothPolyline(densifyTracePoints(seg.points, traceResampleStepPx).map((p) => ({ ...p, active: true })));
             return (
               <path
@@ -4667,8 +4668,8 @@ function SignalTrace(props: {
                   cx={point.x}
                   cy={point.y}
                   r="2.15"
-                  fill="rgba(117, 184, 255, 0.8)"
-                  stroke="rgba(117, 184, 255, 1)"
+                  fill={THEME.pitch.traceGlow}
+                  stroke={THEME.pitch.trace}
                   strokeWidth="0.7"
                   opacity={0.92}
                 />
@@ -5041,9 +5042,9 @@ function FluteRoadView(props: {
         >
           <defs>
             <linearGradient id="trainerFluteBoard" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#050506" />
-              <stop offset="60%" stopColor="#0a0a0c" />
-              <stop offset="100%" stopColor="#101014" />
+              <stop offset="0%" stopColor={THEME.background.dark} />
+              <stop offset="60%" stopColor={THEME.background.medium} />
+              <stop offset="100%" stopColor={THEME.background.light} />
             </linearGradient>
             <linearGradient id="trainerFluteWood" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#f1d9b5" />
@@ -5060,7 +5061,7 @@ function FluteRoadView(props: {
             </linearGradient>
           </defs>
 
-          <rect x="0" y="0" width={FLUTE_BOARD_WIDTH} height={FLUTE_BOARD_HEIGHT} rx="26" fill="url(#trainerFluteBoard)" />
+          {/* <rect x="0" y="0" width={FLUTE_BOARD_WIDTH} height={FLUTE_BOARD_HEIGHT} rx="26" fill="url(#trainerFluteBoard)" /> */}
 
 
 
@@ -5068,17 +5069,17 @@ function FluteRoadView(props: {
 
           {FLUTE_LANES.map((lane) => {
             const active = laneActive(lane);
-            const roadFill = active ? "rgba(0,224,255,0.12)" : "rgba(255,255,255,0.03)";
-            const roadStroke = active ? "rgba(0,224,255,0.26)" : "rgba(255,255,255,0.05)";
+            const roadFill = active ? THEME.road.active.bg : THEME.road.inactive.bg;
+            const roadStroke = active ? THEME.road.active.border : THEME.road.inactive.border;
             return (
               <g key={lane.swara}>
                 <rect x={lane.x - 10} y={roadStartY} width={20} height={roadEndY - roadStartY} rx={10} fill={roadFill} stroke={roadStroke} strokeWidth={1} />
-                <line x1={lane.x} y1={roadStartY + 4} x2={lane.x} y2={roadEndY - 4} stroke={active ? "rgba(0,224,255,0.32)" : "rgba(255,255,255,0.06)"} strokeWidth={2} strokeDasharray="8 10" />
+                <line x1={lane.x} y1={roadStartY + 4} x2={lane.x} y2={roadEndY - 4} stroke={active ? THEME.road.active.line : THEME.road.inactive.line} strokeWidth={2} strokeDasharray="8 10" />
                 <text
                   x={lane.x}
                   y={roadStartY - 8}
                   textAnchor="middle"
-                  fill={active ? "rgba(219,255,247,0.98)" : "rgba(255,255,255,0.72)"}
+                  fill={active ? THEME.primary.main : "rgba(255,255,255,0.72)"}
                   fontSize="12"
                   fontWeight="700"
                 >
@@ -5118,7 +5119,7 @@ function FluteRoadView(props: {
                     y1={0}
                     x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
                     y2={0}
-                    stroke="rgba(0, 224, 255, 0.10)"
+                    stroke={THEME.road.divider.glow}
                     strokeWidth={5}
                   />
                   {/* Sharp dashed line */}
@@ -5127,7 +5128,7 @@ function FluteRoadView(props: {
                     y1={0}
                     x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
                     y2={0}
-                    stroke="rgba(0, 224, 255, 0.48)"
+                    stroke={THEME.road.divider.dashed}
                     strokeWidth={1.8}
                     strokeDasharray="6 4"
                   />
