@@ -3559,11 +3559,14 @@ function JourneySummary(props: {
               style={{
                 borderRadius: 18,
                 border: module.isCurrent
-                  ? "1px solid rgba(0, 224, 255, 0.3)"
-                  : "1px solid rgba(255,255,255,0.08)",
+                  ? "1px solid rgba(0, 224, 255, 0.16)"
+                  : "1px solid rgba(255, 255, 255, 0.08)",
+                boxShadow: module.isCurrent
+                  ? "0 0 16px rgba(0, 224, 255, 0.08), inset 0 0 12px rgba(0, 224, 255, 0.04)"
+                  : undefined,
                 background: module.isCurrent
-                  ? "linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03))"
-                  : "rgba(255, 255, 255, 0.03)",
+                  ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))"
+                  : "rgba(255, 255, 255, 0.02)",
                 overflow: "hidden",
               }}
             >
@@ -3613,6 +3616,23 @@ function JourneySummary(props: {
                     const isCurrentStep = module.isCurrent && step.title === props.currentStepTitle;
                     const tone = isCurrentStep ? "current" : isDone ? "done" : "upcoming";
 
+                    let pillBg = "rgba(255, 255, 255, 0.02)";
+                    let pillBorder = "1px solid rgba(255, 255, 255, 0.05)";
+                    let pillColor = "var(--muted)";
+                    let dotColor = "rgba(255, 255, 255, 0.28)";
+
+                    if (tone === "current") {
+                      pillBg = "rgba(0, 224, 255, 0.08)";
+                      pillBorder = "1px solid rgba(0, 224, 255, 0.35)";
+                      pillColor = "rgba(255, 255, 255, 0.98)";
+                      dotColor = "rgba(0, 224, 255, 1)";
+                    } else if (tone === "done") {
+                      pillBg = "rgba(46, 213, 115, 0.03)";
+                      pillBorder = "1px solid rgba(46, 213, 115, 0.22)";
+                      pillColor = "rgba(255, 255, 255, 0.82)";
+                      dotColor = "rgba(46, 213, 115, 1)";
+                    }
+
                     return (
                       <span
                         key={step.id}
@@ -3620,16 +3640,14 @@ function JourneySummary(props: {
                         style={{
                           padding: "6px 10px",
                           fontSize: 10.5,
-                          background:
-                            tone === "current"
-                              ? "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))"
-                              : tone === "done"
-                                ? "rgba(255,255,255,0.08)"
-                                : "rgba(255,255,255,0.04)",
-                          borderColor: tone === "current" ? "rgba(0, 224, 255, 0.3)" : undefined,
+                          background: pillBg,
+                          border: pillBorder,
+                          color: pillColor,
                         }}
                       >
-                        {isDone ? "✓ " : "• "}
+                        <span style={{ color: dotColor, marginRight: 4, fontWeight: 800 }}>
+                          {isDone ? "✓ " : "• "}
+                        </span>
                         {step.title}
                       </span>
                     );
