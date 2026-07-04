@@ -11,7 +11,7 @@ export const THEME = {
   },
   cardStrong: {
     bg: "var(--card-strong-bg)",
-    border: "var(--card-strong-border)",
+    border: "var(--card-strong-border)"
   },
 
   border: {

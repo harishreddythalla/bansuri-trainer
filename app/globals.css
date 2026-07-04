@@ -28,7 +28,7 @@
   --bg-light: #101014;
   --card-bg: rgba(40, 40, 43, 0.58);
   /* --card-border: 1px solid rgba(255, 255, 255, 0.05); */
-  --card-strong-bg: #2121245e;
+  --card-strong-bg: linear-gradient(180deg, #1a1a1d, #0c0c0e);
   /* --card-strong-border: 1px solid rgba(255, 255, 255, 0.05); */
 
   --border-subtle: rgba(255, 255, 255, 0.06);

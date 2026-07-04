@@ -4388,6 +4388,7 @@ function SignalTrace(props: {
         gap: 12,
         background: THEME.cardStrong.bg,
         border: THEME.cardStrong.border,
+        boxShadow: "inset 0 1px 2px rgba(0,0,0,0.4)",
       }}
     >
       <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
