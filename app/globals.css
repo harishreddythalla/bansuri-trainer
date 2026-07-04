@@ -17,6 +17,283 @@
   --warn: #ffd60a;
   --danger: #ff453a;
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  --header-bg-rgb: 6, 11, 19;
+
+  /* Theme-specific variables (Dark Mode) */
+  --bg-dark: #050506;
+  --bg-medium: #0a0a0c;
+  --bg-light: #101014;
+  --card-bg: rgba(10, 10, 12, 0.94);
+  --card-border: 1px solid rgba(255, 255, 255, 0.05);
+  --card-strong-bg: rgba(6, 6, 8, 0.95);
+  --card-strong-border: 1px solid rgba(255, 255, 255, 0.05);
+  
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-medium: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --border-pill: rgba(255, 255, 255, 0.1);
+
+  --text-muted: #86868b;
+  --text-white: rgba(255, 255, 255, 0.98);
+  --text-light: rgba(255, 255, 255, 0.85);
+  --text-gray: rgba(255, 255, 255, 0.72);
+
+  --primary-main: rgba(0, 224, 255, 1);
+  --primary-glow: rgba(0, 224, 255, 0.28);
+  --primary-light: rgba(0, 224, 255, 0.08);
+  --primary-solid: #00e0ff;
+
+  --success-main: rgba(46, 213, 115, 1);
+  --success-glow: rgba(46, 213, 115, 0.18);
+  --success-light: rgba(46, 213, 115, 0.03);
+  --success-solid: #2ed573;
+
+  --warning-main: rgba(255, 189, 89, 1);
+  --warning-glow: rgba(255, 189, 89, 0.18);
+  --warning-light: rgba(255, 189, 89, 0.05);
+  --warning-solid: #ffbd59;
+
+  --danger-main: rgba(255, 71, 87, 1);
+  --danger-glow: rgba(255, 71, 87, 0.22);
+  --danger-light: rgba(255, 71, 87, 0.05);
+  --danger-solid: #ff4757;
+
+  --practice-current-border: 1px solid rgba(0, 224, 255, 0.16);
+  --practice-current-shadow: 0 0 16px rgba(0, 224, 255, 0.08), inset 0 0 12px rgba(0, 224, 255, 0.04);
+  --practice-current-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  --practice-default-border: 1px solid rgba(255, 255, 255, 0.08);
+  --practice-default-bg: rgba(255, 255, 255, 0.02);
+
+  --practice-pill-current-bg: rgba(0, 224, 255, 0.08);
+  --practice-pill-current-border: 1px solid rgba(0, 224, 255, 0.35);
+  --practice-pill-current-color: rgba(255, 255, 255, 0.98);
+  --practice-pill-current-dot: rgba(0, 224, 255, 1);
+  --practice-pill-done-bg: rgba(46, 213, 115, 0.03);
+  --practice-pill-done-border: 1px solid rgba(46, 213, 115, 0.22);
+  --practice-pill-done-color: rgba(255, 255, 255, 0.82);
+  --practice-pill-done-dot: rgba(46, 213, 115, 1);
+  --practice-pill-default-bg: rgba(255, 255, 255, 0.02);
+  --practice-pill-default-border: 1px solid rgba(255, 255, 255, 0.05);
+  --practice-pill-default-color: var(--muted);
+  --practice-pill-default-dot: rgba(255, 255, 255, 0.28);
+
+  --journey-accent-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  --journey-accent-border: 1px solid rgba(0, 224, 255, 0.28);
+  --journey-success-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  --journey-success-border: 1px solid rgba(46, 213, 115, 0.28);
+  --journey-muted-bg: rgba(255, 255, 255, 0.03);
+  --journey-muted-border: 1px solid rgba(255, 255, 255, 0.08);
+  --journey-bar-bg: rgba(255, 255, 255, 0.08);
+  --journey-bar-fill: linear-gradient(90deg, rgba(117, 184, 255, 0.95), rgba(103, 240, 202, 0.95));
+
+  --metrics-bar-bg: rgba(255, 255, 255, 0.08);
+  --metrics-noise-bar: linear-gradient(90deg, rgba(103, 240, 202, 0.88), rgba(255, 189, 89, 0.72), rgba(255, 99, 99, 0.9));
+  --metrics-default-bar: linear-gradient(90deg, rgba(117, 184, 255, 0.18), rgba(103, 240, 202, 0.9));
+  --metrics-noise-fill: rgba(255, 99, 99, 0.95);
+  --metrics-default-fill: rgba(103, 240, 202, 0.95);
+  --metrics-bar-shadow: 0 0 16px rgba(103, 240, 202, 0.28);
+
+  --stats-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  --stats-card-border: 1px solid rgba(255, 255, 255, 0.08);
+
+  --attempt-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  --attempt-card-border-success: 1px solid rgba(46, 213, 115, 0.28);
+  --attempt-card-border-warning: 1px solid rgba(0, 224, 255, 0.28);
+  --attempt-card-border-danger: 1px solid rgba(255, 71, 87, 0.28);
+  --attempt-card-border-default: 1px solid rgba(255, 255, 255, 0.05);
+  --attempt-card-fill-success: rgba(46, 213, 115, 1);
+  --attempt-card-fill-warning: rgba(0, 224, 255, 1);
+  --attempt-card-fill-danger: rgba(255, 71, 87, 1);
+  --attempt-card-fill-default: rgba(255, 255, 255, 0.15);
+
+  --notegroup-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(10, 10, 12, 0.4) 50%, rgba(255, 255, 255, 0.03) 100%);
+  --notegroup-border: 1px solid rgba(255, 255, 255, 0.06);
+  --notegroup-top-overlay: linear-gradient(180deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%);
+  --notegroup-bottom-overlay: linear-gradient(360deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%);
+  --notegroup-active-bg: rgba(0, 224, 255, 0.08);
+  --notegroup-active-border: 1px solid rgba(0, 224, 255, 0.4);
+  --notegroup-active-text: rgba(219, 255, 247, 1);
+  --notegroup-done-bg: rgba(46, 213, 115, 0.03);
+  --notegroup-done-border: 1px solid rgba(46, 213, 115, 0.18);
+  --notegroup-done-text: rgba(46, 213, 115, 0.9);
+  --notegroup-default-bg: rgba(255, 255, 255, 0.02);
+  --notegroup-default-border: 1px solid rgba(255, 255, 255, 0.06);
+  --notegroup-default-text: rgba(255, 255, 255, 0.85);
+
+  --controls-mic-active: linear-gradient(180deg, rgba(103,240,202,0.16), rgba(103,240,202,0.06));
+  --controls-mic-active-border: 1px solid rgba(103,240,202,0.34);
+  --controls-mic-active-color: rgba(219,255,247,0.98);
+  --controls-mic-inactive: rgba(255,255,255,0.04);
+  --controls-mic-inactive-border: 1px solid rgba(255,255,255,0.08);
+
+  --toast-border: 1px solid rgba(255, 255, 255, 0.05);
+  --toast-bg: linear-gradient(180deg, rgba(255,255,255,0.06), #0a0a0c);
+
+  --pitch-bg: rgba(6, 6, 8, 0.95);
+  --pitch-border: 1px solid rgba(255, 255, 255, 0.05);
+  --pitch-trace: rgba(117, 184, 255, 0.95);
+  --pitch-trace-glow: rgba(117, 184, 255, 0.8);
+  --pitch-target-zone: rgba(124, 173, 238, 0.15);
+  --pitch-release-zone: rgba(117, 184, 255, 0.06);
+  --pitch-grid-line: rgba(255, 255, 255, 0.1);
+  --pitch-axis-label: rgba(255, 255, 255, 0.76);
+  --pitch-muted-label: rgba(255, 255, 255, 0.42);
+
+  --road-active-bg: rgba(0, 224, 255, 0.12);
+  --road-active-border: rgba(0, 224, 255, 0.26);
+  --road-active-line: rgba(0, 224, 255, 0.32);
+  --road-inactive-bg: rgba(255, 255, 255, 0.03);
+  --road-inactive-border: rgba(255, 255, 255, 0.05);
+  --road-inactive-line: rgba(255, 255, 255, 0.06);
+  --road-divider-glow: rgba(0, 224, 255, 0.05);
+  --road-divider-dashed: rgba(0, 224, 255, 0.28);
+}
+
+html.light {
+  color-scheme: light;
+  --bg: #f5f5f7;
+  --bg-soft: #ffffff;
+  --card: #ffffff;
+  --card-strong: #ffffff;
+  --line: rgba(0, 0, 0, 0.06);
+  --text: #1d1d1f;
+  --muted: #86868b;
+  --accent: #0066cc;
+  --accent-2: #865cff;
+  --success: #30d158;
+  --warn: #ff9500;
+  --danger: #ff3b30;
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+  --header-bg-rgb: 255, 255, 255;
+
+  /* Theme-specific variables (Light Mode) */
+  --bg-dark: #f5f5f7;
+  --bg-medium: #ffffff;
+  --bg-light: #ffffff;
+  --card-bg: #ffffff;
+  --card-border: 1px solid rgba(0, 0, 0, 0.06);
+  --card-strong-bg: #ffffff;
+  --card-strong-border: 1px solid rgba(0, 0, 0, 0.06);
+  
+  --border-subtle: rgba(0, 0, 0, 0.04);
+  --border-medium: rgba(0, 0, 0, 0.06);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --border-pill: rgba(0, 0, 0, 0.06);
+
+  --text-muted: #86868b;
+  --text-white: #1d1d1f;
+  --text-light: #2c2c2e;
+  --text-gray: #48484a;
+
+  --primary-main: #0066cc;
+  --primary-glow: rgba(0, 102, 204, 0.12);
+  --primary-light: rgba(0, 102, 204, 0.05);
+  --primary-solid: #0066cc;
+
+  --success-main: #30d158;
+  --success-glow: rgba(48, 209, 88, 0.12);
+  --success-light: rgba(48, 209, 88, 0.04);
+  --success-solid: #30d158;
+
+  --warning-main: #ff9500;
+  --warning-glow: rgba(255, 149, 0, 0.12);
+  --warning-light: rgba(255, 149, 0, 0.04);
+  --warning-solid: #ff9500;
+
+  --danger-main: #ff3b30;
+  --danger-glow: rgba(255, 59, 48, 0.12);
+  --danger-light: rgba(255, 59, 48, 0.04);
+  --danger-solid: #ff3b30;
+
+  --practice-current-border: 1px solid rgba(0, 102, 204, 0.22);
+  --practice-current-shadow: 0 4px 18px rgba(0, 102, 204, 0.06);
+  --practice-current-bg: #f2f7fe;
+  --practice-default-border: 1px solid rgba(0, 0, 0, 0.06);
+  --practice-default-bg: #ffffff;
+
+  --practice-pill-current-bg: #e2eeff;
+  --practice-pill-current-border: 1px solid rgba(0, 102, 204, 0.35);
+  --practice-pill-current-color: #0066cc;
+  --practice-pill-current-dot: #0066cc;
+  --practice-pill-done-bg: #e2fbe8;
+  --practice-pill-done-border: 1px solid rgba(48, 209, 88, 0.3);
+  --practice-pill-done-color: #1b8a3e;
+  --practice-pill-done-dot: #30d158;
+  --practice-pill-default-bg: #f5f5f7;
+  --practice-pill-default-border: 1px solid rgba(0, 0, 0, 0.05);
+  --practice-pill-default-color: #86868b;
+  --practice-pill-default-dot: rgba(0, 0, 0, 0.15);
+
+  --journey-accent-bg: #f2f7fe;
+  --journey-accent-border: 1px solid rgba(0, 102, 204, 0.22);
+  --journey-success-bg: #e2fbe8;
+  --journey-success-border: 1px solid rgba(48, 209, 88, 0.22);
+  --journey-muted-bg: #ffffff;
+  --journey-muted-border: 1px solid rgba(0, 0, 0, 0.06);
+  --journey-bar-bg: rgba(0, 0, 0, 0.06);
+  --journey-bar-fill: linear-gradient(90deg, #3b82f6, #30d158);
+
+  --metrics-bar-bg: rgba(0, 0, 0, 0.06);
+  --metrics-noise-bar: linear-gradient(90deg, #30d158, #ff9500, #ff3b30);
+  --metrics-default-bar: linear-gradient(90deg, #cce3ff, #3b82f6);
+  --metrics-noise-fill: #ff3b30;
+  --metrics-default-fill: #3b82f6;
+  --metrics-bar-shadow: 0 0 10px rgba(0, 102, 204, 0.1);
+
+  --stats-card-bg: #ffffff;
+  --stats-card-border: 1px solid rgba(0, 0, 0, 0.06);
+
+  --attempt-card-bg: #ffffff;
+  --attempt-card-border-success: 1px solid rgba(48, 209, 88, 0.28);
+  --attempt-card-border-warning: 1px solid rgba(0, 102, 204, 0.28);
+  --attempt-card-border-danger: 1px solid rgba(255, 59, 48, 0.28);
+  --attempt-card-border-default: 1px solid rgba(0, 0, 0, 0.06);
+  --attempt-card-fill-success: #30d158;
+  --attempt-card-fill-warning: #0066cc;
+  --attempt-card-fill-danger: #ff3b30;
+  --attempt-card-fill-default: rgba(0, 0, 0, 0.08);
+
+  --notegroup-bg: #ffffff;
+  --notegroup-border: 1px solid rgba(0, 0, 0, 0.06);
+  --notegroup-top-overlay: linear-gradient(180deg, #ffffff 0%, transparent 100%);
+  --notegroup-bottom-overlay: linear-gradient(360deg, #ffffff 0%, transparent 100%);
+  --notegroup-active-bg: #e2eeff;
+  --notegroup-active-border: 1px solid rgba(0, 102, 204, 0.3);
+  --notegroup-active-text: #0066cc;
+  --notegroup-done-bg: #e2fbe8;
+  --notegroup-done-border: 1px solid rgba(48, 209, 88, 0.22);
+  --notegroup-done-text: #1b8a3e;
+  --notegroup-default-bg: #f5f5f7;
+  --notegroup-default-border: 1px solid rgba(0, 0, 0, 0.05);
+  --notegroup-default-text: #515154;
+
+  --controls-mic-active: #e2fbe8;
+  --controls-mic-active-border: 1px solid rgba(48, 209, 88, 0.35);
+  --controls-mic-active-color: #1b8a3e;
+  --controls-mic-inactive: #f5f5f7;
+  --controls-mic-inactive-border: 1px solid rgba(0, 0, 0, 0.06);
+
+  --toast-border: 1px solid rgba(0, 0, 0, 0.08);
+  --toast-bg: #ffffff;
+
+  --pitch-bg: #ffffff;
+  --pitch-border: 1px solid rgba(0, 0, 0, 0.06);
+  --pitch-trace: #0066cc;
+  --pitch-trace-glow: rgba(0, 102, 204, 0.15);
+  --pitch-target-zone: rgba(48, 209, 88, 0.07);
+  --pitch-release-zone: rgba(0, 102, 204, 0.04);
+  --pitch-grid-line: rgba(0, 0, 0, 0.05);
+  --pitch-axis-label: #515154;
+  --pitch-muted-label: #86868b;
+
+  --road-active-bg: rgba(0, 102, 204, 0.06);
+  --road-active-border: rgba(0, 102, 204, 0.16);
+  --road-active-line: #0066cc;
+  --road-inactive-bg: rgba(0, 0, 0, 0.015);
+  --road-inactive-border: rgba(0, 0, 0, 0.03);
+  --road-inactive-line: rgba(0, 0, 0, 0.04);
+  --road-divider-glow: rgba(0, 102, 204, 0.03);
+  --road-divider-dashed: rgba(0, 102, 204, 0.22);
 }
 
 * {
@@ -32,11 +309,21 @@ body {
   min-height: 100vh;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
-  background: linear-gradient(180deg, #101014 0%, #0a0a0c 50%, #050506 100%);
+  background: var(--bg);
 }
 
 body::before {
   display: none;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  width: 100%;
+  border-bottom: 1px solid var(--line);
+  background: rgba(var(--header-bg-rgb), 0.82);
+  backdrop-filter: blur(18px);
 }
 
 a {
@@ -60,8 +347,8 @@ select {
   top: 0;
   z-index: 40;
   width: 100%;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(6, 11, 19, 0.82);
+  border-bottom: 1px solid var(--line);
+  background: rgba(var(--header-bg-rgb), 0.82);
   backdrop-filter: blur(18px);
 }
 

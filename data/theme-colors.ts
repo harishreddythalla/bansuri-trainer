@@ -1,220 +1,198 @@
-// --- Core Theme Variables ---
-const BG_DARK = "#050506";      // Deepest black background
-const BG_MEDIUM = "#0a0a0c";    // Intermediate dark gray background
-const BG_LIGHT = "#101014";     // Lightest background shade
-
-const CARD_BG = "rgba(10, 10, 12, 0.94)";
-const CARD_STRONG_BG = "rgba(6, 6, 8, 0.95)";
-const BORDER_DEFAULT = "1px solid rgba(255, 255, 255, 0.05)";
-
-// Accents
-const ACCENT_PRIMARY = "rgba(0, 224, 255, 1)";
-const ACCENT_SUCCESS = "rgba(46, 213, 115, 1)";
-const ACCENT_WARNING = "rgba(255, 189, 89, 1)";
-const ACCENT_DANGER = "rgba(255, 71, 87, 1)";
-
-// Reusable shade values
-const SHADE_TINY = "rgba(255, 255, 255, 0.02)";
-const SHADE_SOFT = "rgba(255, 255, 255, 0.03)";
-const SHADE_MEDIUM = "rgba(255, 255, 255, 0.06)";
-const SHADE_HIGH = "rgba(255, 255, 255, 0.08)";
-const SHADE_GLOW_BG = "rgba(255, 255, 255, 0.06)";
-
 export const THEME = {
   background: {
-    dark: BG_DARK,
-    medium: BG_MEDIUM,
-    light: BG_LIGHT,
+    dark: "var(--bg-dark)",
+    medium: "var(--bg-medium)",
+    light: "var(--bg-light)",
   },
 
   card: {
-    bg: CARD_BG,
-    border: BORDER_DEFAULT,
+    bg: "var(--card-bg)",
+    border: "var(--card-border)",
   },
   cardStrong: {
-    bg: CARD_STRONG_BG,
-    border: BORDER_DEFAULT,
+    bg: "var(--card-strong-bg)",
+    border: "var(--card-strong-border)",
   },
 
   border: {
-    subtle: SHADE_MEDIUM,
-    medium: SHADE_HIGH,
-    strong: "rgba(255, 255, 255, 0.15)",
-    pill: "rgba(255, 255, 255, 0.1)",
+    subtle: "var(--border-subtle)",
+    medium: "var(--border-medium)",
+    strong: "var(--border-strong)",
+    pill: "var(--border-pill)",
   },
 
   text: {
-    muted: "var(--muted)",
-    white: "rgba(255, 255, 255, 0.98)",
-    light: "rgba(255, 255, 255, 0.85)",
-    gray: "rgba(255, 255, 255, 0.72)",
+    muted: "var(--text-muted)",
+    white: "var(--text-white)",
+    light: "var(--text-light)",
+    gray: "var(--text-gray)",
   },
 
   primary: {
-    main: ACCENT_PRIMARY,
-    glow: "rgba(0, 224, 255, 0.28)",
-    light: "rgba(0, 224, 255, 0.08)",
-    solid: "#00e0ff",
+    main: "var(--primary-main)",
+    glow: "var(--primary-glow)",
+    light: "var(--primary-light)",
+    solid: "var(--primary-solid)",
   },
   success: {
-    main: ACCENT_SUCCESS,
-    glow: "rgba(46, 213, 115, 0.18)",
-    light: "rgba(46, 213, 115, 0.03)",
-    solid: "#2ed573",
+    main: "var(--success-main)",
+    glow: "var(--success-glow)",
+    light: "var(--success-light)",
+    solid: "var(--success-solid)",
   },
   warning: {
-    main: ACCENT_WARNING,
-    glow: "rgba(255, 189, 89, 0.18)",
-    light: "rgba(255, 189, 89, 0.05)",
-    solid: "#ffbd59",
+    main: "var(--warning-main)",
+    glow: "var(--warning-glow)",
+    light: "var(--warning-light)",
+    solid: "var(--warning-solid)",
   },
   danger: {
-    main: ACCENT_DANGER,
-    glow: "rgba(255, 71, 87, 0.22)",
-    light: "rgba(255, 71, 87, 0.05)",
-    solid: "#ff4757",
+    main: "var(--danger-main)",
+    glow: "var(--danger-glow)",
+    light: "var(--danger-light)",
+    solid: "var(--danger-solid)",
   },
 
   practiceMap: {
     moduleCurrent: {
-      border: "1px solid rgba(0, 224, 255, 0.16)",
-      boxShadow: "0 0 16px rgba(0, 224, 255, 0.08), inset 0 0 12px rgba(0, 224, 255, 0.04)",
-      background: `linear-gradient(180deg, ${SHADE_GLOW_BG}, ${SHADE_TINY})`,
+      border: "var(--practice-current-border)",
+      boxShadow: "var(--practice-current-shadow)",
+      background: "var(--practice-current-bg)",
     },
     moduleDefault: {
-      border: `1px solid ${SHADE_HIGH}`,
-      background: SHADE_TINY,
+      border: "var(--practice-default-border)",
+      background: "var(--practice-default-bg)",
     },
     pillCurrent: {
-      bg: "rgba(0, 224, 255, 0.08)",
-      border: "1px solid rgba(0, 224, 255, 0.35)",
-      color: "rgba(255, 255, 255, 0.98)",
-      dot: ACCENT_PRIMARY,
+      bg: "var(--practice-pill-current-bg)",
+      border: "var(--practice-pill-current-border)",
+      color: "var(--practice-pill-current-color)",
+      dot: "var(--practice-pill-current-dot)",
     },
     pillDone: {
-      bg: "rgba(46, 213, 115, 0.03)",
-      border: "1px solid rgba(46, 213, 115, 0.22)",
-      color: "rgba(255, 255, 255, 0.82)",
-      dot: ACCENT_SUCCESS,
+      bg: "var(--practice-pill-done-bg)",
+      border: "var(--practice-pill-done-border)",
+      color: "var(--practice-pill-done-color)",
+      dot: "var(--practice-pill-done-dot)",
     },
     pillDefault: {
-      bg: SHADE_TINY,
-      border: `1px solid rgba(255, 255, 255, 0.05)`,
-      color: "var(--muted)",
-      dot: "rgba(255, 255, 255, 0.28)",
+      bg: "var(--practice-pill-default-bg)",
+      border: "var(--practice-pill-default-border)",
+      color: "var(--practice-pill-default-color)",
+      dot: "var(--practice-pill-default-dot)",
     },
   },
 
   journey: {
     accent: {
-      bg: `linear-gradient(180deg, ${SHADE_GLOW_BG}, ${SHADE_TINY})`,
-      border: "1px solid rgba(0, 224, 255, 0.28)",
+      bg: "var(--journey-accent-bg)",
+      border: "var(--journey-accent-border)",
     },
     success: {
-      bg: `linear-gradient(180deg, ${SHADE_GLOW_BG}, ${SHADE_TINY})`,
-      border: "1px solid rgba(46, 213, 115, 0.28)",
+      bg: "var(--journey-success-bg)",
+      border: "var(--journey-success-border)",
     },
     muted: {
-      bg: SHADE_SOFT,
-      border: `1px solid ${SHADE_HIGH}`,
+      bg: "var(--journey-muted-bg)",
+      border: "var(--journey-muted-border)",
     },
-    barBg: SHADE_HIGH,
-    barFill: "linear-gradient(90deg, rgba(117, 184, 255, 0.95), rgba(103, 240, 202, 0.95))",
+    barBg: "var(--journey-bar-bg)",
+    barFill: "var(--journey-bar-fill)",
   },
 
   metrics: {
-    barBg: SHADE_HIGH,
-    noiseBar: "linear-gradient(90deg, rgba(103, 240, 202, 0.88), rgba(255, 189, 89, 0.72), rgba(255, 99, 99, 0.9))",
-    defaultBar: "linear-gradient(90deg, rgba(117, 184, 255, 0.18), rgba(103, 240, 202, 0.9))",
-    noiseFill: "rgba(255, 99, 99, 0.95)",
-    defaultFill: "rgba(103, 240, 202, 0.95)",
-    barShadow: "0 0 16px rgba(103, 240, 202, 0.28)",
+    barBg: "var(--metrics-bar-bg)",
+    noiseBar: "var(--metrics-noise-bar)",
+    defaultBar: "var(--metrics-default-bar)",
+    noiseFill: "var(--metrics-noise-fill)",
+    defaultFill: "var(--metrics-default-fill)",
+    barShadow: "var(--metrics-bar-shadow)",
   },
 
   statsCard: {
-    bg: `linear-gradient(180deg, ${SHADE_GLOW_BG}, ${SHADE_TINY})`,
-    border: `1px solid ${SHADE_HIGH}`,
+    bg: "var(--stats-card-bg)",
+    border: "var(--stats-card-border)",
   },
 
   attemptCard: {
-    bg: `linear-gradient(180deg, ${SHADE_GLOW_BG}, ${SHADE_TINY})`,
+    bg: "var(--attempt-card-bg)",
     border: {
-      success: "1px solid rgba(46, 213, 115, 0.28)",
-      warning: "1px solid rgba(0, 224, 255, 0.28)",
-      danger: "1px solid rgba(255, 71, 87, 0.28)",
-      default: "1px solid rgba(255, 255, 255, 0.05)",
+      success: "var(--attempt-card-border-success)",
+      warning: "var(--attempt-card-border-warning)",
+      danger: "var(--attempt-card-border-danger)",
+      default: "var(--attempt-card-border-default)",
     },
     fill: {
-      success: ACCENT_SUCCESS,
-      warning: ACCENT_PRIMARY,
-      danger: ACCENT_DANGER,
-      default: "rgba(255, 255, 255, 0.15)",
+      success: "var(--attempt-card-fill-success)",
+      warning: "var(--attempt-card-fill-warning)",
+      danger: "var(--attempt-card-fill-danger)",
+      default: "var(--attempt-card-fill-default)",
     },
   },
 
   noteGroup: {
-    bg: `linear-gradient(180deg, ${SHADE_SOFT} 0%, rgba(10, 10, 12, 0.4) 50%, ${SHADE_SOFT} 100%)`,
-    border: "1px solid rgba(255, 255, 255, 0.06)",
-    topOverlay: `linear-gradient(180deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%)`,
-    bottomOverlay: `linear-gradient(360deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%)`,
+    bg: "var(--notegroup-bg)",
+    border: "var(--notegroup-border)",
+    topOverlay: "var(--notegroup-top-overlay)",
+    bottomOverlay: "var(--notegroup-bottom-overlay)",
     activePill: {
-      bg: "rgba(0, 224, 255, 0.08)",
-      border: "1px solid rgba(0, 224, 255, 0.4)",
-      text: "rgba(219, 255, 247, 1)",
+      bg: "var(--notegroup-active-bg)",
+      border: "var(--notegroup-active-border)",
+      text: "var(--notegroup-active-text)",
     },
     donePill: {
-      bg: "rgba(46, 213, 115, 0.03)",
-      border: "1px solid rgba(46, 213, 115, 0.18)",
-      text: "rgba(46, 213, 115, 0.9)",
+      bg: "var(--notegroup-done-bg)",
+      border: "var(--notegroup-done-border)",
+      text: "var(--notegroup-done-text)",
     },
     defaultPill: {
-      bg: SHADE_TINY,
-      border: "1px solid rgba(255, 255, 255, 0.06)",
-      text: "rgba(255, 255, 255, 0.85)",
+      bg: "var(--notegroup-default-bg)",
+      border: "var(--notegroup-default-border)",
+      text: "var(--notegroup-default-text)",
     },
   },
 
   controls: {
-    micActive: "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(103,240,202,0.06))",
-    micActiveBorder: "1px solid rgba(103,240,202,0.34)",
-    micActiveColor: "rgba(219,255,247,0.98)",
-    micInactive: "rgba(255,255,255,0.04)",
-    micInactiveBorder: "1px solid rgba(255,255,255,0.08)",
+    micActive: "var(--controls-mic-active)",
+    micActiveBorder: "var(--controls-mic-active-border)",
+    micActiveColor: "var(--controls-mic-active-color)",
+    micInactive: "var(--controls-mic-inactive)",
+    micInactiveBorder: "var(--controls-mic-inactive-border)",
   },
 
   toast: {
     micToast: {
-      border: BORDER_DEFAULT,
-      bg: `linear-gradient(180deg, ${SHADE_GLOW_BG}, ${BG_MEDIUM})`,
+      border: "var(--toast-border)",
+      bg: "var(--toast-bg)",
     },
   },
 
   pitch: {
-    bg: CARD_STRONG_BG,
-    border: BORDER_DEFAULT,
-    trace: "rgba(117, 184, 255, 0.95)",
-    traceGlow: "rgba(117, 184, 255, 0.8)",
-    targetZone: "rgba(124, 173, 238, 0.15)",
-    releaseZone: "rgba(117, 184, 255, 0.06)",
-    gridLine: "rgba(255, 255, 255, 0.1)",
-    axisLabel: "rgba(255, 255, 255, 0.76)",
-    mutedLabel: "rgba(255, 255, 255, 0.42)",
+    bg: "var(--pitch-bg)",
+    border: "var(--pitch-border)",
+    trace: "var(--pitch-trace)",
+    traceGlow: "var(--pitch-trace-glow)",
+    targetZone: "var(--pitch-target-zone)",
+    releaseZone: "var(--pitch-release-zone)",
+    gridLine: "var(--pitch-grid-line)",
+    axisLabel: "var(--pitch-axis-label)",
+    mutedLabel: "var(--pitch-muted-label)",
   },
 
   road: {
     active: {
-      bg: "rgba(0, 224, 255, 0.12)",
-      border: "rgba(0, 224, 255, 0.26)",
-      line: "rgba(0, 224, 255, 0.32)",
+      bg: "var(--road-active-bg)",
+      border: "var(--road-active-border)",
+      line: "var(--road-active-line)",
     },
     inactive: {
-      bg: "rgba(255, 255, 255, 0.03)",
-      border: "rgba(255, 255, 255, 0.05)",
-      line: "rgba(255, 255, 255, 0.06)",
+      bg: "var(--road-inactive-bg)",
+      border: "var(--road-inactive-border)",
+      line: "var(--road-inactive-line)",
     },
     divider: {
-      glow: "rgba(0, 224, 255, 0.05)",
-      dashed: "rgba(0, 224, 255, 0.28)",
+      glow: "var(--road-divider-glow)",
+      dashed: "var(--road-divider-dashed)",
     },
   },
 };

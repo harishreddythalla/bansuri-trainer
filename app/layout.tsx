@@ -13,6 +13,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                if (localStorage.getItem('theme') === 'light') {
+                  document.documentElement.classList.add('light');
+                }
+              } catch (_) {}
+            `,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
