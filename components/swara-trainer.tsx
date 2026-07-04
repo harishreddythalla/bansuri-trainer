@@ -870,7 +870,7 @@ export function SwaraTrainer() {
     const TILE_SPAWN_Y = -maxTileHeight - SPAWN_MARGIN;
     const MS_TO_FLUTE = Math.round((455 - TILE_SPAWN_Y) / TILE_PX_PER_MS);
 
-    const firstNoteArrivalAt = fluteViewStartedAt + 3 * countdownDelayMs + MS_TO_FLUTE;
+    const firstNoteArrivalAt = fluteViewStartedAt + 3 * countdownDelayMs + MS_TO_FLUTE + dynamicSustainMs;
     let noteCursor = firstNoteArrivalAt - MS_TO_FLUTE;
 
     const now = fluteViewTick;
@@ -5334,16 +5334,15 @@ function FluteRoadView(props: {
   }));
 
   // First note tile spawns so its top reaches the flute at:
-  //   props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE  (after all 3 digits pass)
-  const firstNoteArrivalAt = props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE;
+  //   props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE + dynamicSustainMs (after all 3 digits pass)
+  const firstNoteArrivalAt = props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE + dynamicSustainMs;
   // => first note startAt = firstNoteArrivalAt - MS_TO_FLUTE
   let noteCursor = firstNoteArrivalAt - MS_TO_FLUTE;
 
   // Patch countdown startAts: digit[i] top should reach flute at
-  //   firstNoteArrivalAt - (3-1-i)*countdownDelayMs - countdownDelayMs
-  // Simplified: digit 0 (=3) at firstNoteArrivalAt - 2*delay, etc.
+  //   (firstNoteArrivalAt - dynamicSustainMs) - (3-1-i)*countdownDelayMs - countdownDelayMs
   countdownTiles.forEach((tile, i) => {
-    const arrivalAt = firstNoteArrivalAt - (2 - i) * countdownDelayMs - countdownDelayMs;
+    const arrivalAt = (firstNoteArrivalAt - dynamicSustainMs) - (2 - i) * countdownDelayMs - countdownDelayMs;
     tile.startAt = arrivalAt - MS_TO_FLUTE;
   });
 
