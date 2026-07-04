@@ -4346,6 +4346,8 @@ function SignalTrace(props: {
         padding: 14,
         display: "grid",
         gap: 12,
+        background: "rgba(6, 6, 8, 0.95)", // Premium dark black shade
+        border: "1px solid rgba(255, 255, 255, 0.05)",
       }}
     >
       <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
@@ -4583,7 +4585,7 @@ function SignalTrace(props: {
           {/* Background bands */}
           <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill="rgba(117, 184, 255, 0.06)" />
           <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill="rgba(117, 184, 255, 0.06)" />
-          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(103, 240, 202, 0.15)" />
+          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(124, 173, 238, 0.15)" />
 
           {/* Dynamic note sections */}
           {segmentationEnabled
