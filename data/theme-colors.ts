@@ -158,6 +158,10 @@ export const THEME = {
     micActiveColor: "var(--controls-mic-active-color)",
     micInactive: "var(--controls-mic-inactive)",
     micInactiveBorder: "var(--controls-mic-inactive-border)",
+    btnBg: "var(--control-btn-bg)",
+    btnBorder: "var(--control-btn-border)",
+    btnColor: "var(--control-btn-color)",
+    btnActiveBg: "var(--control-btn-active-bg)",
   },
 
   toast: {

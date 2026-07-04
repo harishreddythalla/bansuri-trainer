@@ -147,6 +147,12 @@
   --road-inactive-line: rgba(255, 255, 255, 0.06);
   --road-divider-glow: rgba(0, 224, 255, 0.05);
   --road-divider-dashed: rgba(0, 224, 255, 0.28);
+
+  /* Button control states */
+  --control-btn-bg: rgba(255, 255, 255, 0.08);
+  --control-btn-border: none;
+  --control-btn-color: var(--text);
+  --control-btn-active-bg: rgba(255, 255, 255, 0.18);
 }
 
 html.light {
@@ -294,6 +300,12 @@ html.light {
   --road-inactive-line: rgba(0, 0, 0, 0.04);
   --road-divider-glow: rgba(0, 102, 204, 0.03);
   --road-divider-dashed: rgba(0, 102, 204, 0.22);
+
+  /* Button control states */
+  --control-btn-bg: rgba(0, 0, 0, 0.04);
+  --control-btn-border: 1px solid rgba(0, 0, 0, 0.08);
+  --control-btn-color: var(--text);
+  --control-btn-active-bg: rgba(0, 0, 0, 0.08);
 }
 
 * {
