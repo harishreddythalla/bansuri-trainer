@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, Fragment, useCallback } from "react";
-import { Settings, ChevronLeft, ChevronRight, Play, Pause, RotateCcw, Repeat, Music, Maximize2, Minimize2, Volume2 } from "lucide-react";
+import { Settings, ChevronLeft, ChevronRight, Play, Pause, RotateCcw, Repeat, Music, Maximize2, Minimize2, Timer } from "lucide-react";
 import { foundationModules } from "@/data/lesson-plan";
 import {
   defaultFluteProfile,
@@ -1203,7 +1203,7 @@ export function SwaraTrainer() {
   useEffect(() => {
     if (!metronomeActive) {
       if (metronomeAudioCtxRef.current) {
-        void metronomeAudioCtxRef.current.close().catch(() => {});
+        void metronomeAudioCtxRef.current.close().catch(() => { });
         metronomeAudioCtxRef.current = null;
       }
       return;
@@ -1217,9 +1217,9 @@ export function SwaraTrainer() {
 
     const tick = () => {
       const isDownbeat = metronomeBeatCountRef.current % metronomeBeatsPerNote === 0;
-      
+
       if (ctx.state === "suspended") {
-        void ctx.resume().catch(() => {});
+        void ctx.resume().catch(() => { });
       }
       try {
         const osc = ctx.createOscillator();
@@ -2880,10 +2880,12 @@ export function SwaraTrainer() {
                       aria-haspopup="dialog"
                       style={{
                         minHeight: 28,
-                        padding: "0 10px",
+                        minWidth: 28,
+                        padding: metronomeActive ? "0 10px" : 0,
                         borderRadius: 999,
                         display: "inline-flex",
                         gap: 6,
+                        justifyContent: "center",
                         alignItems: "center",
                         fontSize: 11.5,
                         fontWeight: 650,
@@ -2893,8 +2895,7 @@ export function SwaraTrainer() {
                         cursor: "pointer",
                       }}
                     >
-                      <Volume2 size={12} style={{ color: metronomeActive ? "var(--success)" : "inherit" }} />
-                      <span>Metronome</span>
+                      <Timer size={14} style={{ color: metronomeActive ? "var(--success)" : "inherit" }} />
                       {metronomeActive && (
                         <span style={{ fontSize: 9.5, opacity: 0.8, padding: "1px 4px", borderRadius: 4, background: "rgba(48, 209, 88, 0.2)", color: "var(--success)" }}>
                           {metronomeBpm}
@@ -3000,10 +3001,10 @@ export function SwaraTrainer() {
                           </div>
                         </div>
 
-                        {/* Beats Per Note */}
+                        {/* Beats */}
                         <div style={{ display: "grid", gap: 6 }}>
                           <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>
-                            Beats per note
+                            Beats
                           </div>
                           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
                             {[2, 3, 4, 6, 8].map((beats) => {
@@ -3677,7 +3678,7 @@ function MetricCard(props: {
         <Sparkline points={sparkline} mode={props.sparkMode} />
       </div>
       <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 4 }}>
           <div style={{ color: "var(--muted)", fontSize: 10, fontWeight: 650 }}>{props.label}</div>
           <div
             style={{
