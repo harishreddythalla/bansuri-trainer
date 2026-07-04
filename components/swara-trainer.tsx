@@ -2621,7 +2621,7 @@ export function SwaraTrainer() {
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(230px, 0.58fr) minmax(0, 2.42fr)",
-          gap: 12,
+          gap: 24,
           alignItems: "start",
           minHeight: "calc(100vh - 260px)",
         }}
