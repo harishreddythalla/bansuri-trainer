@@ -204,8 +204,8 @@ const DEBUG_LOG_LIMIT = 900;
 const DEBUG_LOG_SINK_URL = "http://127.0.0.1:4010/log";
 const SEQUENCE_MIN_PRACTICE_SCORE = 72;
 const FLUTE_BOARD_WIDTH = 1020;
-const FLUTE_BOARD_HEIGHT = 560;
-const FLUTE_BODY_OFFSET_Y = 455;
+const FLUTE_BOARD_HEIGHT = 500;
+const FLUTE_BODY_OFFSET_Y = 395;
 const FLUTE_LANES = [
   { swara: "Ga", targetSwaras: ["Ga", "Ma"], x: 700, hole: "circle" as const, roadLabel: "Ga / Ma" },
   { swara: "Re", targetSwaras: ["Re"], x: 755, hole: "circle" as const, roadLabel: "Re" },
@@ -3115,9 +3115,9 @@ export function SwaraTrainer() {
                       }}
                     >
                       <MetricCard
-                        label="Stability"
-                        value={analysis.stability != null ? `${Math.round(analysis.stability)}` : null}
-                        subvalue={analysis.detected ? describeStability(analysis.stability ?? 0) : "—"}
+                        label={analysis.stability != null && analysis.stability >= 80 ? "✓ Pitch Stable" : "Pitch Stability"}
+                        value={analysis.stability != null ? `${Math.round(analysis.stability)}%` : null}
+                        subvalue={analysis.detected ? ((analysis.stability ?? 0) >= 80 ? "Stable" : describeStability(analysis.stability ?? 0)) : "—"}
                         hint="Less wobble is better"
                         trend={analysis.trend}
                         sparkMetric="stability"
@@ -3125,7 +3125,7 @@ export function SwaraTrainer() {
                         sparkMode="high"
                       />
                       <MetricCard
-                        label="Tone clarity"
+                        label="Breath Control"
                         value={analysis.confidence != null ? `${Math.round((analysis.confidence ?? 0) * 100)}%` : null}
                         subvalue={analysis.detected ? describeConfidence(analysis.confidence ?? 0) : "—"}
                         hint="Airy vs clear tone"
@@ -3135,9 +3135,9 @@ export function SwaraTrainer() {
                         sparkMode="high"
                       />
                       <MetricCard
-                        label="Noise"
+                        label="Silence Level"
                         value={analysis.noise != null ? `${Math.round(analysis.noise)}%` : null}
-                        subvalue={analysis.detected ? "Lower is cleaner" : "—"}
+                        subvalue={analysis.detected ? ((analysis.noise ?? 0) <= 15 ? "Clean" : "Noisy") : "—"}
                         hint="Background noise"
                         trend={analysis.trend}
                         sparkMetric="noise"
@@ -3145,7 +3145,7 @@ export function SwaraTrainer() {
                         sparkMode="low"
                       />
                       <MetricCard
-                        label="Blow strength"
+                        label="Air Speed"
                         value={analysis.energy != null ? `${Math.round(analysis.energy)}` : null}
                         subvalue={analysis.detected ? describeEnergy(analysis.energy ?? 0) : "—"}
                         hint="Blow strength"
@@ -3416,7 +3416,7 @@ function MetricCard(props: {
       className="glass"
       style={{
         borderRadius: 24,
-        padding: 10,
+        padding: "16px 20px",
         position: "relative",
         overflow: "hidden",
         border: props.highlight ? "1px solid " + THEME.success.glow : undefined,
@@ -3429,62 +3429,60 @@ function MetricCard(props: {
       <div style={{ position: "absolute", inset: 0, opacity: hasCurrentReading ? 0.14 : 0.06, pointerEvents: "none", transition: "opacity 0.25s ease" }}>
         <Sparkline points={sparkline} mode={props.sparkMode} />
       </div>
-      <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <div style={{ color: "var(--muted)", fontSize: 10, fontWeight: 650 }}>{props.label}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em" }}>
-            {displayValue}
-          </div>
+      <div style={{ position: "relative", zIndex: 1, display: "grid", gap: 4 }}>
+        <div style={{ color: "var(--muted)", fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.03em", textAlign: "left" }}>
+          {props.label}
         </div>
-        {/* {showTextDetails ? (
-          <div style={{ marginTop: 4, color: "var(--muted)", lineHeight: 1.45, fontSize: 11.5 }}>
-            {props.hint}
-          </div>
-        ) : null} */}
-        {showDial ? (
-          <PitchOffsetDial value={latestValue as number | null} />
-        ) : showLinearMeter ? (
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, justifyContent: "flex-start" }}>
+          <span style={{ fontSize: 19, fontWeight: 600, color: "var(--text)" }}>
+            {props.subvalue && props.subvalue !== "—" ? props.subvalue : "Waiting"}
+          </span>
+          <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 500 }}>
+            {displayValue && displayValue !== "—" ? `(${displayValue})` : ""}
+          </span>
+        </div>
+      </div>
+      {showLinearMeter ? (
+        <div
+          style={{
+            marginTop: 12,
+            height: 6,
+            borderRadius: 999,
+            background: THEME.metrics.barBg,
+            overflow: "hidden",
+            position: "relative",
+          }}
+        >
           <div
             style={{
-              marginTop: 10,
-              height: 10,
-              borderRadius: 999,
-              background: THEME.metrics.barBg,
-              overflow: "hidden",
-              position: "relative",
+              position: "absolute",
+              inset: 0,
+              background:
+                props.sparkMetric === "noise"
+                  ? THEME.metrics.noiseBar
+                  : THEME.metrics.defaultBar,
+              opacity: 0.22,
             }}
-          >
+          />
+          {normalizedValue != null ? (
             <div
               style={{
                 position: "absolute",
-                inset: 0,
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: `${100 - normalizedValue}%`,
+                borderRadius: 999,
                 background:
                   props.sparkMetric === "noise"
-                    ? THEME.metrics.noiseBar
-                    : THEME.metrics.defaultBar,
-                opacity: 0.45,
+                    ? THEME.metrics.noiseFill
+                    : THEME.metrics.defaultFill,
+                boxShadow: THEME.metrics.barShadow,
               }}
             />
-            {normalizedValue != null ? (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  right: `${100 - normalizedValue}%`,
-                  borderRadius: 999,
-                  background:
-                    props.sparkMetric === "noise"
-                      ? THEME.metrics.noiseFill
-                      : THEME.metrics.defaultFill,
-                  boxShadow: THEME.metrics.barShadow,
-                }}
-              />
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -3506,12 +3504,12 @@ function JourneySummary(props: {
 }) {
   return (
     <div
-      className="glass"
       style={{
         borderRadius: 24,
-        padding: 14,
-        background: THEME.card.bg,
+        padding: 16,
+        background: THEME.background.medium,
         border: THEME.card.border,
+        boxShadow: "var(--sidebar-shadow, none)",
         display: "flex",
         flexDirection: "column",
         gap: 12,
@@ -3523,20 +3521,20 @@ function JourneySummary(props: {
           <div className="pill" style={{ width: "fit-content" }}>
             Practice map
           </div>
-          <div style={{ fontSize: 24, fontWeight: 750, letterSpacing: "-0.05em" }}>{props.overallProgress}%</div>
+          <div style={{ fontSize: 24, fontWeight: 600, letterSpacing: "-0.05em" }}>{props.overallProgress}%</div>
         </div>
         <div style={{ color: "var(--muted)", fontSize: 13.5, lineHeight: 1.5 }}>
           {props.completedCount} of {props.totalCount} checkpoints cleared
         </div>
       </div>
 
-      <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden", flexShrink: 0 }}>
+      <div style={{ height: 8, borderRadius: 999, background: THEME.journey.barBg, overflow: "hidden", flexShrink: 0 }}>
         <div
           style={{
             width: `${clamp(props.overallProgress, 0, 100)}%`,
             height: "100%",
             borderRadius: 999,
-            background: "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))",
+            background: THEME.journey.barFill,
           }}
         />
       </div>
@@ -3577,7 +3575,7 @@ function JourneySummary(props: {
                           {props.modules.findIndex((entry) => entry.id === module.id) + 1}
                         </span>
                         <span
-                          style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.03em" }}
+                          style={{ fontSize: 15, fontWeight: 600, letterSpacing: "-0.03em" }}
                           title={module.description}
                         >
                           {module.title}
@@ -3593,15 +3591,13 @@ function JourneySummary(props: {
                       ) : null}
                     </div>
                   </div>
-                  <div style={{ height: 6, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+                  <div style={{ height: 6, borderRadius: 999, background: THEME.journey.barBg, overflow: "hidden" }}>
                     <div
                       style={{
                         width: `${module.steps.length ? (module.completedCount / module.steps.length) * 100 : 0}%`,
                         height: "100%",
                         borderRadius: 999,
-                        background: module.isCurrent
-                          ? "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))"
-                          : "linear-gradient(90deg, rgba(255,99,99,0.72), rgba(117,184,255,0.88))",
+                        background: THEME.journey.barFill,
                       }}
                     />
                   </div>
@@ -4196,7 +4192,7 @@ function SignalTrace(props: {
   onToggleMic: () => void;
 }) {
   const width = props.fullscreen ? 1440 : 860;
-  const height = props.height ?? (props.fullscreen ? 420 : 132);
+  const height = props.height ?? (props.fullscreen ? 420 : 180);
   const [segmentationEnabled, setSegmentationEnabled] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -4362,14 +4358,15 @@ function SignalTrace(props: {
 
   return (
     <article
-      className={`glass ${props.className ?? ""}`.trim()}
+      className={`${props.className ?? ""}`.trim()}
       style={{
         borderRadius: 24,
-        padding: 14,
+        padding: "20px 24px",
         display: "grid",
-        gap: 12,
+        gap: 16,
         background: THEME.cardStrong.bg,
         border: THEME.cardStrong.border,
+        boxShadow: "var(--pitch-tracker-shadow, var(--shadow))",
       }}
     >
       <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
@@ -4420,14 +4417,13 @@ function SignalTrace(props: {
               minWidth: 28,
               minHeight: 28,
               padding: 0,
-              borderRadius: 10,
+              borderRadius: "50%",
               display: "grid",
               placeItems: "center",
-              border: props.running ? THEME.controls.micActiveBorder : THEME.controls.micInactiveBorder,
-              background: props.running
-                ? THEME.controls.micActive
-                : THEME.controls.micInactive,
-              color: props.running ? THEME.controls.micActiveColor : "var(--muted)",
+              border: THEME.controls.btnBorder,
+              background: props.running ? THEME.controls.btnActiveBg : THEME.controls.btnBg,
+              color: props.running ? THEME.primary.main : THEME.text.gray,
+              cursor: "pointer",
             }}
           >
             <MicToggleIcon active={props.running} />
@@ -4445,14 +4441,13 @@ function SignalTrace(props: {
               minWidth: 28,
               minHeight: 28,
               padding: 0,
-              borderRadius: 10,
+              borderRadius: "50%",
               display: "grid",
               placeItems: "center",
-              border: segmentationEnabled ? THEME.controls.micActiveBorder : THEME.controls.micInactiveBorder,
-              background: segmentationEnabled
-                ? THEME.controls.micActive
-                : THEME.controls.micInactive,
-              color: segmentationEnabled ? THEME.controls.micActiveColor : "var(--muted)",
+              border: THEME.controls.btnBorder,
+              background: segmentationEnabled ? THEME.controls.btnActiveBg : THEME.controls.btnBg,
+              color: segmentationEnabled ? THEME.primary.main : THEME.text.gray,
+              cursor: "pointer",
             }}
           >
             <SegmentationToggleIcon active={segmentationEnabled} />
@@ -4471,12 +4466,12 @@ function SignalTrace(props: {
                 minWidth: 28,
                 minHeight: 28,
                 padding: 0,
-                borderRadius: 10,
+                borderRadius: "50%",
                 display: "grid",
                 placeItems: "center",
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: settingsOpen ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
-                color: settingsOpen ? "var(--text)" : "var(--muted)",
+                border: THEME.controls.btnBorder,
+                background: settingsOpen ? THEME.controls.btnActiveBg : THEME.controls.btnBg,
+                color: settingsOpen ? THEME.primary.main : THEME.text.gray,
                 cursor: "pointer",
               }}
             >
