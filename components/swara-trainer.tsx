@@ -5025,9 +5025,9 @@ function FluteRoadView(props: {
       <div
         style={{
           borderRadius: 26,
-          padding: 10,
-          background: "linear-gradient(180deg, rgba(6,18,16,0.96), rgba(9,14,24,0.92))",
-          border: "1px solid rgba(255,255,255,0.08)",
+          padding: 0,
+          background: "transparent",
+          border: "none",
           overflow: "hidden",
         }}
       >
