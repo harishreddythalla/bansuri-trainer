@@ -2599,8 +2599,8 @@ export function SwaraTrainer() {
             gap: 8,
             padding: "10px 14px",
             borderRadius: 999,
-            border: "1px solid rgba(103,240,202,0.22)",
-            background: "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(10,20,36,0.88))",
+            border: THEME.cardStrong.border,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.06), " + THEME.background.medium + ")",
             boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
             backdropFilter: "blur(18px)",
             color: "var(--text)",
@@ -2675,10 +2675,10 @@ export function SwaraTrainer() {
               style={{
                 borderRadius: 24,
                 padding: "14px 16px",
-                background: "linear-gradient(90deg, rgba(103,240,202,0.2), rgba(117,184,255,0.14))",
-                border: "1px solid rgba(103,240,202,0.35)",
+                background: THEME.card.bg,
+                border: THEME.card.border,
                 color: "var(--text)",
-                boxShadow: "0 18px 50px rgba(103,240,202,0.12)",
+                boxShadow: "0 18px 50px rgba(0,0,0,0.2)",
                 display: "grid",
                 gap: 6,
               }}
@@ -3154,7 +3154,7 @@ export function SwaraTrainer() {
                     <div
                       style={{
                         position: "relative",
-                        background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(7, 14, 24, 0.4) 50%, rgba(255,255,255,0.03) 100%)",
+                        background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(10, 10, 12, 0.4) 50%, rgba(255,255,255,0.03) 100%)",
                         border: "1px solid rgba(255,255,255,0.06)",
                         borderRadius: 12,
                         padding: "5px 6px",
@@ -3174,7 +3174,7 @@ export function SwaraTrainer() {
                           left: 0,
                           right: 0,
                           height: 18,
-                          background: "linear-gradient(180deg, rgba(6, 18, 16, 0.85) 0%, transparent 100%)",
+                          background: "linear-gradient(180deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%)",
                           pointerEvents: "none",
                           zIndex: 5,
                         }}
@@ -3187,7 +3187,7 @@ export function SwaraTrainer() {
                           left: 0,
                           right: 0,
                           height: 18,
-                          background: "linear-gradient(360deg, rgba(6, 18, 16, 0.85) 0%, transparent 100%)",
+                          background: "linear-gradient(360deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%)",
                           pointerEvents: "none",
                           zIndex: 5,
                         }}
@@ -3558,10 +3558,12 @@ function JourneySummary(props: {
               open={module.isCurrent}
               style={{
                 borderRadius: 18,
-                border: "1px solid rgba(255,255,255,0.08)",
+                border: module.isCurrent
+                  ? "1px solid rgba(0, 224, 255, 0.3)"
+                  : "1px solid rgba(255,255,255,0.08)",
                 background: module.isCurrent
-                  ? "linear-gradient(180deg, rgba(117,184,255,0.12), rgba(103,240,202,0.06))"
-                  : "rgba(255,255,255,0.03)",
+                  ? "linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03))"
+                  : "rgba(255, 255, 255, 0.03)",
                 overflow: "hidden",
               }}
             >
@@ -3620,11 +3622,11 @@ function JourneySummary(props: {
                           fontSize: 10.5,
                           background:
                             tone === "current"
-                              ? "linear-gradient(180deg, rgba(103,240,202,0.2), rgba(103,240,202,0.08))"
+                              ? "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))"
                               : tone === "done"
-                                ? "rgba(117,184,255,0.12)"
+                                ? "rgba(255,255,255,0.08)"
                                 : "rgba(255,255,255,0.04)",
-                          borderColor: tone === "current" ? "rgba(103,240,202,0.28)" : undefined,
+                          borderColor: tone === "current" ? "rgba(0, 224, 255, 0.3)" : undefined,
                         }}
                       >
                         {isDone ? "✓ " : "• "}
@@ -3645,17 +3647,23 @@ function JourneySummary(props: {
 function JourneyTile(props: { label: string; title: string; detail: string; tone: "muted" | "accent" | "success" }) {
   const background =
     props.tone === "accent"
-      ? "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(117,184,255,0.05))"
+      ? "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))"
       : props.tone === "success"
-        ? "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(103,240,202,0.05))"
+        ? "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))"
         : "rgba(255,255,255,0.03)";
+  const border =
+    props.tone === "accent"
+      ? "1px solid rgba(0, 224, 255, 0.28)"
+      : props.tone === "success"
+        ? "1px solid rgba(46, 213, 115, 0.28)"
+        : "1px solid rgba(255, 255, 255, 0.08)";
 
   return (
     <div
       style={{
         borderRadius: 18,
         padding: 12,
-        border: "1px solid rgba(255,255,255,0.08)",
+        border,
         background,
         display: "grid",
         gap: 6,
@@ -3676,7 +3684,7 @@ function LiveStat(props: { label: string; value: string; detail?: string; backgr
         borderRadius: 18,
         padding: 12,
         border: "1px solid rgba(255,255,255,0.08)",
-        background: props.background ?? "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(117,184,255,0.05))",
+        background: props.background ?? "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
       }}
     >
       <div style={{ color: "var(--muted)", fontSize: 12 }}>{props.label}</div>
@@ -3763,28 +3771,29 @@ function MiniProgressPanel(props: {
 }) {
   const bounded = clamp(props.progress, 0, 100);
   const complete = bounded >= 96;
-  const background = props.active
+  const background = "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))";
+  const border = props.active
     ? complete
-      ? "linear-gradient(180deg, rgba(103,240,202,0.22), rgba(103,240,202,0.07))"
+      ? "1px solid rgba(46, 213, 115, 0.28)"
       : bounded >= 60
-        ? "linear-gradient(180deg, rgba(117,184,255,0.16), rgba(103,240,202,0.1))"
-        : "linear-gradient(180deg, rgba(255,99,99,0.18), rgba(117,184,255,0.08))"
-    : "linear-gradient(180deg, rgba(117,184,255,0.18), rgba(117,184,255,0.05))";
+        ? "1px solid rgba(0, 224, 255, 0.28)"
+        : "1px solid rgba(255, 71, 87, 0.28)"
+    : "1px solid rgba(255, 255, 255, 0.05)";
 
   const fill = props.active
     ? complete
-      ? "linear-gradient(90deg, rgba(103,240,202,0.9), rgba(103,240,202,0.98))"
+      ? THEME.success.main
       : bounded >= 60
-        ? "linear-gradient(90deg, rgba(117,184,255,0.7), rgba(103,240,202,0.92))"
-        : "linear-gradient(90deg, rgba(255,99,99,0.82), rgba(117,184,255,0.72))"
-    : "linear-gradient(90deg, rgba(117,184,255,0.25), rgba(117,184,255,0.95))";
+        ? THEME.primary.main
+        : THEME.danger.main
+    : "rgba(255, 255, 255, 0.15)";
 
   return (
     <div
       style={{
         borderRadius: 18,
         padding: 12,
-        border: "1px solid rgba(255,255,255,0.08)",
+        border,
         background,
         display: "grid",
         gap: 8,
