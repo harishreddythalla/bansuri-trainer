@@ -5694,7 +5694,7 @@ function FluteRoadView(props: {
 
               // Upward travel distance
               const speed = 40 + ((i * 13) % 40); // 40px to 80px total height
-              const py = (fluteBodyY + 80) - (progress * speed);
+              const py = fluteBodyY - (progress * speed);
 
               // Lateral spread across the tile width (tile width is 28)
               const spread = -12 + ((i * 29) % 24);
