@@ -5093,7 +5093,7 @@ function FluteRoadView(props: {
                   x={lane.x}
                   y={roadStartY - 8}
                   textAnchor="middle"
-                  fill={active ? THEME.primary.main : "rgba(255,255,255,0.72)"}
+                  fill={active ? THEME.primary.main : THEME.text.gray}
                   fontSize="12"
                   fontWeight="700"
                 >
