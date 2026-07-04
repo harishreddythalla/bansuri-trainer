@@ -6,7 +6,7 @@
   color-scheme: dark;
   --bg: #050506;
   --bg-soft: #0a0a0c;
-  --card: rgba(10, 10, 12, 0.94);
+  --card: #1e1e21;
   --card-strong: rgba(6, 6, 8, 0.95);
   --line: rgba(255, 255, 255, 0.05);
   --text: #f5f5f7;
@@ -26,7 +26,7 @@
   --bg-dark: #050506;
   --bg-medium: #0a0a0c;
   --bg-light: #101014;
-  --card-bg: #161618;
+  --card-bg: rgba(40, 40, 43, 0.58);
   /* --card-border: 1px solid rgba(255, 255, 255, 0.05); */
   --card-strong-bg: #2121245e;
   /* --card-strong-border: 1px solid rgba(255, 255, 255, 0.05); */
@@ -918,7 +918,7 @@ html.light .site-header {
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(8, 14, 24, 0.96);
-  box-shadow: var(--shadow);
+  /* box-shadow: var(--shadow); */
   backdrop-filter: blur(20px);
   display: grid;
   gap: 6px;
@@ -973,7 +973,7 @@ html.light .site-header {
 .glass {
   background: var(--card);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow);
+  /* box-shadow: var(--shadow); */
   backdrop-filter: blur(24px);
 }
 

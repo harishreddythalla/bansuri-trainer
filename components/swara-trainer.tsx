@@ -3422,7 +3422,9 @@ function MetricCard(props: {
         position: "relative",
         overflow: "hidden",
         border: props.highlight ? "1px solid " + THEME.success.glow : undefined,
-        boxShadow: props.highlight ? "0 0 0 1px " + THEME.primary.light + " inset" : undefined,
+        boxShadow: props.highlight
+          ? "0 0 0 1px " + THEME.primary.light + " inset, 0 1px 2px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.4)"
+          : "0 1px 2px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.4)",
       }}
     >
       <div style={{ position: "absolute", inset: 0, opacity: hasCurrentReading ? 0.14 : 0.04, pointerEvents: "none", transition: "opacity 0.25s ease" }}>
