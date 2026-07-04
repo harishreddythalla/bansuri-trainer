@@ -3419,14 +3419,14 @@ function MetricCard(props: {
     <article
       className="glass"
       style={{
-        borderRadius: 24,
+        borderRadius: 12,
         padding: 10,
         position: "relative",
         overflow: "hidden",
         border: props.highlight ? "1px solid " + THEME.success.glow : undefined,
-        boxShadow: props.highlight
-          ? "0 0 0 1px " + THEME.primary.light + " inset, 0 1px 2px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.4)"
-          : "0 1px 2px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.4)",
+        // boxShadow: props.highlight
+        //   ? "0 0 0 1px " + THEME.primary.light + " inset, 0 1px 2px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.4)"
+        //   : "0 1px 2px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.4)",
       }}
     >
       <div style={{ position: "absolute", inset: 0, opacity: hasCurrentReading ? 0.14 : 0.04, pointerEvents: "none", transition: "opacity 0.25s ease" }}>
@@ -5138,111 +5138,111 @@ function FluteRoadView(props: {
           })}
 
           <g clipPath="url(#tileClipPath)">
-          {tiles.map((tile) => {
-            const isAttachedReverseTile = isReverseMode && tile.kind === "note" && "attached" in tile && tile.attached;
-            const progress = isAttachedReverseTile
-              ? 0
-              : tile.startAt <= props.now
-                ? clamp((props.now - tile.startAt) / tile.travelMs, 0, 1)
-                : 0;
-            const y = isAttachedReverseTile ? tile.startY : tile.startY + progress * (tile.targetY - tile.startY);
-            const fadeProgress = progress < 0.88 ? 1 : clamp(1 - (progress - 0.88) / 0.12, 0, 1);
-            const opacity = isAttachedReverseTile
-              ? 1
-              : progress <= 0
+            {tiles.map((tile) => {
+              const isAttachedReverseTile = isReverseMode && tile.kind === "note" && "attached" in tile && tile.attached;
+              const progress = isAttachedReverseTile
                 ? 0
-                : clamp(0.24 + progress * 0.86, 0, 1) * fadeProgress;
+                : tile.startAt <= props.now
+                  ? clamp((props.now - tile.startAt) / tile.travelMs, 0, 1)
+                  : 0;
+              const y = isAttachedReverseTile ? tile.startY : tile.startY + progress * (tile.targetY - tile.startY);
+              const fadeProgress = progress < 0.88 ? 1 : clamp(1 - (progress - 0.88) / 0.12, 0, 1);
+              const opacity = isAttachedReverseTile
+                ? 1
+                : progress <= 0
+                  ? 0
+                  : clamp(0.24 + progress * 0.86, 0, 1) * fadeProgress;
 
-            if (tile.kind === "divider") {
+              if (tile.kind === "divider") {
+                return (
+                  <g
+                    key={tile.key}
+                    style={{
+                      transform: `translate(0px, ${y}px)`,
+                      opacity: opacity * 0.9,
+                    }}
+                  >
+                    {/* Thick glowing background bar */}
+                    <line
+                      x1={FLUTE_LANES[0].x - 15}
+                      y1={0}
+                      x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
+                      y2={0}
+                      stroke={THEME.road.divider.glow}
+                      strokeWidth={5}
+                    />
+                    {/* Sharp dashed line */}
+                    <line
+                      x1={FLUTE_LANES[0].x - 15}
+                      y1={0}
+                      x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
+                      y2={0}
+                      stroke={THEME.road.divider.dashed}
+                      strokeWidth={1.8}
+                      strokeDasharray="6 4"
+                    />
+                  </g>
+                );
+              }
+
+              const isCountdown = tile.kind === "countdown";
+              const tileWidth = tile.width;
+              const noteLabelVisible = tile.kind === "note" && opacity > 0 && y < FLUTE_BOARD_HEIGHT && y + tile.height > 0;
+              const noteLabelY = clamp(y + tile.height - 10, y + 16, FLUTE_BOARD_HEIGHT - 10);
               return (
-                <g
-                  key={tile.key}
-                  style={{
-                    transform: `translate(0px, ${y}px)`,
-                    opacity: opacity * 0.9,
-                  }}
-                >
-                  {/* Thick glowing background bar */}
-                  <line
-                    x1={FLUTE_LANES[0].x - 15}
-                    y1={0}
-                    x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
-                    y2={0}
-                    stroke={THEME.road.divider.glow}
-                    strokeWidth={5}
-                  />
-                  {/* Sharp dashed line */}
-                  <line
-                    x1={FLUTE_LANES[0].x - 15}
-                    y1={0}
-                    x2={FLUTE_LANES[FLUTE_LANES.length - 1].x + 15}
-                    y2={0}
-                    stroke={THEME.road.divider.dashed}
-                    strokeWidth={1.8}
-                    strokeDasharray="6 4"
-                  />
-                </g>
-              );
-            }
-
-            const isCountdown = tile.kind === "countdown";
-            const tileWidth = tile.width;
-            const noteLabelVisible = tile.kind === "note" && opacity > 0 && y < FLUTE_BOARD_HEIGHT && y + tile.height > 0;
-            const noteLabelY = clamp(y + tile.height - 10, y + 16, FLUTE_BOARD_HEIGHT - 10);
-            return (
-              <Fragment key={tile.key}>
-                <g
-                  key={`${tile.key}-shape`}
-                  style={{
-                    transform: `translate(${tile.x - tileWidth / 2}px, ${y}px)`,
-                    opacity,
-                  }}
-                >
-                  <rect
-                    x="0"
-                    y="0"
-                    width={tileWidth}
-                    height={tile.height}
-                    rx={isCountdown ? 10 : 5}
-                    fill={tile.fill}
-                    stroke={tile.stroke}
-                    strokeWidth={1.2}
-                    filter={tile.active && !isCountdown ? "drop-shadow(0 0 12px rgba(0, 224, 255, 0.28))" : undefined}
-                  />
-                  <rect x="0" y="0" width={tileWidth} height={Math.max(8, tile.height * 0.22)} rx={5} fill="url(#trainerTileGlow)" opacity={0.42} />
-                  {isCountdown ? (
+                <Fragment key={tile.key}>
+                  <g
+                    key={`${tile.key}-shape`}
+                    style={{
+                      transform: `translate(${tile.x - tileWidth / 2}px, ${y}px)`,
+                      opacity,
+                    }}
+                  >
+                    <rect
+                      x="0"
+                      y="0"
+                      width={tileWidth}
+                      height={tile.height}
+                      rx={isCountdown ? 10 : 5}
+                      fill={tile.fill}
+                      stroke={tile.stroke}
+                      strokeWidth={1.2}
+                      filter={tile.active && !isCountdown ? "drop-shadow(0 0 12px rgba(0, 224, 255, 0.28))" : undefined}
+                    />
+                    <rect x="0" y="0" width={tileWidth} height={Math.max(8, tile.height * 0.22)} rx={5} fill="url(#trainerTileGlow)" opacity={0.42} />
+                    {isCountdown ? (
+                      <text
+                        x={tileWidth / 2}
+                        y={tile.height / 2 + 7}
+                        textAnchor="middle"
+                        fill={tile.textFill}
+                        fontSize="18"
+                        fontWeight="600"
+                      >
+                        {tile.label}
+                      </text>
+                    ) : null}
+                  </g>
+                  {noteLabelVisible ? (
                     <text
-                      x={tileWidth / 2}
-                      y={tile.height / 2 + 7}
+                      key={`${tile.key}-label`}
+                      x={tile.x}
+                      y={noteLabelY}
                       textAnchor="middle"
                       fill={tile.textFill}
-                      fontSize="18"
-                      fontWeight="600"
+                      opacity={opacity}
+                      fontSize="11.5"
+                      fontWeight="800"
+                      stroke="rgba(5,10,18,0.9)"
+                      strokeWidth={1.8}
+                      paintOrder="stroke"
                     >
                       {tile.label}
                     </text>
                   ) : null}
-                </g>
-                {noteLabelVisible ? (
-                  <text
-                    key={`${tile.key}-label`}
-                    x={tile.x}
-                    y={noteLabelY}
-                    textAnchor="middle"
-                    fill={tile.textFill}
-                    opacity={opacity}
-                    fontSize="11.5"
-                    fontWeight="800"
-                    stroke="rgba(5,10,18,0.9)"
-                    strokeWidth={1.8}
-                    paintOrder="stroke"
-                  >
-                    {tile.label}
-                  </text>
-                ) : null}
-              </Fragment>
-            );
-          })}
+                </Fragment>
+              );
+            })}
           </g> {/* end tileClipPath group */}
 
           <g

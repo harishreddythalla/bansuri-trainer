@@ -30,7 +30,6 @@
   /* --card-border: 1px solid rgba(255, 255, 255, 0.05); */
   --card-strong-bg: linear-gradient(180deg, #1a1a1d, #0c0c0e);
   /* --card-strong-border: 1px solid rgba(255, 255, 255, 0.05); */
-
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-medium: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.15);
@@ -108,7 +107,7 @@
   --attempt-card-fill-danger: rgba(255, 71, 87, 1);
   --attempt-card-fill-default: rgba(255, 255, 255, 0.15);
 
-  --notegroup-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(10, 10, 12, 0.4) 50%, rgba(255, 255, 255, 0.03) 100%);
+  --notegroup-bg: #1e1e21;
   --notegroup-border: 1px solid rgba(255, 255, 255, 0.06);
   /* --notegroup-top-overlay: linear-gradient(180deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%);
   --notegroup-bottom-overlay: linear-gradient(360deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%); */
