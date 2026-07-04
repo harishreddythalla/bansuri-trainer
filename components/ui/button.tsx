@@ -12,8 +12,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-slate-50 text-slate-950 shadow-sm hover:bg-slate-100",
-        ghost: "bg-transparent text-slate-100 hover:bg-white/[0.06]",
-        outline: "border border-white/10 bg-transparent text-slate-100 hover:bg-white/[0.06]",
+        ghost: "bg-transparent text-[color:var(--text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
+        outline: "border border-[color:var(--line)] bg-transparent text-[color:var(--text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
       },
       size: {
         default: "h-11 px-5",
