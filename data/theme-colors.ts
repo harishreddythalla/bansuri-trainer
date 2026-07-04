@@ -1,214 +1,214 @@
 export const THEME = {
-  // --- Pure Gray & Black Dark Theme Colors ---
+  // --- Pure Gray & Black Apple Dark Theme Colors ---
   background: {
-    dark: "#050506",      // Deepest black background
-    medium: "#0a0a0c",    // Intermediate dark gray background
-    light: "#101014",     // Lightest background shade
+    dark: "#000000",      // Pure black background
+    medium: "#161617",    // Apple Dark Gray (System Gray 6)
+    light: "#1c1c1e",     // Apple Elevated Gray (System Gray 5)
   },
 
   // Glass card backgrounds (charcoal gray glass)
   card: {
-    bg: "rgba(10, 10, 12, 0.94)",
-    border: "1px solid rgba(255, 255, 255, 0.05)",
+    bg: "#161617",
+    border: "none",
   },
   cardStrong: {
-    bg: "rgba(6, 6, 8, 0.95)",
-    border: "1px solid rgba(255, 255, 255, 0.05)",
+    bg: "#1c1c1e",
+    border: "none",
   },
 
   // Helper colors
   border: {
-    subtle: "rgba(255, 255, 255, 0.06)",
-    medium: "rgba(255, 255, 255, 0.08)",
-    strong: "rgba(255, 255, 255, 0.15)",
-    pill: "rgba(255, 255, 255, 0.1)",
+    subtle: "rgba(255, 255, 255, 0.015)",
+    medium: "rgba(255, 255, 255, 0.03)",
+    strong: "rgba(255, 255, 255, 0.06)",
+    pill: "none",
   },
 
   text: {
-    muted: "var(--muted)",
-    white: "rgba(255, 255, 255, 0.98)",
-    light: "rgba(255, 255, 255, 0.85)",
-    gray: "rgba(255, 255, 255, 0.72)",
+    muted: "#86868b",       // Apple secondary label gray
+    white: "#f5f5f7",       // Apple primary label off-white
+    light: "#e8e8ed",       // Secondary text
+    gray: "#86868b",        // Tertiary text
   },
 
-  // --- Unified Accent Colors ---
+  // --- Apple Accent Colors ---
   primary: {
-    main: "rgba(0, 224, 255, 1)",           // Bright cyan accent
-    glow: "rgba(0, 224, 255, 0.28)",         // Primary glow
-    light: "rgba(0, 224, 255, 0.08)",        // Very faint primary highlight
-    solid: "#00e0ff",
+    main: "#0a84ff",         // Apple System Blue (iOS Dark)
+    glow: "rgba(10, 132, 255, 0.16)",
+    light: "rgba(10, 132, 255, 0.06)",
+    solid: "#0a84ff",
   },
   success: {
-    main: "rgba(46, 213, 115, 1)",          // Clean success green
-    glow: "rgba(46, 213, 115, 0.18)",        // Success glow
-    light: "rgba(46, 213, 115, 0.03)",       // Faint success highlight
-    solid: "#2ed573",
+    main: "#30d158",         // Apple System Green
+    glow: "rgba(48, 209, 88, 0.12)",
+    light: "rgba(48, 209, 88, 0.04)",
+    solid: "#30d158",
   },
   warning: {
-    main: "rgba(255, 189, 89, 1)",           // Amber warning yellow
-    glow: "rgba(255, 189, 89, 0.18)",
-    light: "rgba(255, 189, 89, 0.05)",
-    solid: "#ffbd59",
+    main: "#ffd60a",         // Apple System Yellow
+    glow: "rgba(255, 214, 10, 0.12)",
+    light: "rgba(255, 214, 10, 0.04)",
+    solid: "#ffd60a",
   },
   danger: {
-    main: "rgba(255, 71, 87, 1)",           // Danger red
-    glow: "rgba(255, 71, 87, 0.22)",
-    light: "rgba(255, 71, 87, 0.05)",
-    solid: "#ff4757",
+    main: "#ff453a",         // Apple System Red
+    glow: "rgba(255, 69, 58, 0.14)",
+    light: "rgba(255, 69, 58, 0.04)",
+    solid: "#ff453a",
   },
 
   // --- Practice Map & Module List ---
   practiceMap: {
     // Current module details card
     moduleCurrent: {
-      border: "1px solid rgba(0, 224, 255, 0.16)",
-      boxShadow: "0 0 16px rgba(0, 224, 255, 0.08), inset 0 0 12px rgba(0, 224, 255, 0.04)",
-      background: "linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))",
+      border: "none",
+      boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
+      background: "#2c2c2e", // Apple elevated System Gray 4
     },
     moduleDefault: {
-      border: "1px solid rgba(255, 255, 255, 0.08)",
-      background: "rgba(255, 255, 255, 0.02)",
+      border: "none",
+      background: "#1c1c1e", // System Gray 5
     },
     // Checkpoint pill highlights
     pillCurrent: {
-      bg: "rgba(0, 224, 255, 0.08)",
-      border: "1px solid rgba(0, 224, 255, 0.35)",
-      color: "rgba(255, 255, 255, 0.98)",
-      dot: "rgba(0, 224, 255, 1)",
+      bg: "rgba(10, 132, 255, 0.15)", // Subtle Apple blue tint
+      border: "none",
+      color: "#0a84ff",
+      dot: "#0a84ff",
     },
     pillDone: {
-      bg: "rgba(46, 213, 115, 0.03)",
-      border: "1px solid rgba(46, 213, 115, 0.22)",
-      color: "rgba(255, 255, 255, 0.82)",
-      dot: "rgba(46, 213, 115, 1)",
+      bg: "rgba(48, 209, 88, 0.12)", // Subtle Apple green tint
+      border: "none",
+      color: "#30d158",
+      dot: "#30d158",
     },
     pillDefault: {
-      bg: "rgba(255, 255, 255, 0.02)",
-      border: "1px solid rgba(255, 255, 255, 0.05)",
-      color: "var(--muted)",
-      dot: "rgba(255, 255, 255, 0.28)",
+      bg: "#2c2c2e",
+      border: "none",
+      color: "#86868b",
+      dot: "rgba(255, 255, 255, 0.2)",
     },
   },
 
   // --- Journey Ribbon / Progress Overview ---
   journey: {
     accent: {
-      bg: "linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))",
-      border: "1px solid rgba(0, 224, 255, 0.28)",
+      bg: "#2c2c2e",
+      border: "1px solid rgba(10, 132, 255, 0.3)",
     },
     success: {
-      bg: "linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))",
-      border: "1px solid rgba(46, 213, 115, 0.28)",
+      bg: "#2c2c2e",
+      border: "1px solid rgba(48, 209, 88, 0.3)",
     },
     muted: {
-      bg: "rgba(255, 255, 255, 0.03)",
-      border: "1px solid rgba(255, 255, 255, 0.08)",
+      bg: "#1c1c1e",
+      border: "none",
     },
-    barBg: "rgba(255, 255, 255, 0.08)",
-    barFill: "linear-gradient(90deg, rgba(117, 184, 255, 0.95), rgba(103, 240, 202, 0.95))",
+    barBg: "#2c2c2e",
+    barFill: "#0a84ff", // Solid Apple blue progress fill
   },
 
   // --- Live Metrics ---
   metrics: {
-    barBg: "rgba(255, 255, 255, 0.08)",
-    noiseBar: "linear-gradient(90deg, rgba(103, 240, 202, 0.88), rgba(255, 189, 89, 0.72), rgba(255, 99, 99, 0.9))",
-    defaultBar: "linear-gradient(90deg, rgba(117, 184, 255, 0.18), rgba(103, 240, 202, 0.9))",
-    noiseFill: "rgba(255, 99, 99, 0.95)",
-    defaultFill: "rgba(103, 240, 202, 0.95)",
-    barShadow: "0 0 16px rgba(103, 240, 202, 0.28)",
+    barBg: "#1c1c1e",
+    noiseBar: "linear-gradient(90deg, #30d158, #ffd60a, #ff453a)", // Clean Apple success-warning-danger bar
+    defaultBar: "#0a84ff",
+    noiseFill: "#ff453a",
+    defaultFill: "#30d158",
+    barShadow: "0 0 10px rgba(48, 209, 88, 0.2)",
   },
 
   // --- Live Stats panels ---
   statsCard: {
-    bg: "linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))",
-    border: "1px solid rgba(255, 255, 255, 0.08)",
+    bg: "#1c1c1e",
+    border: "none",
   },
 
   // --- Attempt Progress metrics ---
   attemptCard: {
-    bg: "linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))",
+    bg: "#2c2c2e",
     border: {
-      success: "1px solid rgba(46, 213, 115, 0.28)",
-      warning: "1px solid rgba(0, 224, 255, 0.28)",
-      danger: "1px solid rgba(255, 71, 87, 0.28)",
-      default: "1px solid rgba(255, 255, 255, 0.05)",
+      success: "none",
+      warning: "none",
+      danger: "none",
+      default: "none",
     },
     fill: {
-      success: "rgba(46, 213, 115, 1)",
-      warning: "rgba(0, 224, 255, 1)",
-      danger: "rgba(255, 71, 87, 1)",
-      default: "rgba(255, 255, 255, 0.15)",
+      success: "#30d158",
+      warning: "#0a84ff",
+      danger: "#ff453a",
+      default: "#3a3a3c",
     },
   },
 
   // --- Dynamic Note Group Visualizer ---
   noteGroup: {
-    bg: "linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(10, 10, 12, 0.4) 50%, rgba(255, 255, 255, 0.03) 100%)",
-    border: "1px solid rgba(255, 255, 255, 0.06)",
-    topOverlay: "linear-gradient(180deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%)",
-    bottomOverlay: "linear-gradient(360deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%)",
+    bg: "#161617",
+    border: "none",
+    topOverlay: "linear-gradient(180deg, #161617 0%, transparent 100%)",
+    bottomOverlay: "linear-gradient(360deg, #161617 0%, transparent 100%)",
     activePill: {
-      bg: "rgba(0, 224, 255, 0.08)",
-      border: "1px solid rgba(0, 224, 255, 0.4)",
-      text: "rgba(219, 255, 247, 1)",
+      bg: "rgba(10, 132, 255, 0.15)",
+      border: "none",
+      text: "#0a84ff",
     },
     donePill: {
-      bg: "rgba(46, 213, 115, 0.03)",
-      border: "1px solid rgba(46, 213, 115, 0.18)",
-      text: "rgba(46, 213, 115, 0.9)",
+      bg: "rgba(48, 209, 88, 0.12)",
+      border: "none",
+      text: "#30d158",
     },
     defaultPill: {
-      bg: "rgba(255, 255, 255, 0.02)",
-      border: "1px solid rgba(255, 255, 255, 0.06)",
-      text: "rgba(255, 255, 255, 0.85)",
+      bg: "#2c2c2e",
+      border: "none",
+      text: "#86868b",
     },
   },
 
   // --- Mic & Controls Toolbar ---
   controls: {
-    micActive: "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(103,240,202,0.06))",
-    micActiveBorder: "1px solid rgba(103,240,202,0.34)",
-    micActiveColor: "rgba(219,255,247,0.98)",
-    micInactive: "rgba(255,255,255,0.04)",
-    micInactiveBorder: "1px solid rgba(255,255,255,0.08)",
+    micActive: "rgba(48, 209, 88, 0.15)",
+    micActiveBorder: "none",
+    micActiveColor: "#30d158",
+    micInactive: "#2c2c2e",
+    micInactiveBorder: "none",
   },
 
   // --- Toasts & Alerts ---
   toast: {
     micToast: {
-      border: "1px solid rgba(255, 255, 255, 0.05)",
-      bg: "linear-gradient(180deg, rgba(255,255,255,0.06), #0a0a0c)",
+      border: "none",
+      bg: "#2c2c2e",
     },
   },
 
   // --- Pitch Tracker Canvas ---
   pitch: {
-    bg: "rgba(6, 6, 8, 0.95)",
-    border: "1px solid rgba(255, 255, 255, 0.05)",
-    trace: "rgba(117, 184, 255, 0.95)",        // Bright light blue trace
-    traceGlow: "rgba(117, 184, 255, 0.8)",
-    targetZone: "rgba(124, 173, 238, 0.15)",   // Selected target zone
-    releaseZone: "rgba(117, 184, 255, 0.06)",  // Soft blue release zone
-    gridLine: "rgba(255, 255, 255, 0.1)",
-    axisLabel: "rgba(255, 255, 255, 0.76)",
-    mutedLabel: "rgba(255, 255, 255, 0.42)",
+    bg: "#161617",
+    border: "none",
+    trace: "#0a84ff",                          // Clean Apple Blue trace
+    traceGlow: "rgba(10, 132, 255, 0.2)",
+    targetZone: "rgba(48, 209, 88, 0.08)",     // Soft Green success target zone
+    releaseZone: "rgba(255, 255, 255, 0.015)", // Extremely faint warning zone
+    gridLine: "rgba(255, 255, 255, 0.04)",
+    axisLabel: "#86868b",
+    mutedLabel: "rgba(255, 255, 255, 0.22)",
   },
 
   // --- Flute Road lanes ---
   road: {
     active: {
-      bg: "rgba(0, 224, 255, 0.12)",
-      border: "rgba(0, 224, 255, 0.26)",
-      line: "rgba(0, 224, 255, 0.32)",
+      bg: "rgba(10, 132, 255, 0.08)",
+      border: "none",
+      line: "#0a84ff",
     },
     inactive: {
-      bg: "rgba(255, 255, 255, 0.03)",
-      border: "rgba(255, 255, 255, 0.05)",
-      line: "rgba(255, 255, 255, 0.06)",
+      bg: "rgba(255, 255, 255, 0.015)",
+      border: "none",
+      line: "rgba(255, 255, 255, 0.03)",
     },
     divider: {
-      glow: "rgba(0, 224, 255, 0.05)",
-      dashed: "rgba(0, 224, 255, 0.28)",
+      glow: "none",
+      dashed: "rgba(10, 132, 255, 0.3)",
     },
   },
 };

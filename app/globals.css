@@ -4,19 +4,19 @@
 
 :root {
   color-scheme: dark;
-  --bg: #07111f;
-  --bg-soft: rgba(10, 20, 36, 0.72);
-  --card: rgba(14, 27, 46, 0.78);
-  --card-strong: rgba(18, 33, 57, 0.94);
-  --line: rgba(255, 255, 255, 0.1);
-  --text: #f7f7fb;
-  --muted: #adc0de;
-  --accent: #75b8ff;
-  --accent-2: #9a7dff;
-  --success: #71e7bf;
-  --warn: #ffd26d;
-  --danger: #ff8e8e;
-  --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  --bg: #000000;
+  --bg-soft: #121214;
+  --card: #1c1c1e;
+  --card-strong: #1c1c1e;
+  --line: none;
+  --text: #f5f5f7;
+  --muted: #86868b;
+  --accent: #0071e3;
+  --accent-2: #bf5af2;
+  --success: #30d158;
+  --warn: #ffd60a;
+  --danger: #ff453a;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
 }
 
 * {
@@ -32,20 +32,11 @@ body {
   min-height: 100vh;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(circle at top, rgba(90, 123, 255, 0.2), transparent 28%),
-    radial-gradient(circle at 80% 0%, rgba(96, 221, 192, 0.18), transparent 20%),
-    linear-gradient(180deg, #08111f 0%, #091423 46%, #060b13 100%);
+  background: #000000;
 }
 
 body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(4, 8, 16, 0.4), rgba(4, 8, 16, 0) 140px),
-    radial-gradient(circle at top center, rgba(117, 184, 255, 0.08), transparent 30%);
+  display: none;
 }
 
 a {
