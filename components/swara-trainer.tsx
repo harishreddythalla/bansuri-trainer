@@ -1217,7 +1217,7 @@ export function SwaraTrainer() {
   const metronomeBeatCountRef = useRef(0);
 
   useEffect(() => {
-    if (!metronomeActive) {
+    if (!metronomeActive || isFluteRoadPaused) {
       if (metronomeAudioCtxRef.current) {
         void metronomeAudioCtxRef.current.close().catch(() => { });
         metronomeAudioCtxRef.current = null;
@@ -1270,7 +1270,7 @@ export function SwaraTrainer() {
     return () => {
       clearInterval(timer);
     };
-  }, [metronomeActive, metronomeBpm, metronomeBeatsPerNote]);
+  }, [metronomeActive, metronomeBpm, metronomeBeatsPerNote, isFluteRoadPaused]);
 
   // Metronome dropdown click outside & Escape key listeners
   useEffect(() => {
