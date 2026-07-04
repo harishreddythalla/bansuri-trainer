@@ -3210,7 +3210,7 @@ export function SwaraTrainer() {
                               display: "flex",
                               flexDirection: "column",
                               gap: 6,
-                              padding: "38px 0",
+                              padding: "52px 0",
                             }}
                           >
                             {noteLines.map((line, lineIdx) => {
@@ -3430,11 +3430,9 @@ function MetricCard(props: {
         <Sparkline points={sparkline} mode={props.sparkMode} />
       </div>
       <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <div style={{ color: "var(--muted)", fontSize: 11.5, fontWeight: 650, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {props.label}
-          </div>
-          <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.03em" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <div style={{ color: "var(--muted)", fontSize: 10, fontWeight: 650 }}>{props.label}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.03em" }}>
             {displayValue}
           </div>
         </div>
