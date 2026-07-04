@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, Fragment, useCallback } from "react";
-import { Settings, ChevronLeft, ChevronRight, Play, Pause, RotateCcw, Repeat, Music, Maximize2, Minimize2, Timer } from "lucide-react";
+import { Settings, ChevronLeft, ChevronRight, Play, Pause, RotateCcw, Repeat, Music, Maximize2, Minimize2, Timer, Gauge } from "lucide-react";
 import { foundationModules } from "@/data/lesson-plan";
 import {
   defaultFluteProfile,
@@ -746,6 +746,21 @@ export function SwaraTrainer() {
   const [metronomeBeatsPerNote, setMetronomeBeatsPerNote] = useState(4);
   const metronomeRef = useRef<HTMLDivElement | null>(null);
 
+  const [speedOpen, setSpeedOpen] = useState(false);
+  const [beatsPerNote, setBeatsPerNote] = useState(4);
+  const speedRef = useRef<HTMLDivElement | null>(null);
+
+  const beatsPerNoteRef = useRef(beatsPerNote);
+  const metronomeBpmRef = useRef(metronomeBpm);
+
+  useEffect(() => {
+    beatsPerNoteRef.current = beatsPerNote;
+  }, [beatsPerNote]);
+
+  useEffect(() => {
+    metronomeBpmRef.current = metronomeBpm;
+  }, [metronomeBpm]);
+
   const handleToggleLeftRail = () => {
     setLeftRailOpen((current) => {
       const next = !current;
@@ -845,10 +860,11 @@ export function SwaraTrainer() {
   const sequenceVisualStates = useMemo(() => {
     if (!sequenceDrill) return [];
 
-    const countdownDelayMs = 1000;
+    const countdownDelayMs = (60 / metronomeBpm) * 1000;
+    const dynamicSustainMs = beatsPerNote * (60 / metronomeBpm) * 1000;
     const TILE_PX_PER_MS = 0.10;
     const countdownHeight = 100;
-    const estimatedNoteHeights = sequenceDrill.steps.map((step) => Math.round(step.sustainTargetMs * TILE_PX_PER_MS));
+    const estimatedNoteHeights = sequenceDrill.steps.map(() => Math.round(dynamicSustainMs * TILE_PX_PER_MS));
     const maxTileHeight = Math.max(countdownHeight, ...estimatedNoteHeights, 46);
     const SPAWN_MARGIN = 58;
     const TILE_SPAWN_Y = -maxTileHeight - SPAWN_MARGIN;
@@ -861,20 +877,19 @@ export function SwaraTrainer() {
 
     return sequenceDrill.steps.map((step) => {
       const timeAtFluteTop = noteCursor + MS_TO_FLUTE;
-      const timeAtFluteBottom = timeAtFluteTop + step.sustainTargetMs;
+      const timeAtFluteBottom = timeAtFluteTop + dynamicSustainMs;
 
       // Advance cursor for next step
-      noteCursor += step.sustainTargetMs + (step.hasSpaceAfter ? 240 : 0);
+      noteCursor += dynamicSustainMs + (step.hasSpaceAfter ? 240 : 0);
 
       const isPassed = now > timeAtFluteBottom;
       const isActive = now >= timeAtFluteTop && now <= timeAtFluteBottom;
-
       return {
         isPassed,
         isActive,
       };
     });
-  }, [sequenceDrill, fluteViewStartedAt, fluteViewTick]);
+  }, [sequenceDrill, fluteViewStartedAt, fluteViewTick, beatsPerNote, metronomeBpm]);
 
   const activeVisualIndex = sequenceVisualStates.findIndex((state) => state.isActive);
   const fluteProfile = useMemo(
@@ -1281,6 +1296,30 @@ export function SwaraTrainer() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [metronomeOpen]);
+
+  // Speed dropdown click outside & Escape key listeners
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!speedOpen) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (speedRef.current?.contains(target)) return;
+      setSpeedOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSpeedOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [speedOpen]);
 
   useEffect(() => {
     analysisRef.current = analysis;
@@ -1717,6 +1756,7 @@ export function SwaraTrainer() {
     const livePitchZoneCents = livePitchConfig.noteToleranceCents;
     const livePitchReleaseCents = livePitchConfig.releaseToleranceCents;
     const liveSequenceRagaGrammar = isRagaGrammarSequence(liveSequenceStep);
+    const liveDynamicSustainMs = beatsPerNoteRef.current * (60 / metronomeBpmRef.current) * 1000;
     const liveSequenceIndex = liveSequenceStep
       ? Math.min(liveProgress.stepIndex, Math.max(0, liveSequenceStep.steps.length - 1))
       : 0;
@@ -2027,7 +2067,7 @@ export function SwaraTrainer() {
         stability: Math.round(stability ?? 0),
         noise: Math.round(hissPercent),
         pitchToleranceCents: livePitchConfig.scoreToleranceCents,
-        sustainNormalizationMs: liveSequenceStep ? Math.max(500, liveSequenceStep.sustainTargetMs * 4) : 3000,
+        sustainNormalizationMs: Math.max(500, liveDynamicSustainMs * 4),
         ragaGrammar: liveSequenceRagaGrammar,
       }).score
       : 0;
@@ -2078,7 +2118,7 @@ export function SwaraTrainer() {
           activeSequenceReading.swara === liveTarget.swara &&
           activeSequenceReading.octave === liveTarget.octave &&
           Math.abs(activeSequenceReading.centsOffset) <= sequencePitchToleranceCents;
-        const sustainReady = (sustainMs ?? 0) >= Math.max(sequenceStep.sustainTargetMs, PRACTICE_HOLD_FLOOR_MS);
+        const sustainReady = (sustainMs ?? 0) >= Math.max(liveDynamicSustainMs, PRACTICE_HOLD_FLOOR_MS);
         const lockAge = noteLockRef.current ? now - noteLockRef.current.startedAt : 0;
         const noteLockThresholdMs = SEQUENCE_NOTE_LOCK_MS;
         const inTransitionGrace =
@@ -2103,7 +2143,7 @@ export function SwaraTrainer() {
             stability: Math.round(stability ?? 0),
             noise: Math.round(hissPercent),
             pitchToleranceCents: livePitchConfig.scoreToleranceCents,
-            sustainNormalizationMs: Math.max(500, sequenceStep.sustainTargetMs * 4),
+            sustainNormalizationMs: Math.max(500, liveDynamicSustainMs * 4),
             ragaGrammar: liveSequenceRagaGrammar,
           }).score;
           recordSequenceStepResult({
@@ -2289,7 +2329,7 @@ export function SwaraTrainer() {
       const checkpointClearable =
         Boolean(visibleReading) &&
         rawScore >= Math.max(0, (liveStep?.minimumScore ?? 0) - 8) &&
-        (sustainMs ?? 0) >= (liveStep?.sustainTargetMs ?? 0) &&
+        (sustainMs ?? 0) >= liveDynamicSustainMs &&
         visibleReading?.swara === liveTarget.swara &&
         visibleReading?.octave === liveTarget.octave &&
         Math.abs(visibleReading?.centsOffset ?? 999) <= livePitchZoneCents;
@@ -2590,9 +2630,10 @@ export function SwaraTrainer() {
   const goalProgress = scoreValue != null && selectedStep
     ? clamp(scoreValue / Math.max(1, selectedStep.minimumScore), 0, 1)
     : 0;
+  const dynamicSustainMs = beatsPerNote * (60 / metronomeBpm) * 1000;
   const sustainProgress =
     analysis.sustainMs != null && selectedStep
-      ? clamp(analysis.sustainMs / Math.max(1, checkpointFocus.sustainTargetMs), 0, 1)
+      ? clamp(analysis.sustainMs / Math.max(1, dynamicSustainMs), 0, 1)
       : 0;
   const tonicLabel = fluteProfile.tonicLabel;
   const liveTargetTitle = sequenceDrill ? sequenceDrill.title : formatTargetLabel(checkpointFocus.target);
@@ -2882,6 +2923,106 @@ export function SwaraTrainer() {
                 </div>
 
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {/* Speed Configure Button & Popup */}
+                  <div style={{ position: "relative" }} ref={speedRef}>
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => setSpeedOpen((current) => !current)}
+                      aria-expanded={speedOpen}
+                      aria-haspopup="dialog"
+                      title="Falling note speed"
+                      style={{
+                        minHeight: 28,
+                        minWidth: 28,
+                        padding: "0 8px",
+                        borderRadius: 999,
+                        display: "inline-flex",
+                        gap: 5,
+                        justifyContent: "center",
+                        alignItems: "center",
+                        fontSize: 11,
+                        fontWeight: 650,
+                        background: THEME.controls.btnBg,
+                        border: THEME.controls.btnBorder,
+                        color: THEME.controls.btnColor,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Gauge size={13} />
+                      <span>{beatsPerNote}×</span>
+                    </button>
+
+                    {speedOpen && (
+                      <div
+                        role="dialog"
+                        aria-label="Speed settings"
+                        style={{
+                          position: "absolute",
+                          top: 36,
+                          right: 0,
+                          zIndex: 100,
+                          width: 250,
+                          padding: 16,
+                          borderRadius: 20,
+                          border: "1px solid var(--border-soft)",
+                          background: "var(--card)",
+                          boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+                          backdropFilter: "blur(20px)",
+                          WebkitBackdropFilter: "blur(20px)",
+                          display: "grid",
+                          gap: 14,
+                        }}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--text)" }}>Falling Speed</span>
+
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>
+                            <span>Beats per note</span>
+                            <span style={{ color: "var(--text)", fontWeight: 700 }}>{beatsPerNote}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={() => setBeatsPerNote((v) => Math.max(1, v - 1))}
+                              style={{
+                                width: 24, height: 24, borderRadius: "50%",
+                                border: "1px solid var(--border-soft)",
+                                background: "rgba(255,255,255,0.05)",
+                                color: "var(--text)", display: "grid", placeItems: "center",
+                                cursor: "pointer", fontSize: 14, fontWeight: "bold",
+                              }}
+                            >−</button>
+                            <input
+                              type="range"
+                              min={1}
+                              max={8}
+                              step={1}
+                              value={beatsPerNote}
+                              onChange={(e) => setBeatsPerNote(Number(e.target.value))}
+                              style={{ flex: 1, accentColor: "var(--accent)" }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setBeatsPerNote((v) => Math.min(8, v + 1))}
+                              style={{
+                                width: 24, height: 24, borderRadius: "50%",
+                                border: "1px solid var(--border-soft)",
+                                background: "rgba(255,255,255,0.05)",
+                                color: "var(--text)", display: "grid", placeItems: "center",
+                                cursor: "pointer", fontSize: 14, fontWeight: "bold",
+                              }}
+                            >+</button>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginTop: 2 }}>
+                            <span>⚡ Faster (1)</span>
+                            <span>Slower (8) 🐢</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Metronome Configure Button & Popup */}
                   <div style={{ position: "relative" }} ref={metronomeRef}>
                     <button
@@ -3307,6 +3448,8 @@ export function SwaraTrainer() {
                   onToggleLoop={handleToggleFluteRoadLoop}
                   isFullscreen={isLiveCardFullscreen}
                   boardMaxHeight={currentBoardMaxHeight}
+                  beatsPerNote={beatsPerNote}
+                  metronomeBpm={metronomeBpm}
                 />
 
                 <div
@@ -5029,11 +5172,15 @@ function FluteRoadView(props: {
   onRetry?: () => void;
   isLooping?: boolean;
   onToggleLoop?: () => void;
+  beatsPerNote: number;
+  metronomeBpm: number;
 }) {
   const isReverseMode = props.fluteRoadMode === "reverse";
-  const phraseSteps = props.sequenceDrill?.steps.length
+  const dynamicSustainMs = props.beatsPerNote * (60 / props.metronomeBpm) * 1000;
+  const rawPhraseSteps = props.sequenceDrill?.steps.length
     ? props.sequenceDrill.steps
     : [{ target: props.checkpointFocus.target, sustainTargetMs: Math.max(props.checkpointFocus.sustainTargetMs, 900) }];
+  const phraseSteps = rawPhraseSteps.map((step) => ({ ...step, sustainTargetMs: dynamicSustainMs }));
   const activeTarget = props.sequenceCurrentStep?.target ?? props.checkpointFocus.target;
   const activeDetected = props.analysis.detected;
   const reverseDetected = props.analysis.transientDetected;
@@ -5059,9 +5206,9 @@ function FluteRoadView(props: {
   // the gap-between-tiles construction (cursorAdvance = sustainMs).
   const TILE_PX_PER_MS = 0.10; // 100 px/s — controls global scroll speed
 
-  // Countdown spacing (ms) and its visual height
-  const countdownDelayMs = 1000;
-  const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS)); // ~100 px
+  // Countdown spacing (ms) and its visual height — linked to one metronome beat
+  const countdownDelayMs = (60 / props.metronomeBpm) * 1000;
+  const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS));
 
   // Estimate note tile heights for this phrase so we can pick spawn/exit
   // points large enough that even the tallest tile is fully off-screen.
