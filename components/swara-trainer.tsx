@@ -3430,9 +3430,11 @@ function MetricCard(props: {
         <Sparkline points={sparkline} mode={props.sparkMode} />
       </div>
       <div style={{ position: "relative", zIndex: 1 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 650 }}>{props.label}</div>
-          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <div style={{ color: "var(--muted)", fontSize: 11.5, fontWeight: 650, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {props.label}
+          </div>
+          <div style={{ fontSize: 19, fontWeight: 800, letterSpacing: "-0.03em" }}>
             {displayValue}
           </div>
         </div>
