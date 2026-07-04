@@ -879,11 +879,12 @@ export function SwaraTrainer() {
       const timeAtFluteTop = noteCursor + MS_TO_FLUTE;
       const timeAtFluteBottom = timeAtFluteTop + dynamicSustainMs;
 
-      // Advance cursor for next step
-      noteCursor += dynamicSustainMs + (step.hasSpaceAfter ? 240 : 0);
+      // Advance cursor for next step. Gap between groups = exactly 1 beat.
+      noteCursor += dynamicSustainMs + (step.hasSpaceAfter ? countdownDelayMs : 0);
 
       const isPassed = now > timeAtFluteBottom;
-      const isActive = now >= timeAtFluteTop && now <= timeAtFluteBottom;
+      // Highlight the note group 1 beat before the tile arrives at the flute so the player has visual advance notice.
+      const isActive = now >= (timeAtFluteTop - countdownDelayMs) && now <= timeAtFluteBottom;
       return {
         isPassed,
         isActive,
@@ -1234,21 +1235,19 @@ export function SwaraTrainer() {
     const scheduleAheadTime = 0.1; // seconds
     const lookaheadIntervalMs = 25.0; // milliseconds
 
-    const scheduleBeat = (beatNumber: number, time: number) => {
-      const isDownbeat = beatNumber % metronomeBeatsPerNote === 0;
-
+    const scheduleBeat = (_beatNumber: number, time: number) => {
       try {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
 
-        osc.frequency.setValueAtTime(isDownbeat ? 1000 : 600, time);
+        osc.frequency.setValueAtTime(800, time);
         gain.gain.setValueAtTime(0.08, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.06);
 
         osc.start(time);
-        osc.stop(time + 0.08);
+        osc.stop(time + 0.06);
       } catch (e) {
         console.error("Metronome audio scheduling error:", e);
       }
@@ -3154,36 +3153,38 @@ export function SwaraTrainer() {
                           </div>
                         </div>
 
-                        {/* Beats */}
-                        <div style={{ display: "grid", gap: 6 }}>
-                          <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>
-                            Beats
+                        {/* Beats — hidden for now; all ticks are uniform */}
+                        {false && (
+                          <div style={{ display: "grid", gap: 6 }}>
+                            <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>
+                              Beats
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
+                              {[2, 3, 4, 6, 8].map((beats) => {
+                                const active = metronomeBeatsPerNote === beats;
+                                return (
+                                  <button
+                                    key={beats}
+                                    type="button"
+                                    onClick={() => setMetronomeBeatsPerNote(beats)}
+                                    style={{
+                                      height: 24,
+                                      borderRadius: 6,
+                                      border: "1px solid var(--border-soft)",
+                                      background: active ? "var(--accent)" : "rgba(255,255,255,0.05)",
+                                      color: active ? "#fff" : "var(--text)",
+                                      fontSize: 10.5,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    {beats}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
-                            {[2, 3, 4, 6, 8].map((beats) => {
-                              const active = metronomeBeatsPerNote === beats;
-                              return (
-                                <button
-                                  key={beats}
-                                  type="button"
-                                  onClick={() => setMetronomeBeatsPerNote(beats)}
-                                  style={{
-                                    height: 24,
-                                    borderRadius: 6,
-                                    border: "1px solid var(--border-soft)",
-                                    background: active ? "var(--accent)" : "rgba(255,255,255,0.05)",
-                                    color: active ? "#fff" : "var(--text)",
-                                    fontSize: 10.5,
-                                    fontWeight: 700,
-                                    cursor: "pointer",
-                                  }}
-                                >
-                                  {beats}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -5425,8 +5426,8 @@ function FluteRoadView(props: {
       });
     }
 
-    // Advance cursor by the sustain duration. Add an inter-group gap if there is a space after this step in the notation.
-    noteCursor += step.sustainTargetMs + (step.hasSpaceAfter ? 240 : 0);
+    // Advance cursor by the sustain duration. Gap between groups = exactly 1 beat.
+    noteCursor += step.sustainTargetMs + (step.hasSpaceAfter ? countdownDelayMs : 0);
     return results;
   });
 
