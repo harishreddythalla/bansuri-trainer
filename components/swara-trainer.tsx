@@ -3154,8 +3154,8 @@ export function SwaraTrainer() {
                     <div
                       style={{
                         position: "relative",
-                        background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(10, 10, 12, 0.4) 50%, rgba(255,255,255,0.03) 100%)",
-                        border: "1px solid rgba(255,255,255,0.06)",
+                        background: THEME.noteGroup.bg,
+                        border: THEME.noteGroup.border,
                         borderRadius: 12,
                         padding: "5px 6px",
                         display: "flex",
@@ -3174,7 +3174,7 @@ export function SwaraTrainer() {
                           left: 0,
                           right: 0,
                           height: 18,
-                          background: "linear-gradient(180deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%)",
+                          background: THEME.noteGroup.topOverlay,
                           pointerEvents: "none",
                           zIndex: 5,
                         }}
@@ -3187,7 +3187,7 @@ export function SwaraTrainer() {
                           left: 0,
                           right: 0,
                           height: 18,
-                          background: "linear-gradient(360deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%)",
+                          background: THEME.noteGroup.bottomOverlay,
                           pointerEvents: "none",
                           zIndex: 5,
                         }}
@@ -3261,16 +3261,11 @@ export function SwaraTrainer() {
                                       }
                                     }
 
-                                    let bg = "rgba(255,255,255,0.02)";
-                                    let border = "1px solid rgba(255,255,255,0.06)";
-
-                                    if (isGroupPassed) {
-                                      bg = "rgba(46, 213, 115, 0.03)";
-                                      border = "1px solid rgba(46, 213, 115, 0.18)";
-                                    } else if (isGroupActive) {
-                                      bg = "rgba(0, 224, 255, 0.08)";
-                                      border = "1px solid rgba(0, 224, 255, 0.4)";
-                                    }
+                                    const groupStyle = isGroupPassed
+                                      ? THEME.noteGroup.donePill
+                                      : isGroupActive
+                                        ? THEME.noteGroup.activePill
+                                        : THEME.noteGroup.defaultPill;
 
                                     return (
                                       <div
@@ -3280,8 +3275,8 @@ export function SwaraTrainer() {
                                           alignItems: "center",
                                           padding: "3px 5px",
                                           borderRadius: 8,
-                                          background: bg,
-                                          border,
+                                          background: groupStyle.bg,
+                                          border: groupStyle.border,
                                           gap: 2,
                                           flexShrink: 0,
                                           transition: "all 0.25s ease",
@@ -3293,17 +3288,15 @@ export function SwaraTrainer() {
                                           const isPassed = visual ? visual.isPassed : false;
                                           const isActive = visual ? visual.isActive : false;
 
-                                          let color = "rgba(255,255,255,0.85)";
-                                          let fontWeight = 500;
-                                          let scale = 1;
+                                          const stepStyle = isPassed
+                                            ? THEME.noteGroup.donePill
+                                            : isActive
+                                              ? THEME.noteGroup.activePill
+                                              : THEME.noteGroup.defaultPill;
 
-                                          if (isPassed) {
-                                            color = "rgba(46, 213, 115, 0.9)";
-                                          } else if (isActive) {
-                                            color = "rgba(219, 255, 247, 1)";
-                                            fontWeight = 750;
-                                            scale = 1.1;
-                                          }
+                                          let color = stepStyle.text;
+                                          let fontWeight = isActive ? 750 : 500;
+                                          let scale = isActive ? 1.1 : 1;
 
                                           return (
                                             <span
@@ -3421,8 +3414,8 @@ function MetricCard(props: {
         padding: 10,
         position: "relative",
         overflow: "hidden",
-        border: props.highlight ? "1px solid rgba(103,240,202,0.35)" : undefined,
-        boxShadow: props.highlight ? "0 0 0 1px rgba(117,184,255,0.14) inset" : undefined,
+        border: props.highlight ? "1px solid " + THEME.success.glow : undefined,
+        boxShadow: props.highlight ? "0 0 0 1px " + THEME.primary.light + " inset" : undefined,
         opacity: hasCurrentReading ? 1 : 0.4,
         filter: hasCurrentReading ? "none" : "grayscale(70%)",
         transition: "opacity 0.25s ease, filter 0.25s ease",
@@ -3451,7 +3444,7 @@ function MetricCard(props: {
               marginTop: 10,
               height: 10,
               borderRadius: 999,
-              background: "rgba(255,255,255,0.08)",
+              background: THEME.metrics.barBg,
               overflow: "hidden",
               position: "relative",
             }}
@@ -3462,8 +3455,8 @@ function MetricCard(props: {
                 inset: 0,
                 background:
                   props.sparkMetric === "noise"
-                    ? "linear-gradient(90deg, rgba(103,240,202,0.88), rgba(255,189,89,0.72), rgba(255,99,99,0.9))"
-                    : "linear-gradient(90deg, rgba(117,184,255,0.18), rgba(103,240,202,0.9))",
+                    ? THEME.metrics.noiseBar
+                    : THEME.metrics.defaultBar,
                 opacity: 0.45,
               }}
             />
@@ -3478,9 +3471,9 @@ function MetricCard(props: {
                   borderRadius: 999,
                   background:
                     props.sparkMetric === "noise"
-                      ? "rgba(255,99,99,0.95)"
-                      : "rgba(103,240,202,0.95)",
-                  boxShadow: "0 0 16px rgba(103,240,202,0.28)",
+                      ? THEME.metrics.noiseFill
+                      : THEME.metrics.defaultFill,
+                  boxShadow: THEME.metrics.barShadow,
                 }}
               />
             ) : null}
@@ -3559,14 +3552,14 @@ function JourneySummary(props: {
               style={{
                 borderRadius: 18,
                 border: module.isCurrent
-                  ? "1px solid rgba(0, 224, 255, 0.16)"
-                  : "1px solid rgba(255, 255, 255, 0.08)",
+                  ? THEME.practiceMap.moduleCurrent.border
+                  : THEME.practiceMap.moduleDefault.border,
                 boxShadow: module.isCurrent
-                  ? "0 0 16px rgba(0, 224, 255, 0.08), inset 0 0 12px rgba(0, 224, 255, 0.04)"
+                  ? THEME.practiceMap.moduleCurrent.boxShadow
                   : undefined,
                 background: module.isCurrent
-                  ? "linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))"
-                  : "rgba(255, 255, 255, 0.02)",
+                  ? THEME.practiceMap.moduleCurrent.background
+                  : THEME.practiceMap.moduleDefault.background,
                 overflow: "hidden",
               }}
             >
@@ -3616,22 +3609,12 @@ function JourneySummary(props: {
                     const isCurrentStep = module.isCurrent && step.title === props.currentStepTitle;
                     const tone = isCurrentStep ? "current" : isDone ? "done" : "upcoming";
 
-                    let pillBg = "rgba(255, 255, 255, 0.02)";
-                    let pillBorder = "1px solid rgba(255, 255, 255, 0.05)";
-                    let pillColor = "var(--muted)";
-                    let dotColor = "rgba(255, 255, 255, 0.28)";
-
-                    if (tone === "current") {
-                      pillBg = "rgba(0, 224, 255, 0.08)";
-                      pillBorder = "1px solid rgba(0, 224, 255, 0.35)";
-                      pillColor = "rgba(255, 255, 255, 0.98)";
-                      dotColor = "rgba(0, 224, 255, 1)";
-                    } else if (tone === "done") {
-                      pillBg = "rgba(46, 213, 115, 0.03)";
-                      pillBorder = "1px solid rgba(46, 213, 115, 0.22)";
-                      pillColor = "rgba(255, 255, 255, 0.82)";
-                      dotColor = "rgba(46, 213, 115, 1)";
-                    }
+                    const pillStyle =
+                      tone === "current"
+                        ? THEME.practiceMap.pillCurrent
+                        : tone === "done"
+                          ? THEME.practiceMap.pillDone
+                          : THEME.practiceMap.pillDefault;
 
                     return (
                       <span
@@ -3640,12 +3623,12 @@ function JourneySummary(props: {
                         style={{
                           padding: "6px 10px",
                           fontSize: 10.5,
-                          background: pillBg,
-                          border: pillBorder,
-                          color: pillColor,
+                          background: pillStyle.bg,
+                          border: pillStyle.border,
+                          color: pillStyle.color,
                         }}
                       >
-                        <span style={{ color: dotColor, marginRight: 4, fontWeight: 800 }}>
+                        <span style={{ color: pillStyle.dot, marginRight: 4, fontWeight: 800 }}>
                           {isDone ? "✓ " : "• "}
                         </span>
                         {step.title}
@@ -3663,26 +3646,20 @@ function JourneySummary(props: {
 }
 
 function JourneyTile(props: { label: string; title: string; detail: string; tone: "muted" | "accent" | "success" }) {
-  const background =
+  const tileStyle =
     props.tone === "accent"
-      ? "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))"
+      ? THEME.journey.accent
       : props.tone === "success"
-        ? "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))"
-        : "rgba(255,255,255,0.03)";
-  const border =
-    props.tone === "accent"
-      ? "1px solid rgba(0, 224, 255, 0.28)"
-      : props.tone === "success"
-        ? "1px solid rgba(46, 213, 115, 0.28)"
-        : "1px solid rgba(255, 255, 255, 0.08)";
+        ? THEME.journey.success
+        : THEME.journey.muted;
 
   return (
     <div
       style={{
         borderRadius: 18,
         padding: 12,
-        border,
-        background,
+        border: tileStyle.border,
+        background: tileStyle.bg,
         display: "grid",
         gap: 6,
         minHeight: 92,
@@ -3701,8 +3678,8 @@ function LiveStat(props: { label: string; value: string; detail?: string; backgr
       style={{
         borderRadius: 18,
         padding: 12,
-        border: "1px solid rgba(255,255,255,0.08)",
-        background: props.background ?? "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
+        border: THEME.statsCard.border,
+        background: props.background ?? THEME.statsCard.bg,
       }}
     >
       <div style={{ color: "var(--muted)", fontSize: 12 }}>{props.label}</div>
@@ -3789,22 +3766,30 @@ function MiniProgressPanel(props: {
 }) {
   const bounded = clamp(props.progress, 0, 100);
   const complete = bounded >= 96;
-  const background = "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))";
+  const background = THEME.attemptCard.bg;
   const border = props.active
     ? complete
-      ? "1px solid rgba(46, 213, 115, 0.28)"
+      ? THEME.attemptCard.border.success
       : bounded >= 60
-        ? "1px solid rgba(0, 224, 255, 0.28)"
-        : "1px solid rgba(255, 71, 87, 0.28)"
-    : "1px solid rgba(255, 255, 255, 0.05)";
+        ? THEME.attemptCard.border.warning
+        : THEME.attemptCard.border.danger
+    : THEME.attemptCard.border.default;
 
   const fill = props.active
     ? complete
-      ? THEME.success.main
+      ? THEME.attemptCard.fill.success
       : bounded >= 60
-        ? THEME.primary.main
-        : THEME.danger.main
-    : "rgba(255, 255, 255, 0.15)";
+        ? THEME.attemptCard.fill.warning
+        : THEME.attemptCard.fill.danger
+    : THEME.attemptCard.fill.default;
+
+  const shadowColor = props.active
+    ? complete
+      ? THEME.success.glow
+      : bounded >= 60
+        ? THEME.primary.glow
+        : THEME.danger.glow
+    : "none";
 
   return (
     <div
@@ -3832,7 +3817,7 @@ function MiniProgressPanel(props: {
           position: "relative",
           height: 10,
           borderRadius: 999,
-          background: "rgba(255,255,255,0.08)",
+          background: THEME.metrics.barBg,
           overflow: "hidden",
         }}
       >
@@ -3842,7 +3827,7 @@ function MiniProgressPanel(props: {
             height: "100%",
             borderRadius: 999,
             background: fill,
-            boxShadow: bounded > 0 ? "0 0 18px rgba(103,240,202,0.22)" : "none",
+            boxShadow: bounded > 0 ? `0 0 18px ${shadowColor}` : "none",
           }}
         />
         <div
@@ -4092,13 +4077,13 @@ function JourneyRibbon(props: {
         </div>
       </div>
 
-      <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+      <div style={{ height: 8, borderRadius: 999, background: THEME.journey.barBg, overflow: "hidden" }}>
         <div
           style={{
             width: `${clamp(props.progress, 0, 100)}%`,
             height: "100%",
             borderRadius: 999,
-            background: "linear-gradient(90deg, rgba(117,184,255,0.95), rgba(103,240,202,0.95))",
+            background: THEME.journey.barFill,
           }}
         />
       </div>
@@ -4434,11 +4419,11 @@ function SignalTrace(props: {
               borderRadius: 10,
               display: "grid",
               placeItems: "center",
-              border: props.running ? "1px solid rgba(103,240,202,0.34)" : "1px solid rgba(255,255,255,0.08)",
+              border: props.running ? THEME.controls.micActiveBorder : THEME.controls.micInactiveBorder,
               background: props.running
-                ? "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(103,240,202,0.06))"
-                : "rgba(255,255,255,0.04)",
-              color: props.running ? "rgba(219,255,247,0.98)" : "var(--muted)",
+                ? THEME.controls.micActive
+                : THEME.controls.micInactive,
+              color: props.running ? THEME.controls.micActiveColor : "var(--muted)",
             }}
           >
             <MicToggleIcon active={props.running} />
@@ -4459,11 +4444,11 @@ function SignalTrace(props: {
               borderRadius: 10,
               display: "grid",
               placeItems: "center",
-              border: segmentationEnabled ? "1px solid rgba(103,240,202,0.34)" : "1px solid rgba(255,255,255,0.08)",
+              border: segmentationEnabled ? THEME.controls.micActiveBorder : THEME.controls.micInactiveBorder,
               background: segmentationEnabled
-                ? "linear-gradient(180deg, rgba(103,240,202,0.16), rgba(103,240,202,0.06))"
-                : "rgba(255,255,255,0.04)",
-              color: segmentationEnabled ? "rgba(219,255,247,0.98)" : "var(--muted)",
+                ? THEME.controls.micActive
+                : THEME.controls.micInactive,
+              color: segmentationEnabled ? THEME.controls.micActiveColor : "var(--muted)",
             }}
           >
             <SegmentationToggleIcon active={segmentationEnabled} />
