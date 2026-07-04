@@ -863,7 +863,7 @@ export function SwaraTrainer() {
     const countdownDelayMs = (60 / metronomeBpm) * 1000;
     const dynamicSustainMs = beatsPerNote * (60 / metronomeBpm) * 1000;
     const TILE_PX_PER_MS = 0.10;
-    const countdownHeight = 100;
+    const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS));
     const estimatedNoteHeights = sequenceDrill.steps.map(() => Math.round(dynamicSustainMs * TILE_PX_PER_MS));
     const maxTileHeight = Math.max(countdownHeight, ...estimatedNoteHeights, 46);
     const SPAWN_MARGIN = 58;
