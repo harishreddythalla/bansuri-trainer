@@ -2727,7 +2727,8 @@ export function SwaraTrainer() {
               style={{
                 borderRadius: isLiveCardFullscreen ? 0 : 28,
                 padding: isLiveCardFullscreen ? "12px 20px" : 16,
-                background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+                background: "rgba(10, 10, 12, 0.94)", // Premium dark gray shade
+                border: "1px solid rgba(255, 255, 255, 0.05)",
                 display: "grid",
                 gap: isLiveCardFullscreen ? 8 : 12,
                 minWidth: 880,
@@ -2735,7 +2736,7 @@ export function SwaraTrainer() {
                   position: "fixed" as const,
                   inset: 0,
                   zIndex: 9000,
-                  background: "rgba(6,10,18,0.98)",
+                  background: "rgba(6, 6, 8, 0.99)", // Premium dark black/gray fullscreen bg
                   height: "100dvh",
                   boxSizing: "border-box" as const,
                   overflowY: "hidden" as const,
@@ -5040,9 +5041,9 @@ function FluteRoadView(props: {
         >
           <defs>
             <linearGradient id="trainerFluteBoard" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#06110c" />
-              <stop offset="60%" stopColor="#08171a" />
-              <stop offset="100%" stopColor="#090f18" />
+              <stop offset="0%" stopColor="#050506" />
+              <stop offset="60%" stopColor="#0a0a0c" />
+              <stop offset="100%" stopColor="#101014" />
             </linearGradient>
             <linearGradient id="trainerFluteWood" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#f1d9b5" />
