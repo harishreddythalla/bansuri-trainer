@@ -180,6 +180,7 @@ type PitchDifficultyConfig = {
 
 const allLessonSteps = foundationModules.flatMap((module) => module.steps);
 // Default to the first checkpoint of the 13th module (index 12)
+// const firstStep = allLessonSteps[0];
 const firstStep = foundationModules[12]?.steps[0] ?? allLessonSteps[0];
 const FALLBACK_TARGET: SwaraTarget = { swara: "Sa", octave: "Madhya" };
 const UI_REFRESH_MS = 40;
@@ -4389,8 +4390,9 @@ function SignalTrace(props: {
     >
       <div className="trainer-signal-top" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", textTransform: "uppercase", letterSpacing: "0.05em", opacity: 0.9 }}>
-            Pitch Tracker
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 3, height: 16, borderRadius: 99, background: "var(--accent)", flexShrink: 0 }} />
+            <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>Pitch Tracker</span>
           </div>
           {segmentationEnabled && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginLeft: 8 }}>
