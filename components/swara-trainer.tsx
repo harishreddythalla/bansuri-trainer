@@ -4581,11 +4581,7 @@ function SignalTrace(props: {
           aria-hidden="true"
         >
           {/* Background bands */}
-          <rect x="0" y="0" width={width} height={highReleaseY} fill="rgba(255, 99, 99, 0.08)" />
-          <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill="rgba(255, 189, 89, 0.12)" />
-          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(103,240,202,0.15)" />
-          <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill="rgba(255, 189, 89, 0.12)" />
-          <rect x="0" y={lowReleaseY} width={width} height={height - lowReleaseY} fill="rgba(255, 99, 99, 0.08)" />
+          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(117, 184, 255, 0.08)" />
 
           {/* Dynamic note sections */}
           {segmentationEnabled
@@ -4639,7 +4635,7 @@ function SignalTrace(props: {
           {/* Color-coded line segments by swara */}
           {segments.map((seg, si) => {
             if (seg.points.length < 2) return null;
-            const color = seg.swara ? noteVisual(seg.swara, seg.octave).stroke : "rgba(103,240,202,0.7)";
+            const color = "rgba(117, 184, 255, 0.95)";
             const d = buildSmoothPolyline(densifyTracePoints(seg.points, traceResampleStepPx).map((p) => ({ ...p, active: true })));
             return (
               <path
@@ -4666,8 +4662,8 @@ function SignalTrace(props: {
                   cx={point.x}
                   cy={point.y}
                   r="2.15"
-                  fill={visual.fill}
-                  stroke={visual.stroke}
+                  fill="rgba(117, 184, 255, 0.8)"
+                  stroke="rgba(117, 184, 255, 1)"
                   strokeWidth="0.7"
                   opacity={0.92}
                 />
