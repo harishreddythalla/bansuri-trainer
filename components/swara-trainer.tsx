@@ -2545,7 +2545,7 @@ export function SwaraTrainer() {
   const bottomSectionHeight = sequenceDrill ? 100 : 80;
   const computedPitchTrackerHeight = isLiveCardFullscreen
     ? 340
-    : Math.max(120, computedOverlayHeight - bottomSectionHeight - 112);
+    : Math.max(160, computedOverlayHeight - bottomSectionHeight - 72);
 
   return (
     <main className="shell trainer-page" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
@@ -3061,7 +3061,9 @@ export function SwaraTrainer() {
                     left: 20,
                     width: computedOverlayWidth + "px",
                     top: 20,
-                    bottom: layoutSvgRenderedHeight - layoutFluteBodyScreenY + 15,
+                    bottom: isLiveCardFullscreen
+                      ? layoutSvgRenderedHeight * (1 - FLUTE_BODY_OFFSET_Y / FLUTE_BOARD_HEIGHT) + 15
+                      : layoutSvgRenderedHeight - layoutFluteBodyScreenY + 15,
                     zIndex: 10,
                     pointerEvents: "none",
                     display: "flex",
@@ -5101,6 +5103,10 @@ function FluteRoadView(props: {
               <stop offset="0%" stopColor="rgba(255,255,255,0.28)" />
               <stop offset="100%" stopColor="rgba(255,255,255,0)" />
             </linearGradient>
+            {/* Clip tiles to the lane area so they only appear once inside the road */}
+            <clipPath id="tileClipPath">
+              <rect x="0" y={roadStartY} width={FLUTE_BOARD_WIDTH} height={roadEndY - roadStartY} />
+            </clipPath>
           </defs>
 
           {/* <rect x="0" y="0" width={FLUTE_BOARD_WIDTH} height={FLUTE_BOARD_HEIGHT} rx="26" fill="url(#trainerFluteBoard)" /> */}
@@ -5131,6 +5137,7 @@ function FluteRoadView(props: {
             );
           })}
 
+          <g clipPath="url(#tileClipPath)">
           {tiles.map((tile) => {
             const isAttachedReverseTile = isReverseMode && tile.kind === "note" && "attached" in tile && tile.attached;
             const progress = isAttachedReverseTile
@@ -5236,6 +5243,7 @@ function FluteRoadView(props: {
               </Fragment>
             );
           })}
+          </g> {/* end tileClipPath group */}
 
           <g
             transform={`translate(0,${fluteBodyY})`}
