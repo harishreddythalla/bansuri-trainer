@@ -1211,35 +1211,47 @@ export function SwaraTrainer() {
 
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     metronomeAudioCtxRef.current = ctx;
-    metronomeBeatCountRef.current = 0;
 
-    const intervalMs = (60 / metronomeBpm) * 1000;
+    const secondsPerBeat = 60.0 / metronomeBpm;
+    let nextBeatTime = ctx.currentTime;
+    let currentBeat = 0;
 
-    const tick = () => {
-      const isDownbeat = metronomeBeatCountRef.current % metronomeBeatsPerNote === 0;
+    const scheduleAheadTime = 0.1; // seconds
+    const lookaheadIntervalMs = 25.0; // milliseconds
 
-      if (ctx.state === "suspended") {
-        void ctx.resume().catch(() => { });
-      }
+    const scheduleBeat = (beatNumber: number, time: number) => {
+      const isDownbeat = beatNumber % metronomeBeatsPerNote === 0;
+
       try {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
-        osc.frequency.setValueAtTime(isDownbeat ? 1000 : 600, ctx.currentTime);
-        gain.gain.setValueAtTime(0.08, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.08);
-      } catch (e) {
-        console.error("Metronome audio error:", e);
-      }
 
-      metronomeBeatCountRef.current += 1;
+        osc.frequency.setValueAtTime(isDownbeat ? 1000 : 600, time);
+        gain.gain.setValueAtTime(0.08, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
+
+        osc.start(time);
+        osc.stop(time + 0.08);
+      } catch (e) {
+        console.error("Metronome audio scheduling error:", e);
+      }
     };
 
-    tick();
-    const timer = setInterval(tick, intervalMs);
+    const scheduler = () => {
+      if (ctx.state === "suspended") {
+        void ctx.resume().catch(() => { });
+      }
+
+      while (nextBeatTime < ctx.currentTime + scheduleAheadTime) {
+        scheduleBeat(currentBeat, nextBeatTime);
+        nextBeatTime += secondsPerBeat;
+        currentBeat += 1;
+      }
+    };
+
+    const timer = setInterval(scheduler, lookaheadIntervalMs);
 
     return () => {
       clearInterval(timer);
