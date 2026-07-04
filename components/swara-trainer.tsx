@@ -3512,7 +3512,8 @@ function JourneySummary(props: {
       style={{
         borderRadius: 24,
         padding: 14,
-        background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+        background: THEME.card.bg,
+        border: THEME.card.border,
         display: "flex",
         flexDirection: "column",
         gap: 12,
@@ -3849,7 +3850,8 @@ function SwaraReferencePanel(props: {
       style={{
         borderRadius: 24,
         padding: 14,
-        background: "rgba(255,255,255,0.04)",
+        background: THEME.card.bg,
+        border: THEME.card.border,
       }}
     >
       <summary style={{ cursor: "pointer", listStyle: "none" }}>
@@ -4036,7 +4038,8 @@ function JourneyRibbon(props: {
         padding: 12,
         display: "grid",
         gap: 10,
-        background: "rgba(255,255,255,0.04)",
+        background: THEME.card.bg,
+        border: THEME.card.border,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
