@@ -2780,7 +2780,7 @@ export function SwaraTrainer() {
                         <>
                           <span>{currentModule.title}</span>
                           <span style={{ opacity: 0.28, fontWeight: 400 }}>•</span>
-                          <span style={{ color: "rgba(255,255,255,0.72)" }}>{liveTargetTitle}</span>
+                          <span style={{ color: THEME.text.gray }}>{liveTargetTitle}</span>
                         </>
                       ) : (
                         liveTargetTitle
@@ -4382,8 +4382,7 @@ function SignalTrace(props: {
                     alignItems: "center",
                     gap: 5,
                     fontSize: 10.5,
-                    fontWeight: 600,
-                    color: "rgba(255, 255, 255, 0.72)",
+                    color: THEME.text.gray,
                     lineHeight: 1,
                     marginRight: 6,
                   }}
@@ -4630,8 +4629,8 @@ function SignalTrace(props: {
                     <text
                       x={labelX}
                       y={38}
-                      fill="rgba(255,255,255,0.96)"
-                      stroke="rgba(8,18,31,0.9)"
+                      fill={THEME.text.white}
+                      stroke={THEME.pitch.bg}
                       strokeWidth={2}
                       paintOrder="stroke"
                       fontSize="11"
@@ -4647,10 +4646,10 @@ function SignalTrace(props: {
             : null}
 
           {/* Grid lines */}
-          <line x1="12" y1={centerY} x2={width - 12} y2={centerY} stroke="rgba(255,255,255,0.22)" strokeDasharray="6 6" />
-          <line x1="12" y1={highLockY} x2={width - 12} y2={highLockY} stroke="rgba(255,255,255,0.1)" />
-          <line x1="12" y1={lowLockY} x2={width - 12} y2={lowLockY} stroke="rgba(255,255,255,0.1)" />
-          <line x1="12" y1="24" x2="12" y2={height - 24} stroke="rgba(255,255,255,0.06)" />
+          <line x1="12" y1={centerY} x2={width - 12} y2={centerY} stroke={THEME.pitch.gridLine} strokeDasharray="6 6" />
+          <line x1="12" y1={highLockY} x2={width - 12} y2={highLockY} stroke={THEME.pitch.gridLine} />
+          <line x1="12" y1={lowLockY} x2={width - 12} y2={lowLockY} stroke={THEME.pitch.gridLine} />
+          <line x1="12" y1="24" x2="12" y2={height - 24} stroke={THEME.pitch.gridLine} />
           <line x1={width / 2} y1="24" x2={width / 2} y2={height - 24} stroke="rgba(117,184,255,0.18)" />
 
           {/* Color-coded line segments by swara */}
@@ -4693,18 +4692,18 @@ function SignalTrace(props: {
             : null}
 
           {/* Labels */}
-          <text x="8" y="15" fill="rgba(255,255,255,0.6)" fontSize="10" textAnchor="start">High</text>
-          <text x="8" y={centerY + 4} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="start">Target zone</text>
-          <text x="8" y={height - 8} fill="rgba(255,255,255,0.6)" fontSize="10" textAnchor="start">Low</text>
-          <text x={width - 8} y={highLockY - 4} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="end">
+          <text x="8" y="15" fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="start">High</text>
+          <text x="8" y={centerY + 4} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="start">Target zone</text>
+          <text x="8" y={height - 8} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="start">Low</text>
+          <text x={width - 8} y={highLockY - 4} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="end">
             +{props.pitchToleranceCents}¢
           </text>
-          <text x={width - 8} y={lowLockY + 12} fill="rgba(255,255,255,0.76)" fontSize="10" textAnchor="end">
+          <text x={width - 8} y={lowLockY + 12} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="end">
             -{props.pitchToleranceCents}¢
           </text>
-          <text x={width - 8} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10" textAnchor="end">Now</text>
-          <text x="12" y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">{`${formatPitchWindowLabel(props.pitchTrendWindowMs)} ago`}</text>
-          <text x={width / 2 - 16} y={height - 8} fill="rgba(255,255,255,0.42)" fontSize="10">{`~${props.pitchTrendWindowMs / 2000}s`}</text>
+          <text x={width - 8} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10" textAnchor="end">Now</text>
+          <text x="12" y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10">{`${formatPitchWindowLabel(props.pitchTrendWindowMs)} ago`}</text>
+          <text x={width / 2 - 16} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10">{`~${props.pitchTrendWindowMs / 2000}s`}</text>
         </svg>
       </div>
     </article>
