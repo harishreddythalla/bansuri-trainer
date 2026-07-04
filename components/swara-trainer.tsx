@@ -3524,8 +3524,9 @@ function JourneySummary(props: {
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div className="pill" style={{ width: "fit-content" }}>
-            Practice map
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 3, height: 16, borderRadius: 99, background: "var(--accent)", flexShrink: 0 }} />
+            <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>Practice map</span>
           </div>
           <div style={{ fontSize: 24, fontWeight: 750, letterSpacing: "-0.05em" }}>{props.overallProgress}%</div>
         </div>
@@ -3878,7 +3879,10 @@ function SwaraReferencePanel(props: {
       <summary style={{ cursor: "pointer", listStyle: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div>
-            <div className="pill">Swara reference</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 3, height: 16, borderRadius: 99, background: "var(--accent)", flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>Swara reference</span>
+            </div>
             <div style={{ marginTop: 10, fontSize: 17, fontWeight: 700, letterSpacing: "-0.03em" }}>
               {props.tonicLabel} {props.registerLabel} Swara Frequency Map
             </div>
