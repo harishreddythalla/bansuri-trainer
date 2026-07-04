@@ -4123,9 +4123,14 @@ const SWARA_BASE_COLORS: Record<string, string> = {
   Ni: "#d47bff",
 };
 
+/** Returns the Unicode combining diacritic for the given octave.
+ *  Taar → combining dot above (U+0307)
+ *  Mandra → combining dot below (U+0323)
+ *  Madhya → empty string (no mark)
+ */
 function octaveSymbol(octave: string | null) {
-  if (octave === "Mandra") return "↓";
-  if (octave === "Taar") return "↑";
+  if (octave === "Mandra") return "\u0323"; // combining dot below  e.g. Ṣ
+  if (octave === "Taar") return "\u0307";   // combining dot above   e.g. Ṡ
   return "";
 }
 
@@ -4176,8 +4181,9 @@ function noteVisual(swara: string | null, octave: string | null) {
 
 function compactNoteLabel(swara: string, octave: string | null) {
   const head = swara.charAt(0);
-  const prefix = octaveSymbol(octave) === "↑" ? "^" : octaveSymbol(octave) === "↓" ? "_" : "";
-  return `${prefix}${head}`;
+  const dot = octaveSymbol(octave);
+  // Combine dot diacritic directly onto the head letter then NFC-normalize.
+  return dot ? (head + dot).normalize("NFC") : head;
 }
 
 function formatPitchWindowLabel(windowMs: PitchTrendWindowMs) {
@@ -4732,8 +4738,11 @@ function laneContainsSwara(lane: (typeof FLUTE_LANES)[number], swara: SwaraName)
 }
 
 function formatFluteTileLabel(target: SwaraTarget) {
-  const octaveMarker = octaveSymbol(target.octave);
-  return octaveMarker ? `${target.swara} ${octaveMarker}` : target.swara;
+  const dot = octaveSymbol(target.octave);
+  if (!dot) return target.swara;
+  // Apply combining diacritic directly onto the first character of the swara name.
+  // e.g. "Sa" + dot-above → "Ṡa", "Pa" + dot-below → "Ṗa"
+  return (target.swara[0] + dot + target.swara.slice(1)).normalize("NFC");
 }
 
 function FluteRoadView(props: {
