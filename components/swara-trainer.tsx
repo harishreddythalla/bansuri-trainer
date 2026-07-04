@@ -4581,9 +4581,9 @@ function SignalTrace(props: {
           aria-hidden="true"
         >
           {/* Background bands */}
-          <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill="rgba(117, 184, 255, 0.04)" />
-          <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill="rgba(117, 184, 255, 0.04)" />
-          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(103, 240, 202, 0.12)" />
+          <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill="rgba(117, 184, 255, 0.06)" />
+          <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill="rgba(117, 184, 255, 0.06)" />
+          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill="rgba(103, 240, 202, 0.15)" />
 
           {/* Dynamic note sections */}
           {segmentationEnabled
