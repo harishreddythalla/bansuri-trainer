@@ -23,10 +23,10 @@
   --bg-dark: #050506;
   --bg-medium: #0a0a0c;
   --bg-light: #101014;
-  --card-bg: rgba(10, 10, 12, 0.94);
-  --card-border: 1px solid rgba(255, 255, 255, 0.05);
-  --card-strong-bg: rgba(6, 6, 8, 0.95);
-  --card-strong-border: 1px solid rgba(255, 255, 255, 0.05);
+  --card-bg: #161618;
+  /* --card-border: 1px solid rgba(255, 255, 255, 0.05); */
+  --card-strong-bg: #2121245e;
+  /* --card-strong-border: 1px solid rgba(255, 255, 255, 0.05); */
 
   --border-subtle: rgba(255, 255, 255, 0.06);
   --border-medium: rgba(255, 255, 255, 0.08);
@@ -58,11 +58,10 @@
   --danger-light: rgba(255, 71, 87, 0.05);
   --danger-solid: #ff4757;
 
-  --practice-current-border: 1px solid rgba(0, 224, 255, 0.16);
-  --practice-current-shadow: 0 0 16px rgba(0, 224, 255, 0.08), inset 0 0 12px rgba(0, 224, 255, 0.04);
+  /* --practice-current-border: 1px solid rgba(0, 224, 255, 0.16); */
+  /* --practice-current-shadow: 0 0 16px rgba(0, 224, 255, 0.08), inset 0 0 12px rgba(0, 224, 255, 0.04); */
   --practice-current-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
-  --practice-default-border: 1px solid rgba(255, 255, 255, 0.08);
-  --practice-default-bg: rgba(255, 255, 255, 0.02);
+  --practice-default-bg: #212124;
 
   --practice-pill-current-bg: rgba(0, 224, 255, 0.08);
   --practice-pill-current-border: 1px solid rgba(0, 224, 255, 0.35);
@@ -108,8 +107,8 @@
 
   --notegroup-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(10, 10, 12, 0.4) 50%, rgba(255, 255, 255, 0.03) 100%);
   --notegroup-border: 1px solid rgba(255, 255, 255, 0.06);
-  --notegroup-top-overlay: linear-gradient(180deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%);
-  --notegroup-bottom-overlay: linear-gradient(360deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%);
+  /* --notegroup-top-overlay: linear-gradient(180deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%);
+  --notegroup-bottom-overlay: linear-gradient(360deg, rgba(6, 6, 8, 0.85) 0%, transparent 100%); */
   --notegroup-active-bg: rgba(0, 224, 255, 0.08);
   --notegroup-active-border: 1px solid rgba(0, 224, 255, 0.4);
   --notegroup-active-text: rgba(219, 255, 247, 1);
@@ -120,11 +119,11 @@
   --notegroup-default-border: 1px solid rgba(255, 255, 255, 0.06);
   --notegroup-default-text: rgba(255, 255, 255, 0.85);
 
-  --controls-mic-active: linear-gradient(180deg, rgba(103, 240, 202, 0.16), rgba(103, 240, 202, 0.06));
+  /* --controls-mic-active: linear-gradient(180deg, rgba(103, 240, 202, 0.16), rgba(103, 240, 202, 0.06));
   --controls-mic-active-border: 1px solid rgba(103, 240, 202, 0.34);
-  --controls-mic-active-color: rgba(219, 255, 247, 0.98);
+  --controls-mic-active-color: rgba(219, 255, 247, 0.98); */
   --controls-mic-inactive: rgba(255, 255, 255, 0.04);
-  --controls-mic-inactive-border: 1px solid rgba(255, 255, 255, 0.08);
+  /* --controls-mic-inactive-border: 1px solid rgba(255, 255, 255, 0.08); */
 
   --toast-border: 1px solid rgba(255, 255, 255, 0.05);
   --toast-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.06), #0a0a0c);
@@ -274,10 +273,10 @@ html.light {
   --notegroup-default-text: #515154;
 
   --controls-mic-active: #e2fbe8;
-  --controls-mic-active-border: 1px solid rgba(48, 209, 88, 0.35);
+  /* --controls-mic-active-border: 1px solid rgba(48, 209, 88, 0.35); */
   --controls-mic-active-color: #1b8a3e;
   --controls-mic-inactive: #f5f5f7;
-  --controls-mic-inactive-border: 1px solid rgba(0, 0, 0, 0.06);
+  /* --controls-mic-inactive-border: 1px solid rgba(0, 0, 0, 0.06); */
 
   --toast-border: 1px solid rgba(0, 0, 0, 0.08);
   --toast-bg: #ffffff;

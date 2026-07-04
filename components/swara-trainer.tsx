@@ -179,7 +179,8 @@ type PitchDifficultyConfig = {
 };
 
 const allLessonSteps = foundationModules.flatMap((module) => module.steps);
-const firstStep = allLessonSteps[0];
+// Default to the first checkpoint of the 13th module (index 12)
+const firstStep = foundationModules[12]?.steps[0] ?? allLessonSteps[0];
 const FALLBACK_TARGET: SwaraTarget = { swara: "Sa", octave: "Madhya" };
 const UI_REFRESH_MS = 40;
 const SILENCE_HOLD_MS = 320;
@@ -4488,9 +4489,9 @@ function SignalTrace(props: {
                 borderRadius: 10,
                 display: "grid",
                 placeItems: "center",
-                border: "1px solid rgba(255,255,255,0.08)",
+                // border: "1px solid rgba(255,255,255,0.08)",
                 background: settingsOpen ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
-                color: settingsOpen ? "var(--text)" : "var(--muted)",
+                // color: settingsOpen ? "var(--text)" : "var(--muted)",
                 cursor: "pointer",
               }}
             >
@@ -5376,22 +5377,11 @@ function MicToggleIcon({ active }: { active: boolean }) {
 }
 
 function SegmentationToggleIcon({ active }: { active: boolean }) {
-  if (active) {
-    return (
-      <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-        <rect x="1" y="2" width="4" height="10" rx="1.5" fill="currentColor" opacity="0.9" />
-        <rect x="5.4" y="3.4" width="3.2" height="7.2" rx="1.2" fill="currentColor" opacity="0.72" />
-        <rect x="8.9" y="1.8" width="4.1" height="10.4" rx="1.5" fill="currentColor" opacity="0.52" />
-      </svg>
-    );
-  }
-
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-      <path d="M1.2 10.8L4.9 7.1L7.3 8.6L11.9 3.4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="4.9" cy="7.1" r="1.1" fill="currentColor" opacity="0.9" />
-      <circle cx="7.3" cy="8.6" r="1.1" fill="currentColor" opacity="0.78" />
-      <circle cx="11.9" cy="3.4" r="1.1" fill="currentColor" opacity="0.62" />
+      <rect x="1" y="2" width="4" height="10" rx="1.5" fill="currentColor" opacity="0.9" />
+      <rect x="5.4" y="3.4" width="3.2" height="7.2" rx="1.2" fill="currentColor" opacity="0.72" />
+      <rect x="8.9" y="1.8" width="4.1" height="10.4" rx="1.5" fill="currentColor" opacity="0.52" />
     </svg>
   );
 }
