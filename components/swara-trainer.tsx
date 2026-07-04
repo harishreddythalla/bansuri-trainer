@@ -4903,10 +4903,10 @@ function FluteRoadView(props: {
     travelMs: TILE_TRAVEL_MS,
     height: countdownHeight,
     width: 16,
-    fill: "linear-gradient(180deg, rgba(255,214,122,0.96), rgba(255,185,92,0.86))",
-    stroke: "rgba(255,241,196,0.46)",
-    textFill: "#fff8e7",
-    glow: "rgba(255,214,122,0.34)",
+    fill: "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08))",
+    stroke: "rgba(255,255,255,0.12)",
+    textFill: "rgba(255,255,255,0.72)",
+    glow: "none",
     active: false,
   }));
 
@@ -5194,11 +5194,8 @@ function FluteRoadView(props: {
                       y={tile.height / 2 + 7}
                       textAnchor="middle"
                       fill={tile.textFill}
-                      fontSize="20"
-                      fontWeight="800"
-                      stroke="rgba(5,10,18,0.85)"
-                      strokeWidth={2.4}
-                      paintOrder="stroke"
+                      fontSize="18"
+                      fontWeight="600"
                     >
                       {tile.label}
                     </text>
