@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, Fragment, useCallback } from "react";
-import { Settings, ChevronLeft, ChevronRight, Play, Pause, RotateCcw, Repeat, Music, Maximize2, Minimize2 } from "lucide-react";
+import { Settings, ChevronLeft, ChevronRight, Play, Pause, RotateCcw, Repeat, Music, Maximize2, Minimize2, Volume2 } from "lucide-react";
 import { foundationModules } from "@/data/lesson-plan";
 import {
   defaultFluteProfile,
@@ -740,6 +740,11 @@ export function SwaraTrainer() {
   const [fluteMenuOpen, setFluteMenuOpen] = useState(false);
   const [fluteDetectOpen, setFluteDetectOpen] = useState(false);
   const [leftRailOpen, setLeftRailOpen] = useState<boolean>(true);
+  const [metronomeOpen, setMetronomeOpen] = useState(false);
+  const [metronomeActive, setMetronomeActive] = useState(false);
+  const [metronomeBpm, setMetronomeBpm] = useState(60);
+  const [metronomeBeatsPerNote, setMetronomeBeatsPerNote] = useState(4);
+  const metronomeRef = useRef<HTMLDivElement | null>(null);
 
   const handleToggleLeftRail = () => {
     setLeftRailOpen((current) => {
@@ -1191,6 +1196,79 @@ export function SwaraTrainer() {
     setBoardWrapperWidth(el.getBoundingClientRect().width);
     return () => ro.disconnect();
   }, []);
+
+  const metronomeAudioCtxRef = useRef<AudioContext | null>(null);
+  const metronomeBeatCountRef = useRef(0);
+
+  useEffect(() => {
+    if (!metronomeActive) {
+      if (metronomeAudioCtxRef.current) {
+        void metronomeAudioCtxRef.current.close().catch(() => {});
+        metronomeAudioCtxRef.current = null;
+      }
+      return;
+    }
+
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    metronomeAudioCtxRef.current = ctx;
+    metronomeBeatCountRef.current = 0;
+
+    const intervalMs = (60 / metronomeBpm) * 1000;
+
+    const tick = () => {
+      const isDownbeat = metronomeBeatCountRef.current % metronomeBeatsPerNote === 0;
+      
+      if (ctx.state === "suspended") {
+        void ctx.resume().catch(() => {});
+      }
+      try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(isDownbeat ? 1000 : 600, ctx.currentTime);
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.08);
+      } catch (e) {
+        console.error("Metronome audio error:", e);
+      }
+
+      metronomeBeatCountRef.current += 1;
+    };
+
+    tick();
+    const timer = setInterval(tick, intervalMs);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [metronomeActive, metronomeBpm, metronomeBeatsPerNote]);
+
+  // Metronome dropdown click outside & Escape key listeners
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!metronomeOpen) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (metronomeRef.current?.contains(target)) return;
+      setMetronomeOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMetronomeOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [metronomeOpen]);
 
   useEffect(() => {
     analysisRef.current = analysis;
@@ -2545,7 +2623,7 @@ export function SwaraTrainer() {
   const bottomSectionHeight = sequenceDrill ? 100 : 80;
   const computedPitchTrackerHeight = isLiveCardFullscreen
     ? 340
-    : Math.max(160, computedOverlayHeight - bottomSectionHeight - 72);
+    : Math.max(220, computedOverlayHeight - bottomSectionHeight - 48);
 
   return (
     <main className="shell trainer-page" style={{ width: "min(1560px, calc(100vw - 24px))", paddingTop: 20, paddingBottom: 20 }}>
@@ -2792,6 +2870,170 @@ export function SwaraTrainer() {
                 </div>
 
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {/* Metronome Configure Button & Popup */}
+                  <div style={{ position: "relative" }} ref={metronomeRef}>
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={() => setMetronomeOpen((current) => !current)}
+                      aria-expanded={metronomeOpen}
+                      aria-haspopup="dialog"
+                      style={{
+                        minHeight: 28,
+                        padding: "0 10px",
+                        borderRadius: 999,
+                        display: "inline-flex",
+                        gap: 6,
+                        alignItems: "center",
+                        fontSize: 11.5,
+                        fontWeight: 650,
+                        background: metronomeActive ? "rgba(48, 209, 88, 0.15)" : THEME.controls.btnBg,
+                        border: metronomeActive ? "1px solid rgba(48, 209, 88, 0.3)" : THEME.controls.btnBorder,
+                        color: metronomeActive ? "var(--success)" : THEME.controls.btnColor,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Volume2 size={12} style={{ color: metronomeActive ? "var(--success)" : "inherit" }} />
+                      <span>Metronome</span>
+                      {metronomeActive && (
+                        <span style={{ fontSize: 9.5, opacity: 0.8, padding: "1px 4px", borderRadius: 4, background: "rgba(48, 209, 88, 0.2)", color: "var(--success)" }}>
+                          {metronomeBpm}
+                        </span>
+                      )}
+                    </button>
+
+                    {metronomeOpen && (
+                      <div
+                        role="dialog"
+                        aria-label="Metronome settings"
+                        style={{
+                          position: "absolute",
+                          top: 36,
+                          right: 0,
+                          zIndex: 100,
+                          width: 250,
+                          padding: 16,
+                          borderRadius: 20,
+                          border: "1px solid var(--border-soft)",
+                          background: "var(--card)",
+                          boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+                          backdropFilter: "blur(20px)",
+                          WebkitBackdropFilter: "blur(20px)",
+                          display: "grid",
+                          gap: 14,
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: "-0.01em", color: "var(--text)" }}>Metronome</span>
+                          <button
+                            type="button"
+                            onClick={() => setMetronomeActive((active) => !active)}
+                            style={{
+                              padding: "4px 12px",
+                              borderRadius: 12,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              border: "none",
+                              background: metronomeActive ? "var(--danger)" : "var(--accent)",
+                              color: "#fff",
+                              transition: "background 0.2s",
+                            }}
+                          >
+                            {metronomeActive ? "Stop" : "Start"}
+                          </button>
+                        </div>
+
+                        {/* BPM Slider */}
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>
+                            <span>TEMPO</span>
+                            <span style={{ color: "var(--text)", fontWeight: 700 }}>{metronomeBpm} BPM</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={() => setMetronomeBpm((bpm) => Math.max(30, bpm - 1))}
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: "50%",
+                                border: "1px solid var(--border-soft)",
+                                background: "rgba(255,255,255,0.05)",
+                                color: "var(--text)",
+                                display: "grid",
+                                placeItems: "center",
+                                cursor: "pointer",
+                                fontSize: 14,
+                                fontWeight: "bold"
+                              }}
+                            >
+                              -
+                            </button>
+                            <input
+                              type="range"
+                              min={30}
+                              max={240}
+                              value={metronomeBpm}
+                              onChange={(e) => setMetronomeBpm(Number(e.target.value))}
+                              style={{ flex: 1, accentColor: "var(--accent)" }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setMetronomeBpm((bpm) => Math.min(240, bpm + 1))}
+                              style={{
+                                width: 24,
+                                height: 24,
+                                borderRadius: "50%",
+                                border: "1px solid var(--border-soft)",
+                                background: "rgba(255,255,255,0.05)",
+                                color: "var(--text)",
+                                display: "grid",
+                                placeItems: "center",
+                                cursor: "pointer",
+                                fontSize: 14,
+                                fontWeight: "bold"
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Beats Per Note */}
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>
+                            Beats per note
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 }}>
+                            {[2, 3, 4, 6, 8].map((beats) => {
+                              const active = metronomeBeatsPerNote === beats;
+                              return (
+                                <button
+                                  key={beats}
+                                  type="button"
+                                  onClick={() => setMetronomeBeatsPerNote(beats)}
+                                  style={{
+                                    height: 24,
+                                    borderRadius: 6,
+                                    border: "1px solid var(--border-soft)",
+                                    background: active ? "var(--accent)" : "rgba(255,255,255,0.05)",
+                                    color: active ? "#fff" : "var(--text)",
+                                    fontSize: 10.5,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  {beats}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     type="button"
                     className="button button-secondary"
@@ -3060,9 +3302,11 @@ export function SwaraTrainer() {
                     position: "absolute",
                     left: 20,
                     width: computedOverlayWidth + "px",
-                    top: 20,
+                    top: isLiveCardFullscreen
+                      ? ((typeof window !== "undefined" ? window.innerHeight - 120 : 560) - (FLUTE_BOARD_HEIGHT * layoutSvgScale)) / 2 + 20
+                      : 20,
                     bottom: isLiveCardFullscreen
-                      ? layoutSvgRenderedHeight * (1 - FLUTE_BODY_OFFSET_Y / FLUTE_BOARD_HEIGHT) + 15
+                      ? (typeof window !== "undefined" ? window.innerHeight - 120 : 560) / 2 + (FLUTE_BOARD_HEIGHT / 2 - FLUTE_BODY_OFFSET_Y) * layoutSvgScale + 15
                       : layoutSvgRenderedHeight - layoutFluteBodyScreenY + 15,
                     zIndex: 10,
                     pointerEvents: "none",
@@ -4823,6 +5067,7 @@ function FluteRoadView(props: {
 
   const fluteBodyY = isReverseMode ? 30 : FLUTE_BODY_OFFSET_Y;
   const roadStartY = isReverseMode ? 112 : 18;
+  const laneDrawStartY = isReverseMode ? roadStartY : 0;
   const roadEndY = FLUTE_BOARD_HEIGHT - 34;
   const tileSpawnY = isReverseMode ? fluteBodyY + 80 : TILE_SPAWN_Y;
   const tileEndY = isReverseMode ? FLUTE_BOARD_HEIGHT - 42 : TILE_EXIT_Y;
@@ -5105,7 +5350,7 @@ function FluteRoadView(props: {
             </linearGradient>
             {/* Clip tiles to the lane area so they only appear once inside the road */}
             <clipPath id="tileClipPath">
-              <rect x="0" y={roadStartY} width={FLUTE_BOARD_WIDTH} height={roadEndY - roadStartY} />
+              <rect x="0" y={laneDrawStartY} width={FLUTE_BOARD_WIDTH} height={roadEndY - laneDrawStartY} />
             </clipPath>
           </defs>
 
@@ -5121,8 +5366,8 @@ function FluteRoadView(props: {
             const roadStroke = active ? THEME.road.active.border : THEME.road.inactive.border;
             return (
               <g key={lane.swara}>
-                <rect x={lane.x - 10} y={roadStartY} width={20} height={roadEndY - roadStartY} rx={10} fill={roadFill} stroke={roadStroke} strokeWidth={1} />
-                <line x1={lane.x} y1={roadStartY + 4} x2={lane.x} y2={roadEndY - 4} stroke={active ? THEME.road.active.line : THEME.road.inactive.line} strokeWidth={2} strokeDasharray="8 10" />
+                <rect x={lane.x - 10} y={laneDrawStartY} width={20} height={roadEndY - laneDrawStartY} rx={10} fill={roadFill} stroke={roadStroke} strokeWidth={1} />
+                <line x1={lane.x} y1={laneDrawStartY + 4} x2={lane.x} y2={roadEndY - 4} stroke={active ? THEME.road.active.line : THEME.road.inactive.line} strokeWidth={2} strokeDasharray="8 10" />
                 <text
                   x={lane.x}
                   y={roadStartY - 8}
