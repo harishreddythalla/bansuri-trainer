@@ -742,12 +742,12 @@ export function SwaraTrainer() {
   const [leftRailOpen, setLeftRailOpen] = useState<boolean>(true);
   const [metronomeOpen, setMetronomeOpen] = useState(false);
   const [metronomeActive, setMetronomeActive] = useState(false);
-  const [metronomeBpm, setMetronomeBpm] = useState(60);
+  const [metronomeBpm, setMetronomeBpm] = useState(80);
   const [metronomeBeatsPerNote, setMetronomeBeatsPerNote] = useState(4);
   const metronomeRef = useRef<HTMLDivElement | null>(null);
 
   const [speedOpen, setSpeedOpen] = useState(false);
-  const [beatsPerNote, setBeatsPerNote] = useState(4);
+  const [beatsPerNote, setBeatsPerNote] = useState(1);
   const speedRef = useRef<HTMLDivElement | null>(null);
 
   const beatsPerNoteRef = useRef(beatsPerNote);
@@ -3111,7 +3111,7 @@ export function SwaraTrainer() {
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <button
                               type="button"
-                              onClick={() => setMetronomeBpm((bpm) => Math.max(30, bpm - 1))}
+                              onClick={() => setMetronomeBpm((bpm) => Math.max(30, bpm - 5))}
                               style={{
                                 width: 24,
                                 height: 24,
@@ -3132,13 +3132,14 @@ export function SwaraTrainer() {
                               type="range"
                               min={30}
                               max={240}
+                              step={5}
                               value={metronomeBpm}
                               onChange={(e) => setMetronomeBpm(Number(e.target.value))}
                               style={{ flex: 1, accentColor: "var(--accent)" }}
                             />
                             <button
                               type="button"
-                              onClick={() => setMetronomeBpm((bpm) => Math.min(240, bpm + 1))}
+                              onClick={() => setMetronomeBpm((bpm) => Math.min(240, bpm + 5))}
                               style={{
                                 width: 24,
                                 height: 24,
@@ -3465,16 +3466,16 @@ export function SwaraTrainer() {
                     left: 20,
                     width: computedOverlayWidth + "px",
                     top: isLiveCardFullscreen
-                      ? ((typeof window !== "undefined" ? window.innerHeight - 120 : 560) - (FLUTE_BOARD_HEIGHT * layoutSvgScale)) / 2 + 20
+                      ? ((typeof window !== "undefined" ? window.innerHeight - 20 : 560) - (FLUTE_BOARD_HEIGHT * layoutSvgScale)) / 2 + 20
                       : 20,
                     bottom: isLiveCardFullscreen
-                      ? (typeof window !== "undefined" ? window.innerHeight - 120 : 560) / 2 + (FLUTE_BOARD_HEIGHT / 2 - FLUTE_BODY_OFFSET_Y) * layoutSvgScale + 15
-                      : layoutSvgRenderedHeight - layoutFluteBodyScreenY + 15,
+                      ? (typeof window !== "undefined" ? window.innerHeight - 20 : 560) / 2 + (FLUTE_BOARD_HEIGHT / 2 - FLUTE_BODY_OFFSET_Y) * layoutSvgScale + 15
+                      : layoutSvgRenderedHeight - layoutFluteBodyScreenY - 40,
                     zIndex: 10,
                     pointerEvents: "none",
                     display: "flex",
                     flexDirection: "column",
-                    justifyContent: "flex-end",
+                    justifyContent: "centre",
                     gap: isLiveCardFullscreen ? 16 : 10,
                     padding: "0 8px",
                     overflow: "hidden",
@@ -4296,7 +4297,7 @@ function SwaraReferencePanel(props: {
               <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--muted)" }}>Swara reference</span>
             </div>
             <div style={{ marginTop: 10, fontSize: 17, fontWeight: 700, letterSpacing: "-0.03em" }}>
-              {props.tonicLabel} {props.registerLabel} Swara Frequency Map
+              {props.tonicLabel} {props.registerLabel} Frequency Map
             </div>
           </div>
           <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>Open</span>
@@ -4325,7 +4326,7 @@ function SwaraReferencePanel(props: {
                     color: "var(--muted)",
                     fontWeight: 600,
                     fontSize: 10.5,
-                    textTransform: "lowercase",
+                    textTransform: "none",
                     letterSpacing: "0.06em",
                     borderBottom: "1px solid rgba(255,255,255,0.08)",
                     borderRight: index < 4 ? "1px solid rgba(255,255,255,0.08)" : "none",
