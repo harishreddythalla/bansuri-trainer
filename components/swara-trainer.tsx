@@ -4298,9 +4298,6 @@ function SwaraReferencePanel(props: {
             <div style={{ marginTop: 10, fontSize: 17, fontWeight: 700, letterSpacing: "-0.03em" }}>
               {props.tonicLabel} {props.registerLabel} Swara Frequency Map
             </div>
-            <div style={{ marginTop: 6, color: "var(--muted)", fontSize: 12.5, lineHeight: 1.45 }}>
-              A compact map of the playable swaras across the three octaves for the selected flute.
-            </div>
           </div>
           <span className="pill" style={{ padding: "6px 12px", fontSize: 11 }}>Open</span>
         </div>
@@ -4318,18 +4315,21 @@ function SwaraReferencePanel(props: {
         >
           <thead>
             <tr>
-              {["Swara", "Western Note", "Mandra", "Madhya", "Taar"].map((heading) => (
+              {["Swara", "Western", "Mandra", "Madhya", "Taar"].map((heading, index) => (
                 <th
                   key={heading}
                   style={{
+                    width: ["16%", "20%", "21%", "21%", "22%"][index],
                     textAlign: "left",
-                    padding: "8px 6px",
+                    padding: "8px 10px 8px 8px",
                     color: "var(--muted)",
                     fontWeight: 600,
-                    fontSize: 10.5,
-                    letterSpacing: "0.03em",
-                    textTransform: "uppercase",
+                    fontSize: 11.5,
+                    fontVariant: "small-caps",
+                    textTransform: "none",
+                    letterSpacing: "0.06em",
                     borderBottom: "1px solid rgba(255,255,255,0.08)",
+                    borderRight: index < 4 ? "1px solid rgba(255,255,255,0.08)" : "none",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -4346,24 +4346,26 @@ function SwaraReferencePanel(props: {
                 <tr key={swara}>
                   <td
                     style={{
-                      padding: "10px 6px",
+                      padding: "10px 10px 10px 8px",
                       fontWeight: 700,
                       borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      borderRight: "1px solid rgba(255,255,255,0.06)",
                     }}
                   >
                     {swara}
                   </td>
                   <td
                     style={{
-                      padding: "10px 6px",
+                      padding: "10px 10px 10px 8px",
                       color: "var(--muted)",
                       borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      borderRight: "1px solid rgba(255,255,255,0.06)",
                       whiteSpace: "nowrap",
                     }}
                   >
                     {westernNote}
                   </td>
-                  {octaveOrder.map((octave) => {
+                  {octaveOrder.map((octave, octIdx) => {
                     const row = rowsByKey.get(`${swara}-${octave}`);
                     const playable = row ? isPlayableSwaraForProfile(props.profile, row) : false;
 
@@ -4371,9 +4373,10 @@ function SwaraReferencePanel(props: {
                       <td
                         key={octave}
                         style={{
-                          padding: "10px 6px",
+                          padding: "10px 10px 10px 8px",
                           fontVariantNumeric: "tabular-nums",
                           borderBottom: "1px solid rgba(255,255,255,0.06)",
+                          borderRight: octIdx < 2 ? "1px solid rgba(255,255,255,0.06)" : "none",
                           color: row && playable ? "var(--text)" : "var(--muted)",
                           whiteSpace: "nowrap",
                         }}
@@ -4388,11 +4391,7 @@ function SwaraReferencePanel(props: {
           </tbody>
         </table>
         <div style={{ marginTop: 8, display: "grid", gap: 6, color: "var(--muted)", fontSize: 11.5, lineHeight: 1.45 }}>
-          <div>Frequencies are shown on the A=440 Hz standard for the selected flute profile.</div>
-          <div>Legend: dash (—) means not practical or not reliable on this flute size.</div>
-          <div>
-            Medium flutes typically lose the lower Sa/Re/Ga/Ma band; Pa, Dha, and Ni are the practical Mandra notes.
-          </div>
+          <div>A=440 Hz*  | dash(—) : not practical</div>
         </div>
       </div>
     </details>
