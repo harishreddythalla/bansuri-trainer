@@ -742,7 +742,7 @@ export function SwaraTrainer() {
   const [leftRailOpen, setLeftRailOpen] = useState<boolean>(true);
   const [metronomeOpen, setMetronomeOpen] = useState(false);
   const [metronomeActive, setMetronomeActive] = useState(false);
-  const [metronomeBpm, setMetronomeBpm] = useState(80);
+  const [metronomeBpm, setMetronomeBpm] = useState(60);
   const [metronomeBeatsPerNote, setMetronomeBeatsPerNote] = useState(4);
   const metronomeRef = useRef<HTMLDivElement | null>(null);
 
