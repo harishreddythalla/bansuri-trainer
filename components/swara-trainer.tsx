@@ -4310,7 +4310,7 @@ function SwaraReferencePanel(props: {
             tableLayout: "fixed",
             borderCollapse: "separate",
             borderSpacing: 0,
-            fontSize: 12.5,
+            fontSize: 11.5,
           }}
         >
           <thead>
@@ -4321,12 +4321,11 @@ function SwaraReferencePanel(props: {
                   style={{
                     width: ["16%", "20%", "21%", "21%", "22%"][index],
                     textAlign: "left",
-                    padding: "8px 10px 8px 8px",
+                    padding: "8px 8px 8px 6px",
                     color: "var(--muted)",
                     fontWeight: 600,
-                    fontSize: 11.5,
-                    fontVariant: "small-caps",
-                    textTransform: "none",
+                    fontSize: 10.5,
+                    textTransform: "lowercase",
                     letterSpacing: "0.06em",
                     borderBottom: "1px solid rgba(255,255,255,0.08)",
                     borderRight: index < 4 ? "1px solid rgba(255,255,255,0.08)" : "none",
@@ -4346,7 +4345,7 @@ function SwaraReferencePanel(props: {
                 <tr key={swara}>
                   <td
                     style={{
-                      padding: "10px 10px 10px 8px",
+                      padding: "8px 8px 8px 6px",
                       fontWeight: 700,
                       borderBottom: "1px solid rgba(255,255,255,0.06)",
                       borderRight: "1px solid rgba(255,255,255,0.06)",
@@ -4356,7 +4355,7 @@ function SwaraReferencePanel(props: {
                   </td>
                   <td
                     style={{
-                      padding: "10px 10px 10px 8px",
+                      padding: "8px 8px 8px 6px",
                       color: "var(--muted)",
                       borderBottom: "1px solid rgba(255,255,255,0.06)",
                       borderRight: "1px solid rgba(255,255,255,0.06)",
@@ -4373,7 +4372,7 @@ function SwaraReferencePanel(props: {
                       <td
                         key={octave}
                         style={{
-                          padding: "10px 10px 10px 8px",
+                          padding: "8px 8px 8px 6px",
                           fontVariantNumeric: "tabular-nums",
                           borderBottom: "1px solid rgba(255,255,255,0.06)",
                           borderRight: octIdx < 2 ? "1px solid rgba(255,255,255,0.06)" : "none",
