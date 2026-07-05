@@ -863,28 +863,33 @@ export function SwaraTrainer() {
     const countdownDelayMs = (60 / metronomeBpm) * 1000;
     const dynamicSustainMs = beatsPerNote * (60 / metronomeBpm) * 1000;
     const TILE_PX_PER_MS = 0.10;
-    const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS));
-    const estimatedNoteHeights = sequenceDrill.steps.map(() => Math.round(dynamicSustainMs * TILE_PX_PER_MS));
-    const maxTileHeight = Math.max(countdownHeight, ...estimatedNoteHeights, 46);
     const SPAWN_MARGIN = 58;
-    const TILE_SPAWN_Y = -maxTileHeight - SPAWN_MARGIN;
-    const MS_TO_FLUTE = Math.round((515 - TILE_SPAWN_Y) / TILE_PX_PER_MS);
 
-    const firstNoteArrivalAt = fluteViewStartedAt + 3 * countdownDelayMs + MS_TO_FLUTE;
-    let noteCursor = firstNoteArrivalAt - MS_TO_FLUTE;
+    // Countdown tile params
+    const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS));
+    const countdownSpawnY = -countdownHeight - SPAWN_MARGIN;
+    const countdownMsToFlute = Math.round((515 - countdownSpawnY) / TILE_PX_PER_MS);
+
+    // Note tile params
+    const noteHeight = Math.round(dynamicSustainMs * TILE_PX_PER_MS);
+    const noteSpawnY = -noteHeight - SPAWN_MARGIN;
+    const noteMsToFlute = Math.round((515 - noteSpawnY) / TILE_PX_PER_MS);
+
+    const firstNoteArrivalAt = fluteViewStartedAt + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
+    let noteCursor = firstNoteArrivalAt - noteMsToFlute;
 
     const now = fluteViewTick;
 
     return sequenceDrill.steps.map((step) => {
-      const timeAtFluteTop = noteCursor + MS_TO_FLUTE;
-      const timeAtFluteBottom = timeAtFluteTop + dynamicSustainMs;
+      const timeArrivalTrailing = noteCursor + noteMsToFlute;
+      const timeArrivalLeading = timeArrivalTrailing - dynamicSustainMs;
 
       // Advance cursor for next step. Gap between groups = exactly 1 beat.
       noteCursor += dynamicSustainMs + (step.hasSpaceAfter ? countdownDelayMs : 0);
 
-      const isPassed = now > timeAtFluteBottom;
+      const isPassed = now > timeArrivalTrailing;
       // Highlight the note group 1 beat before the tile arrives at the flute so the player has visual advance notice.
-      const isActive = now >= (timeAtFluteTop - countdownDelayMs) && now <= timeAtFluteBottom;
+      const isActive = now >= (timeArrivalLeading - countdownDelayMs) && now <= timeArrivalTrailing;
       return {
         isPassed,
         isActive,
@@ -5199,41 +5204,33 @@ function FluteRoadView(props: {
     confidence: number;
   }>>([]);
   const lastReverseNoteKeyRef = useRef<string | null>(null);
-  // ── Guitar Hero tile model ─────────────────────────────────────────────────
-  // Scroll at a constant pixel speed (TILE_PX_PER_MS).  To ensure large
-  // sustain tiles never appear on-screen at spawn we compute spawn/exit
-  // positions from the maximum tile height in this phrase (including
-  // countdown tiles). This preserves a single shared travelMs and keeps
-  // the gap-between-tiles construction (cursorAdvance = sustainMs).
-  const TILE_PX_PER_MS = 0.10; // 100 px/s — controls global scroll speed
-
-  // Countdown spacing (ms) and its visual height — linked to one metronome beat
-  const countdownDelayMs = (60 / props.metronomeBpm) * 1000;
-  const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS));
-
-  // Estimate note tile heights for this phrase so we can pick spawn/exit
-  // points large enough that even the tallest tile is fully off-screen.
-  const estimatedNoteHeights = phraseSteps.map((step) => Math.round(step.sustainTargetMs * TILE_PX_PER_MS));
-  const maxTileHeight = Math.max(countdownHeight, ...estimatedNoteHeights, 46);
-  const SPAWN_MARGIN = 58;
-
-  const TILE_SPAWN_Y = -maxTileHeight - SPAWN_MARGIN; // ensure tile bottom < 0 at spawn
-  const TILE_EXIT_Y = FLUTE_BOARD_HEIGHT + maxTileHeight + SPAWN_MARGIN;
-
-  const TILE_TOTAL_DIST = TILE_EXIT_Y - TILE_SPAWN_Y;
-  const TILE_TRAVEL_MS = Math.max(1, Math.round(TILE_TOTAL_DIST / TILE_PX_PER_MS));
-
-  const fluteBodyY = isReverseMode ? 30 : FLUTE_BODY_OFFSET_Y;
-
-  // Time from spawn until the tile reaches the visual top surface of the flute
-  const MS_TO_FLUTE = Math.round(((isReverseMode ? fluteBodyY + 100 : fluteBodyY + 60) - TILE_SPAWN_Y) / TILE_PX_PER_MS);
 
   const roadStartY = isReverseMode ? 112 : 18;
   const laneDrawStartY = isReverseMode ? roadStartY : 0;
   const roadEndY = FLUTE_BOARD_HEIGHT - 34;
-  const tileSpawnY = isReverseMode ? fluteBodyY + 80 : TILE_SPAWN_Y;
-  const tileEndY = isReverseMode ? FLUTE_BOARD_HEIGHT - 42 : TILE_EXIT_Y;
-  const tileTravelMs = Math.max(1, Math.round((tileEndY - tileSpawnY) / TILE_PX_PER_MS));
+
+  // ── Guitar Hero tile model ─────────────────────────────────────────────────
+  const TILE_PX_PER_MS = 0.10; // 100 px/s — controls global scroll speed
+  const SPAWN_MARGIN = 58;
+
+  const countdownDelayMs = (60 / props.metronomeBpm) * 1000;
+  const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS));
+
+  const fluteBodyY = isReverseMode ? 30 : FLUTE_BODY_OFFSET_Y;
+  const fluteContactY = isReverseMode ? fluteBodyY + 100 : fluteBodyY + 60;
+
+  // Countdown parameters (spawn exactly off-screen based on countdownHeight)
+  const countdownSpawnY = isReverseMode ? fluteBodyY + 80 : -countdownHeight - SPAWN_MARGIN;
+  const countdownExitY = isReverseMode ? FLUTE_BOARD_HEIGHT - 42 : FLUTE_BOARD_HEIGHT + countdownHeight + SPAWN_MARGIN;
+  const countdownTravelMs = Math.round(Math.abs(countdownExitY - countdownSpawnY) / TILE_PX_PER_MS);
+  const countdownMsToFlute = Math.round(Math.abs(fluteContactY - countdownSpawnY) / TILE_PX_PER_MS);
+
+  // Note parameters (spawn exactly off-screen based on note height)
+  const noteHeight = Math.round(dynamicSustainMs * TILE_PX_PER_MS);
+  const noteSpawnY = isReverseMode ? fluteBodyY + 80 : -noteHeight - SPAWN_MARGIN;
+  const noteExitY = isReverseMode ? FLUTE_BOARD_HEIGHT - 42 : FLUTE_BOARD_HEIGHT + noteHeight + SPAWN_MARGIN;
+  const noteTravelMs = Math.round(Math.abs(noteExitY - noteSpawnY) / TILE_PX_PER_MS);
+  const noteMsToFlute = Math.round(Math.abs(fluteContactY - noteSpawnY) / TILE_PX_PER_MS);
 
   useEffect(() => {
     setReverseTrail([]);
@@ -5315,47 +5312,39 @@ function FluteRoadView(props: {
     reverseDetected,
   ]);
 
-  // Build countdown tiles (startAt patched below once note timing is known)
-  const countdownTiles = [3, 2, 1].map((value, index) => ({
-    kind: "countdown" as const,
-    key: `countdown-${value}-${index}`,
-    label: String(value),
-    x: targetLane.x,
-    startAt: 0, // patched below
-    startY: TILE_SPAWN_Y,
-    targetY: TILE_EXIT_Y,
-    travelMs: TILE_TRAVEL_MS,
-    height: countdownHeight,
-    width: 16,
-    fill: "linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.08))",
-    stroke: "rgba(255,255,255,0.12)",
-    textFill: "rgba(255,255,255,0.72)",
-    glow: "none",
-    active: false,
-  }));
-
-  // First note tile spawns so its top reaches the flute at:
-  //   props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE (after all 3 digits pass)
-  const firstNoteArrivalAt = props.startedAt + 3 * countdownDelayMs + MS_TO_FLUTE;
-  // => first note startAt = firstNoteArrivalAt - MS_TO_FLUTE
-  let noteCursor = firstNoteArrivalAt - MS_TO_FLUTE;
-
-  // Patch countdown startAts: digit[i] top should reach flute at
-  //   firstNoteArrivalAt - (3-1-i)*countdownDelayMs - countdownDelayMs
-  countdownTiles.forEach((tile, i) => {
-    const arrivalAt = firstNoteArrivalAt - (2 - i) * countdownDelayMs - countdownDelayMs;
-    tile.startAt = arrivalAt - MS_TO_FLUTE;
+  // Build countdown tiles with direct, correct start times
+  const countdownTiles = [3, 2, 1].map((value, index) => {
+    const startAt = props.startedAt + index * countdownDelayMs;
+    return {
+      kind: "countdown" as const,
+      key: `countdown-${value}-${index}`,
+      label: String(value),
+      x: targetLane.x,
+      startAt,
+      startY: countdownSpawnY,
+      targetY: countdownExitY,
+      travelMs: countdownTravelMs,
+      height: countdownHeight,
+      width: 16,
+      fill: "rgba(255, 255, 255, 0.15)",
+      stroke: "rgba(255, 255, 255, 0.22)",
+      textFill: "rgba(255, 255, 255, 0.85)",
+      glow: "none",
+      active: false,
+    };
   });
+
+  const firstNoteArrivalAt = props.startedAt + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
+  let noteCursor = firstNoteArrivalAt - noteMsToFlute;
 
   const noteTiles = phraseSteps.flatMap((step, index) => {
     const lane = fluteLaneForSwara(step.target.swara);
     const palette = noteVisual(step.target.swara, step.target.octave);
-    // Height is proportional to sustain so adjacent tiles are gapless
     const tileHeight = step.sustainTargetMs * TILE_PX_PER_MS;
 
-    const timeAtFluteTop = noteCursor + MS_TO_FLUTE;
-    const timeAtFluteBottom = timeAtFluteTop + step.sustainTargetMs;
-    const isPassing = props.now >= timeAtFluteTop && props.now <= timeAtFluteBottom;
+    const timeArrivalTrailing = noteCursor + noteMsToFlute;
+    const timeArrivalLeading = timeArrivalTrailing - step.sustainTargetMs;
+    const isPassing = props.now >= timeArrivalLeading && props.now <= timeArrivalTrailing;
 
     const isPlayedCorrectly = Boolean(
       activeDetected &&
@@ -5388,9 +5377,9 @@ function FluteRoadView(props: {
       octave: step.target.octave,
       x: lane.x,
       startAt: noteCursor,
-      startY: tileSpawnY,
-      targetY: tileEndY,
-      travelMs: tileTravelMs,
+      startY: noteSpawnY,
+      targetY: noteExitY,
+      travelMs: noteTravelMs,
       height: tileHeight,
       width: 16,
       fill: tileFill,
@@ -5412,9 +5401,9 @@ function FluteRoadView(props: {
         octave: step.target.octave,
         x: 0,
         startAt: noteCursor, // Pinned exactly at the trailing edge of the last note of this group
-        startY: tileSpawnY,
-        targetY: tileEndY,
-        travelMs: tileTravelMs,
+        startY: noteSpawnY,
+        targetY: noteExitY,
+        travelMs: noteTravelMs,
         height: 0,
         width: 0,
         fill: "",
@@ -5431,7 +5420,7 @@ function FluteRoadView(props: {
     return results;
   });
 
-  const visibleReverseTrail = reverseTrail.filter((event) => props.now - event.startedAt <= tileTravelMs + event.durationMs + 400);
+  const visibleReverseTrail = reverseTrail.filter((event) => props.now - event.startedAt <= noteTravelMs + event.durationMs + 400);
 
   const reverseTiles = visibleReverseTrail.map((event) => {
     const lane = fluteLaneForSwara(event.swara);
@@ -5449,9 +5438,9 @@ function FluteRoadView(props: {
       octave: event.octave,
       x: lane.x,
       startAt: event.lastSeenAt,
-      startY: tileSpawnY,
-      targetY: tileEndY,
-      travelMs: tileTravelMs,
+      startY: noteSpawnY,
+      targetY: noteExitY,
+      travelMs: noteTravelMs,
       height: tileHeight,
       width: 16,
       fill: event.correct ? tileFill : palette.fill,
