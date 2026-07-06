@@ -731,7 +731,7 @@ export function SwaraTrainer() {
   });
   const [selectedTonic, setSelectedTonic] = useState<TonicName>(defaultFluteProfile.tonic);
   const [selectedRegister, setSelectedRegister] = useState<FluteRegister>(defaultFluteProfile.register);
-  const [pitchDifficulty, setPitchDifficulty] = useState<PitchDifficulty>("medium");
+  const [pitchDifficulty, setPitchDifficulty] = useState<PitchDifficulty>("easy");
   const [pitchTrendWindowMs, setPitchTrendWindowMs] = useState<PitchTrendWindowMs>(15000);
   const [fluteRoadMode, setFluteRoadMode] = useState<FluteRoadPracticeMode>("rainfall");
   const [isLiveCardFullscreen, setIsLiveCardFullscreen] = useState(false);
@@ -5659,7 +5659,7 @@ function FluteRoadView(props: {
               const isCountdown = tile.kind === "countdown";
               const tileWidth = tile.width;
               const noteLabelVisible = tile.kind === "note" && opacity > 0 && y < FLUTE_BOARD_HEIGHT && y + tile.height > 0;
-              const noteLabelY = clamp(y + tile.height - 10, y + 16, FLUTE_BOARD_HEIGHT - 10);
+              const noteLabelY = clamp(y + tile.height - 18, y + 16, FLUTE_BOARD_HEIGHT - 18);
               return (
                 <Fragment key={tile.key}>
                   <g
@@ -5699,7 +5699,7 @@ function FluteRoadView(props: {
                       key={`${tile.key}-label-group`}
                       style={{
                         transform: `translate(${tile.x}px, ${noteLabelY}px)`,
-                        opacity,
+                        opacity: fadeProgress,
                       }}
                     >
                       <text
