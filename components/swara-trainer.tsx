@@ -784,7 +784,8 @@ export function SwaraTrainer() {
   const [sequenceLiveScore, setSequenceLiveScore] = useState<number | null>(null);
   const [fluteViewTick, setFluteViewTick] = useState(() => Date.now());
   const [fluteViewStartedAt, setFluteViewStartedAt] = useState(() => Date.now());
-  const [roadStepCorrectness, setRoadStepCorrectness] = useState<Record<number, boolean>>({});
+  const [roadStepStatuses, setRoadStepStatuses] = useState<Record<number, "green" | "yellow" | "red">>({});
+  const roadStepAccumulatorRef = useRef<Record<number, { correct: number; total: number }>>({});
   const [isFluteRoadPaused, setIsFluteRoadPaused] = useState(false);
   const isFluteRoadPausedRef = useRef(false);
   const pauseStartRef = useRef<number | null>(null);
@@ -906,7 +907,8 @@ export function SwaraTrainer() {
   const pitchConfig = useMemo(() => pitchDifficultyConfig(pitchDifficulty), [pitchDifficulty]);
 
   useEffect(() => {
-    setRoadStepCorrectness({});
+    roadStepAccumulatorRef.current = {};
+    setRoadStepStatuses({});
   }, [fluteViewStartedAt]);
 
   useEffect(() => {
@@ -915,6 +917,10 @@ export function SwaraTrainer() {
 
     sequenceVisualStates.forEach((state, index) => {
       if (state.isActive) {
+        // Initialize or fetch current counters
+        const accum = roadStepAccumulatorRef.current[index] ?? { correct: 0, total: 0 };
+        accum.total += 1;
+
         const step = sequenceDrill.steps[index];
         if (step && analysis.detected) {
           const sequencePitchToleranceCents = Math.max(sequenceDrill.pitchToleranceCents, pitchConfig.sequenceToleranceCents);
@@ -924,12 +930,28 @@ export function SwaraTrainer() {
             Math.abs(analysis.detected.centsOffset) <= sequencePitchToleranceCents;
 
           if (expectedPitchMatches) {
-            setRoadStepCorrectness((prev) => {
-              if (prev[index]) return prev;
-              return { ...prev, [index]: true };
-            });
+            accum.correct += 1;
           }
         }
+        roadStepAccumulatorRef.current[index] = accum;
+      } else if (state.isPassed) {
+        // When the note has passed, evaluate and lock the final status
+        setRoadStepStatuses((prev) => {
+          if (prev[index]) return prev;
+
+          const accum = roadStepAccumulatorRef.current[index];
+          let status: "green" | "yellow" | "red" = "red";
+
+          if (accum && accum.total > 0) {
+            const ratio = accum.correct / accum.total;
+            if (ratio >= 0.70) {
+              status = "green";
+            } else if (ratio >= 0.30) {
+              status = "yellow";
+            }
+          }
+          return { ...prev, [index]: status };
+        });
       }
     });
   }, [fluteViewTick, analysis.detected, sequenceVisualStates, sequenceDrill, pitchConfig.sequenceToleranceCents]);
@@ -3507,7 +3529,7 @@ export function SwaraTrainer() {
                       ? ((typeof window !== "undefined" ? window.innerHeight - 20 : 560) - (FLUTE_BOARD_HEIGHT * layoutSvgScale)) / 2 + 20
                       : 20,
                     bottom: isLiveCardFullscreen
-                      ? (typeof window !== "undefined" ? window.innerHeight - 20 : 560) / 2 + (FLUTE_BOARD_HEIGHT / 2 - FLUTE_BODY_OFFSET_Y) * layoutSvgScale + 15
+                      ? (typeof window !== "undefined" ? window.innerHeight - 190 : 400) / 2 + (FLUTE_BOARD_HEIGHT / 2 - FLUTE_BODY_OFFSET_Y) * layoutSvgScale + 15
                       : layoutSvgRenderedHeight - layoutFluteBodyScreenY - 40,
                     zIndex: 10,
                     pointerEvents: "none",
@@ -3748,9 +3770,13 @@ export function SwaraTrainer() {
                                               ? THEME.noteGroup.activePill
                                               : THEME.noteGroup.defaultPill;
 
-                                          const wasCorrect = roadStepCorrectness[globalIdx];
+                                          const finalStatus = roadStepStatuses[globalIdx];
                                           const color = isPassed
-                                            ? (wasCorrect ? "rgba(46, 213, 115, 1)" : "rgba(255, 99, 99, 0.75)")
+                                            ? finalStatus === "green"
+                                              ? "rgba(46, 213, 115, 1)"
+                                              : finalStatus === "yellow"
+                                                ? "rgba(255, 159, 67, 1)"
+                                                : "rgba(255, 99, 99, 0.75)"
                                             : stepStyle.text;
                                           const fontWeight = isActive ? 750 : 500;
                                           const scale = isActive ? 1.1 : 1;
