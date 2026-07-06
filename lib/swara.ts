@@ -45,7 +45,7 @@ const swaraSteps = [
   { swara: "Sa", step: 0 },
   { swara: "Re", step: 2 },
   { swara: "Ga", step: 4 },
-  { swara: "Ma", step: 5 },
+  { swara: "Ma", step: 6 }, // Teevra Ma (6 semitones offset instead of 5)
   { swara: "Pa", step: 7 },
   { swara: "Dha", step: 9 },
   { swara: "Ni", step: 11 },
