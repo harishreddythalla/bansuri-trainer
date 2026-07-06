@@ -4630,12 +4630,12 @@ function mixHex(a: string, b: string, ratio: number) {
 function noteVisual(swara: string | null, octave: string | null) {
   const baseHex = SWARA_BASE_COLORS[swara ?? "Sa"] ?? SWARA_BASE_COLORS.Sa;
   const tint = octave === "Taar"
-    ? mixHex(baseHex, "#ffffff", 0.30)
+    ? mixHex(baseHex, "#ffffff", 0.25)
     : octave === "Mandra"
-      ? mixHex(baseHex, "#0f1b30", 0.20)
+      ? mixHex(baseHex, "#000000", 0.12)
       : baseHex;
-  const fillAlpha = octave === "Taar" ? 0.95 : octave === "Mandra" ? 0.82 : 0.88;
-  const strokeAlpha = octave === "Taar" ? 0.95 : octave === "Mandra" ? 0.75 : 0.85;
+  const fillAlpha = 0.96;
+  const strokeAlpha = 0.98;
   const bandAlpha = octave === "Taar" ? 0.22 : octave === "Mandra" ? 0.14 : 0.18;
 
   return {
@@ -5121,8 +5121,8 @@ function SignalTrace(props: {
                         stroke={THEME.pitch.bg}
                         strokeWidth={2.4}
                         paintOrder="stroke"
-                        fontSize={band.octave === "Taar" ? "13" : band.octave === "Mandra" ? "9.5" : "11.5"}
-                        fontWeight="850"
+                        fontSize={band.octave === "Taar" ? "13.5" : band.octave === "Mandra" ? "12.5" : "13"}
+                        fontWeight="900"
                         textAnchor="start"
                       >
                         {band.swara.charAt(0)}
@@ -5130,21 +5130,21 @@ function SignalTrace(props: {
                       {band.octave === "Taar" && (
                         <circle
                           cx={labelX + 4.5}
-                          cy={28}
-                          r={2.4}
+                          cy={27}
+                          r={2.6}
                           fill="#ffffff"
                           stroke={THEME.pitch.bg}
-                          strokeWidth={1.2}
+                          strokeWidth={1.5}
                         />
                       )}
                       {band.octave === "Mandra" && (
                         <circle
                           cx={labelX + 4.5}
-                          cy={49}
-                          r={2.4}
+                          cy={51}
+                          r={2.6}
                           fill="#ffffff"
                           stroke={THEME.pitch.bg}
-                          strokeWidth={1.2}
+                          strokeWidth={1.5}
                         />
                       )}
                     </g>
@@ -5707,10 +5707,10 @@ function FluteRoadView(props: {
                         y={0}
                         textAnchor="middle"
                         fill="#ffffff"
-                        fontSize={tile.octave === "Taar" ? "13" : tile.octave === "Mandra" ? "9.5" : "11.5"}
-                        fontWeight="850"
+                        fontSize={tile.octave === "Taar" ? "13.5" : tile.octave === "Mandra" ? "12.5" : "13"}
+                        fontWeight="900"
                         stroke="rgba(5,10,18,0.95)"
-                        strokeWidth={2}
+                        strokeWidth={2.4}
                         paintOrder="stroke"
                       >
                         {tile.swara}
@@ -5718,21 +5718,21 @@ function FluteRoadView(props: {
                       {tile.octave === "Taar" && (
                         <circle
                           cx={0}
-                          cy={-13.5}
-                          r={2.4}
+                          cy={-14}
+                          r={2.6}
                           fill="#ffffff"
                           stroke="rgba(5,10,18,0.95)"
-                          strokeWidth={1.2}
+                          strokeWidth={1.5}
                         />
                       )}
                       {tile.octave === "Mandra" && (
                         <circle
                           cx={0}
-                          cy={5.5}
-                          r={2.4}
+                          cy={9}
+                          r={2.6}
                           fill="#ffffff"
                           stroke="rgba(5,10,18,0.95)"
-                          strokeWidth={1.2}
+                          strokeWidth={1.5}
                         />
                       )}
                     </g>
