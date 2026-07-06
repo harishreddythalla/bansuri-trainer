@@ -791,8 +791,28 @@ export function SwaraTrainer() {
   const [sequenceLiveScore, setSequenceLiveScore] = useState<number | null>(null);
   const [fluteViewTick, setFluteViewTick] = useState(() => Date.now());
   const [fluteViewStartedAt, setFluteViewStartedAt] = useState(() => Date.now());
-  const [roadStepStatuses, setRoadStepStatuses] = useState<Record<number, "green" | "yellow" | "red">>({});
-  const roadStepAccumulatorRef = useRef<Record<number, { correct: number; total: number }>>({});
+  interface RoadStepResult {
+    status: "green" | "yellow" | "red";
+    correctFrames: number;
+    totalFrames: number;
+    ratio: number;
+    targetSwara: string;
+    targetOctave: string;
+    targetState: string;
+    lastDetectedSwara?: string;
+    lastDetectedOctave?: string;
+    lastDetectedState?: string;
+    lastCentsOffset?: number;
+  }
+  const [roadStepResults, setRoadStepResults] = useState<Record<number, RoadStepResult>>({});
+  const roadStepAccumulatorRef = useRef<Record<number, {
+    correct: number;
+    total: number;
+    lastDetectedSwara?: string;
+    lastDetectedOctave?: string;
+    lastDetectedState?: string;
+    lastCentsOffset?: number;
+  }>>({});
   const [isFluteRoadPaused, setIsFluteRoadPaused] = useState(false);
   const isFluteRoadPausedRef = useRef(false);
   const pauseStartRef = useRef<number | null>(null);
@@ -915,7 +935,7 @@ export function SwaraTrainer() {
 
   useEffect(() => {
     roadStepAccumulatorRef.current = {};
-    setRoadStepStatuses({});
+    setRoadStepResults({});
   }, [fluteViewStartedAt]);
 
   useEffect(() => {
@@ -940,25 +960,49 @@ export function SwaraTrainer() {
           if (expectedPitchMatches) {
             accum.correct += 1;
           }
+
+          // Track last detected values for tooltip
+          accum.lastDetectedSwara = analysis.detected.swara;
+          accum.lastDetectedOctave = analysis.detected.octave;
+          accum.lastDetectedState = analysis.detected.state ?? "Shuddha";
+          accum.lastCentsOffset = analysis.detected.centsOffset;
         }
         roadStepAccumulatorRef.current[index] = accum;
       } else if (state.isPassed) {
         // When the note has passed, evaluate and lock the final status
-        setRoadStepStatuses((prev) => {
+        setRoadStepResults((prev) => {
           if (prev[index]) return prev;
 
           const accum = roadStepAccumulatorRef.current[index];
           let status: "green" | "yellow" | "red" = "red";
+          let ratio = 0;
 
           if (accum && accum.total > 0) {
-            const ratio = accum.correct / accum.total;
+            ratio = accum.correct / accum.total;
             if (ratio >= 0.70) {
               status = "green";
             } else if (ratio >= 0.30) {
               status = "yellow";
             }
           }
-          return { ...prev, [index]: status };
+
+          const target = sequenceDrill.steps[index].target;
+          return {
+            ...prev,
+            [index]: {
+              status,
+              correctFrames: accum?.correct ?? 0,
+              totalFrames: accum?.total ?? 0,
+              ratio,
+              targetSwara: target.swara,
+              targetOctave: target.octave,
+              targetState: target.state ?? "Shuddha",
+              lastDetectedSwara: accum?.lastDetectedSwara,
+              lastDetectedOctave: accum?.lastDetectedOctave,
+              lastDetectedState: accum?.lastDetectedState,
+              lastCentsOffset: accum?.lastCentsOffset,
+            },
+          };
         });
       }
     });
@@ -3782,7 +3826,8 @@ export function SwaraTrainer() {
                                               ? THEME.noteGroup.activePill
                                               : THEME.noteGroup.defaultPill;
 
-                                          const finalStatus = roadStepStatuses[globalIdx];
+                                          const resultInfo = roadStepResults[globalIdx];
+                                          const finalStatus = resultInfo?.status;
                                           const color = isPassed
                                             ? finalStatus === "green"
                                               ? "rgba(46, 213, 115, 1)"
@@ -3796,7 +3841,7 @@ export function SwaraTrainer() {
                                           return (
                                             <span
                                               key={`${step.target.swara}-${globalIdx}`}
-                                              className={isActive ? "active-note" : ""}
+                                              className={`group relative ${isActive ? "active-note" : ""}`}
                                               style={{
                                                 display: "inline-flex",
                                                 alignItems: "center",
@@ -3809,9 +3854,37 @@ export function SwaraTrainer() {
                                                 transform: `scale(${scale})`,
                                                 transition: "all 0.2s ease",
                                                 flexShrink: 0,
+                                                cursor: isPassed && resultInfo ? "help" : "default",
                                               }}
                                             >
                                               {step.glyph ?? step.target.swara}
+                                              {isPassed && resultInfo && (
+                                                <div
+                                                  className="pointer-events-none absolute bottom-full left-1/2 mb-2 z-50 w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-200 origin-bottom"
+                                                  style={{
+                                                    background: "rgba(15, 23, 42, 0.95)",
+                                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
+                                                    borderRadius: 8,
+                                                    padding: "8px 10px",
+                                                    color: "#fff",
+                                                    fontSize: "10px",
+                                                    fontWeight: 500,
+                                                    lineHeight: "1.4",
+                                                    textAlign: "left",
+                                                  }}
+                                                >
+                                                  <div style={{ fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: 4, marginBottom: 4 }}>
+                                                    Note {globalIdx + 1} Score Info
+                                                  </div>
+                                                  <div>Target: {resultInfo.targetState === "Teevra" ? "Teevra " : resultInfo.targetState === "Komal" ? "Komal " : ""}{resultInfo.targetSwara} ({resultInfo.targetOctave})</div>
+                                                  <div>Played: {resultInfo.lastDetectedSwara ? `${resultInfo.lastDetectedState === "Teevra" ? "Teevra " : resultInfo.lastDetectedState === "Komal" ? "Komal " : ""}${resultInfo.lastDetectedSwara} (${resultInfo.lastDetectedOctave})` : "None"}</div>
+                                                  <div>Offset: {resultInfo.lastCentsOffset != null ? `${resultInfo.lastCentsOffset > 0 ? "+" : ""}${Math.round(resultInfo.lastCentsOffset)}¢` : "N/A"}</div>
+                                                  <div style={{ marginTop: 4, fontWeight: 700, color: resultInfo.status === "green" ? "#2ed573" : resultInfo.status === "yellow" ? "#ff9f43" : "#ff4757" }}>
+                                                    Accuracy: {Math.round(resultInfo.ratio * 100)}% ({resultInfo.correctFrames}/{resultInfo.totalFrames} frames)
+                                                  </div>
+                                                </div>
+                                              )}
                                             </span>
                                           );
                                         })}
