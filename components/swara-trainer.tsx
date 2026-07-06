@@ -253,23 +253,23 @@ const pitchTrendWindowOptions: Array<{ value: PitchTrendWindowMs; label: string;
 
 function readStoredPitchDifficulty(): PitchDifficulty {
   if (!canUsePersistentStorage) {
-    return "medium";
+    return "easy";
   }
 
   try {
     if (typeof window === "undefined") {
-      return "medium";
+      return "easy";
     }
 
     const storage = window.localStorage;
     if (typeof storage?.getItem !== "function") {
-      return "medium";
+      return "easy";
     }
 
     const stored = storage.getItem(PITCH_DIFFICULTY_STORAGE_KEY);
-    return stored === "easy" || stored === "medium" || stored === "hard" ? stored : "medium";
+    return stored === "easy" || stored === "medium" || stored === "hard" ? stored : "easy";
   } catch {
-    return "medium";
+    return "easy";
   }
 }
 
