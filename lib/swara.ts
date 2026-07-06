@@ -90,7 +90,7 @@ export const fluteProfiles: FluteProfile[] = registerDefinitions.flatMap((regist
   }),
 );
 
-export const defaultFluteProfile = fluteProfiles.find((profile) => profile.id === "c-medium") ?? fluteProfiles[0];
+export const defaultFluteProfile = fluteProfiles.find((profile) => profile.id === "e-bass") ?? fluteProfiles[0];
 
 export const swaraTargets: SwaraTarget[] = ["Mandra", "Madhya", "Taar"].flatMap((octave) =>
   swaraSteps.map(({ swara }) => ({
