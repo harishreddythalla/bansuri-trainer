@@ -4630,13 +4630,13 @@ function mixHex(a: string, b: string, ratio: number) {
 function noteVisual(swara: string | null, octave: string | null) {
   const baseHex = SWARA_BASE_COLORS[swara ?? "Sa"] ?? SWARA_BASE_COLORS.Sa;
   const tint = octave === "Taar"
-    ? mixHex(baseHex, "#ffffff", 0.35)
+    ? mixHex(baseHex, "#ffffff", 0.30)
     : octave === "Mandra"
-      ? mixHex(baseHex, "#091120", 0.38)
+      ? mixHex(baseHex, "#0f1b30", 0.20)
       : baseHex;
-  const fillAlpha = octave === "Taar" ? 0.92 : octave === "Mandra" ? 0.58 : 0.78;
-  const strokeAlpha = octave === "Taar" ? 0.9 : octave === "Mandra" ? 0.42 : 0.64;
-  const bandAlpha = octave === "Taar" ? 0.18 : octave === "Mandra" ? 0.08 : 0.12;
+  const fillAlpha = octave === "Taar" ? 0.95 : octave === "Mandra" ? 0.82 : 0.88;
+  const strokeAlpha = octave === "Taar" ? 0.95 : octave === "Mandra" ? 0.75 : 0.85;
+  const bandAlpha = octave === "Taar" ? 0.22 : octave === "Mandra" ? 0.14 : 0.18;
 
   return {
     fill: rgba(tint, fillAlpha),
@@ -5116,13 +5116,13 @@ function SignalTrace(props: {
                     <g>
                       <text
                         x={labelX}
-                        y={38}
-                        fill={band.octave === "Taar" ? "#ffffff" : band.octave === "Mandra" ? "rgba(255, 255, 255, 0.65)" : "rgba(255, 255, 255, 0.9)"}
+                        y={42}
+                        fill="#ffffff"
                         stroke={THEME.pitch.bg}
-                        strokeWidth={2}
+                        strokeWidth={2.4}
                         paintOrder="stroke"
                         fontSize={band.octave === "Taar" ? "13" : band.octave === "Mandra" ? "9.5" : "11.5"}
-                        fontWeight="800"
+                        fontWeight="850"
                         textAnchor="start"
                       >
                         {band.swara.charAt(0)}
@@ -5130,21 +5130,21 @@ function SignalTrace(props: {
                       {band.octave === "Taar" && (
                         <circle
                           cx={labelX + 4.5}
-                          cy={24}
-                          r={2.2}
+                          cy={28}
+                          r={2.4}
                           fill="#ffffff"
                           stroke={THEME.pitch.bg}
-                          strokeWidth={1}
+                          strokeWidth={1.2}
                         />
                       )}
                       {band.octave === "Mandra" && (
                         <circle
                           cx={labelX + 4.5}
-                          cy={45}
-                          r={2.2}
-                          fill="rgba(255, 255, 255, 0.65)"
+                          cy={49}
+                          r={2.4}
+                          fill="#ffffff"
                           stroke={THEME.pitch.bg}
-                          strokeWidth={1}
+                          strokeWidth={1.2}
                         />
                       )}
                     </g>
@@ -5695,41 +5695,44 @@ function FluteRoadView(props: {
                     ) : null}
                   </g>
                   {noteLabelVisible ? (
-                    <g key={`${tile.key}-label-group`}>
+                    <g
+                      key={`${tile.key}-label-group`}
+                      style={{
+                        transform: `translate(${tile.x}px, ${noteLabelY}px)`,
+                        opacity,
+                      }}
+                    >
                       <text
-                        x={tile.x}
-                        y={noteLabelY}
+                        x={0}
+                        y={0}
                         textAnchor="middle"
-                        fill={tile.octave === "Taar" ? "#ffffff" : tile.octave === "Mandra" ? "rgba(255, 255, 255, 0.65)" : tile.textFill}
-                        opacity={opacity}
+                        fill="#ffffff"
                         fontSize={tile.octave === "Taar" ? "13" : tile.octave === "Mandra" ? "9.5" : "11.5"}
-                        fontWeight="800"
-                        stroke="rgba(5,10,18,0.9)"
-                        strokeWidth={1.8}
+                        fontWeight="850"
+                        stroke="rgba(5,10,18,0.95)"
+                        strokeWidth={2}
                         paintOrder="stroke"
                       >
                         {tile.swara}
                       </text>
                       {tile.octave === "Taar" && (
                         <circle
-                          cx={tile.x}
-                          cy={noteLabelY - 13.5}
-                          r={2.2}
+                          cx={0}
+                          cy={-13.5}
+                          r={2.4}
                           fill="#ffffff"
-                          stroke="rgba(5,10,18,0.9)"
-                          strokeWidth={1}
-                          opacity={opacity}
+                          stroke="rgba(5,10,18,0.95)"
+                          strokeWidth={1.2}
                         />
                       )}
                       {tile.octave === "Mandra" && (
                         <circle
-                          cx={tile.x}
-                          cy={noteLabelY + 5.5}
-                          r={2.2}
-                          fill="rgba(255, 255, 255, 0.65)"
-                          stroke="rgba(5,10,18,0.9)"
-                          strokeWidth={1}
-                          opacity={opacity}
+                          cx={0}
+                          cy={5.5}
+                          r={2.4}
+                          fill="#ffffff"
+                          stroke="rgba(5,10,18,0.95)"
+                          strokeWidth={1.2}
                         />
                       )}
                     </g>
