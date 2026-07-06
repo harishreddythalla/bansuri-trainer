@@ -5113,19 +5113,41 @@ function SignalTrace(props: {
                     opacity={props.fullscreen ? 0.52 : 0.42}
                   />
                   {shouldLabel ? (
-                    <text
-                      x={labelX}
-                      y={38}
-                      fill={THEME.text.white}
-                      stroke={THEME.pitch.bg}
-                      strokeWidth={2}
-                      paintOrder="stroke"
-                      fontSize="11"
-                      fontWeight="750"
-                      textAnchor="start"
-                    >
-                      {compactNoteLabel(band.swara, band.octave)}
-                    </text>
+                    <g>
+                      <text
+                        x={labelX}
+                        y={38}
+                        fill={band.octave === "Taar" ? "#ffffff" : band.octave === "Mandra" ? "rgba(255, 255, 255, 0.65)" : "rgba(255, 255, 255, 0.9)"}
+                        stroke={THEME.pitch.bg}
+                        strokeWidth={2}
+                        paintOrder="stroke"
+                        fontSize={band.octave === "Taar" ? "13" : band.octave === "Mandra" ? "9.5" : "11.5"}
+                        fontWeight="800"
+                        textAnchor="start"
+                      >
+                        {band.swara.charAt(0)}
+                      </text>
+                      {band.octave === "Taar" && (
+                        <circle
+                          cx={labelX + 4.5}
+                          cy={24}
+                          r={2.2}
+                          fill="#ffffff"
+                          stroke={THEME.pitch.bg}
+                          strokeWidth={1}
+                        />
+                      )}
+                      {band.octave === "Mandra" && (
+                        <circle
+                          cx={labelX + 4.5}
+                          cy={45}
+                          r={2.2}
+                          fill="rgba(255, 255, 255, 0.65)"
+                          stroke={THEME.pitch.bg}
+                          strokeWidth={1}
+                        />
+                      )}
+                    </g>
                   ) : null}
                 </g>
               );
@@ -5673,21 +5695,44 @@ function FluteRoadView(props: {
                     ) : null}
                   </g>
                   {noteLabelVisible ? (
-                    <text
-                      key={`${tile.key}-label`}
-                      x={tile.x}
-                      y={noteLabelY}
-                      textAnchor="middle"
-                      fill={tile.textFill}
-                      opacity={opacity}
-                      fontSize="11.5"
-                      fontWeight="800"
-                      stroke="rgba(5,10,18,0.9)"
-                      strokeWidth={1.8}
-                      paintOrder="stroke"
-                    >
-                      {tile.label}
-                    </text>
+                    <g key={`${tile.key}-label-group`}>
+                      <text
+                        x={tile.x}
+                        y={noteLabelY}
+                        textAnchor="middle"
+                        fill={tile.octave === "Taar" ? "#ffffff" : tile.octave === "Mandra" ? "rgba(255, 255, 255, 0.65)" : tile.textFill}
+                        opacity={opacity}
+                        fontSize={tile.octave === "Taar" ? "13" : tile.octave === "Mandra" ? "9.5" : "11.5"}
+                        fontWeight="800"
+                        stroke="rgba(5,10,18,0.9)"
+                        strokeWidth={1.8}
+                        paintOrder="stroke"
+                      >
+                        {tile.swara}
+                      </text>
+                      {tile.octave === "Taar" && (
+                        <circle
+                          cx={tile.x}
+                          cy={noteLabelY - 13.5}
+                          r={2.2}
+                          fill="#ffffff"
+                          stroke="rgba(5,10,18,0.9)"
+                          strokeWidth={1}
+                          opacity={opacity}
+                        />
+                      )}
+                      {tile.octave === "Mandra" && (
+                        <circle
+                          cx={tile.x}
+                          cy={noteLabelY + 5.5}
+                          r={2.2}
+                          fill="rgba(255, 255, 255, 0.65)"
+                          stroke="rgba(5,10,18,0.9)"
+                          strokeWidth={1}
+                          opacity={opacity}
+                        />
+                      )}
+                    </g>
                   ) : null}
                 </Fragment>
               );
