@@ -905,6 +905,7 @@ export function SwaraTrainer() {
     totalStability: number;
     pitchFrames: number;
   }>>({});
+  const isSequenceEvaluatedRef = useRef(false);
   const [isFluteRoadPaused, setIsFluteRoadPaused] = useState(false);
   const isFluteRoadPausedRef = useRef(false);
   const pauseStartRef = useRef<number | null>(null);
@@ -1091,6 +1092,7 @@ export function SwaraTrainer() {
   useEffect(() => {
     roadStepAccumulatorRef.current = {};
     setRoadStepResults({});
+    isSequenceEvaluatedRef.current = false;
   }, [fluteViewStartedAt]);
 
   useEffect(() => {
@@ -1185,6 +1187,70 @@ export function SwaraTrainer() {
         });
       }
     });
+
+    const allPassed = sequenceVisualStates.length > 0 && sequenceVisualStates.every((state) => state.isPassed);
+    if (allPassed && !isSequenceEvaluatedRef.current) {
+      isSequenceEvaluatedRef.current = true;
+
+      const compiledResults: Record<number, RoadStepResult> = {};
+      const phraseScores: number[] = [];
+
+      sequenceDrill.steps.forEach((step, idx) => {
+        const accum = roadStepAccumulatorRef.current[idx];
+        let status: "green" | "yellow" | "red" = "red";
+        let ratio = 0;
+
+        if (accum && accum.total > 0) {
+          ratio = accum.correct / accum.total;
+          if (ratio >= 0.70) {
+            status = "green";
+          } else if (ratio >= 0.30) {
+            status = "yellow";
+          }
+        }
+
+        const avgCentsOffset = accum && accum.pitchFrames > 0 ? accum.totalCentsOffset / accum.pitchFrames : undefined;
+        const avgNoise = accum && accum.total > 0 ? accum.totalNoise / accum.total : undefined;
+        const avgStability = accum && accum.total > 0 ? accum.totalStability / accum.total : undefined;
+
+        compiledResults[idx] = {
+          status,
+          correctFrames: accum?.correct ?? 0,
+          totalFrames: accum?.total ?? 0,
+          ratio,
+          targetSwara: step.target.swara,
+          targetOctave: step.target.octave,
+          targetState: step.target.state ?? "Shuddha",
+          lastDetectedSwara: accum?.lastDetectedSwara,
+          lastDetectedOctave: accum?.lastDetectedOctave,
+          lastDetectedState: accum?.lastDetectedState,
+          lastCentsOffset: accum?.lastCentsOffset,
+          avgCentsOffset,
+          avgNoise,
+          avgStability,
+        };
+
+        phraseScores.push(ratio * 100);
+      });
+
+      const phraseScore = averageScore(phraseScores);
+      const passThreshold = Math.max(sequenceDrill.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
+      const passed = (phraseScore ?? 0) >= passThreshold;
+
+      setRoadStepResults(compiledResults);
+
+      setCheckpointSummaryData({
+        step: sequenceDrill,
+        score: Math.round(phraseScore ?? 0),
+        passed,
+        results: compiledResults,
+      });
+      setShowCheckpointSummaryPopup(true);
+
+      if (passed) {
+        completeStep(sequenceDrill, "auto");
+      }
+    }
   }, [fluteViewTick, analysis.detected, sequenceVisualStates, sequenceDrill, pitchConfig.sequenceToleranceCents]);
 
   const selectedStepRef = useRef<LessonStep | null>(selectedStep ?? null);
