@@ -784,6 +784,7 @@ export function SwaraTrainer() {
   const [sequenceLiveScore, setSequenceLiveScore] = useState<number | null>(null);
   const [fluteViewTick, setFluteViewTick] = useState(() => Date.now());
   const [fluteViewStartedAt, setFluteViewStartedAt] = useState(() => Date.now());
+  const [roadStepCorrectness, setRoadStepCorrectness] = useState<Record<number, boolean>>({});
   const [isFluteRoadPaused, setIsFluteRoadPaused] = useState(false);
   const isFluteRoadPausedRef = useRef(false);
   const pauseStartRef = useRef<number | null>(null);
@@ -903,6 +904,36 @@ export function SwaraTrainer() {
     [selectedRegister, selectedTonic],
   );
   const pitchConfig = useMemo(() => pitchDifficultyConfig(pitchDifficulty), [pitchDifficulty]);
+
+  useEffect(() => {
+    setRoadStepCorrectness({});
+  }, [fluteViewStartedAt]);
+
+  useEffect(() => {
+    if (!sequenceDrill) return;
+    const now = fluteViewTick;
+
+    sequenceVisualStates.forEach((state, index) => {
+      if (state.isActive) {
+        const step = sequenceDrill.steps[index];
+        if (step && analysis.detected) {
+          const sequencePitchToleranceCents = Math.max(sequenceDrill.pitchToleranceCents, pitchConfig.sequenceToleranceCents);
+          const expectedPitchMatches =
+            analysis.detected.swara === step.target.swara &&
+            analysis.detected.octave === step.target.octave &&
+            Math.abs(analysis.detected.centsOffset) <= sequencePitchToleranceCents;
+
+          if (expectedPitchMatches) {
+            setRoadStepCorrectness((prev) => {
+              if (prev[index]) return prev;
+              return { ...prev, [index]: true };
+            });
+          }
+        }
+      }
+    });
+  }, [fluteViewTick, analysis.detected, sequenceVisualStates, sequenceDrill, pitchConfig.sequenceToleranceCents]);
+
   const selectedStepRef = useRef<LessonStep | null>(selectedStep ?? null);
   const targetRef = useRef<SwaraTarget>(selectedStep?.target ?? target);
   const fluteProfileRef = useRef<FluteProfile>(fluteProfile);
@@ -3717,9 +3748,12 @@ export function SwaraTrainer() {
                                               ? THEME.noteGroup.activePill
                                               : THEME.noteGroup.defaultPill;
 
-                                          let color = stepStyle.text;
-                                          let fontWeight = isActive ? 750 : 500;
-                                          let scale = isActive ? 1.1 : 1;
+                                          const wasCorrect = roadStepCorrectness[globalIdx];
+                                          const color = isPassed
+                                            ? (wasCorrect ? "rgba(46, 213, 115, 1)" : "rgba(255, 99, 99, 0.75)")
+                                            : stepStyle.text;
+                                          const fontWeight = isActive ? 750 : 500;
+                                          const scale = isActive ? 1.1 : 1;
 
                                           return (
                                             <span
