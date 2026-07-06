@@ -2536,6 +2536,12 @@ export function SwaraTrainer() {
     }
   }
 
+  function handleSelectStep(stepId: string) {
+    setCheckpointNotice(null);
+    setClearedCheckpoint(null);
+    setSelectedStepId(stepId);
+  }
+
   function playSuccessChime() {
     if (typeof window === "undefined") {
       return;
@@ -2790,6 +2796,7 @@ export function SwaraTrainer() {
                 completedCount: module.steps.filter((step) => completedStepIds.includes(step.id)).length,
                 isCurrent: module.id === currentModule?.id,
               }))}
+              onSelectStep={handleSelectStep}
             />
 
             <div style={{ flexShrink: 0 }}>
@@ -3920,6 +3927,7 @@ function JourneySummary(props: {
     completedCount: number;
     isCurrent: boolean;
   }>;
+  onSelectStep?: (stepId: string) => void;
 }) {
   return (
     <div
@@ -4040,8 +4048,10 @@ function JourneySummary(props: {
                           : THEME.practiceMap.pillDefault;
 
                     return (
-                      <span
+                      <button
                         key={step.id}
+                        type="button"
+                        onClick={() => props.onSelectStep?.(step.id)}
                         className="pill"
                         style={{
                           padding: "6px 10px",
@@ -4049,13 +4059,24 @@ function JourneySummary(props: {
                           background: pillStyle.bg,
                           border: pillStyle.border,
                           color: pillStyle.color,
+                          cursor: "pointer",
+                          transition: "all 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                          outline: "none",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.filter = "brightness(1.18)";
+                          e.currentTarget.style.transform = "translateY(-1px)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.filter = "none";
+                          e.currentTarget.style.transform = "none";
                         }}
                       >
                         <span style={{ color: pillStyle.dot, marginRight: 4, fontWeight: 800 }}>
                           {isDone ? "✓ " : "• "}
                         </span>
                         {step.title}
-                      </span>
+                      </button>
                     );
                   })}
                 </div>
