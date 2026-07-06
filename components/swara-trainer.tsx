@@ -743,79 +743,150 @@ interface RoadStepResult {
   avgStability?: number;
 }
 
+interface AggregatedNoteResult {
+  key: string;
+  swara: string;
+  octave: string;
+  state: string;
+  correctFrames: number;
+  totalFrames: number;
+  ratio: number;
+  avgCentsOffset: number | null;
+  avgNoise: number | null;
+  avgStability: number | null;
+  missedCount: number;
+  totalOccurrences: number;
+}
+
 function analyzeCheckpointPerformance(
   results: Record<number, RoadStepResult>,
   step: SequenceLessonStep,
   pitchConfig: PitchDifficultyConfig
 ) {
-  const entries = Object.entries(results).map(([idxStr, res]) => ({
-    index: Number(idxStr),
-    result: res,
-    stepName: step.steps[Number(idxStr)].target.swara,
-    stepOctave: step.steps[Number(idxStr)].target.octave,
-    stepState: step.steps[Number(idxStr)].target.state ?? "Shuddha",
-  }));
+  const distinctNotes: Record<string, {
+    key: string;
+    swara: string;
+    octave: string;
+    state: string;
+    correctFrames: number;
+    totalFrames: number;
+    centsSum: number;
+    centsFrames: number;
+    noiseSum: number;
+    noiseFrames: number;
+    stabilitySum: number;
+    stabilityFrames: number;
+    missedCount: number;
+    totalOccurrences: number;
+  }> = {};
 
-  if (entries.length === 0) {
+  Object.entries(results).forEach(([idxStr, res]) => {
+    const idx = Number(idxStr);
+    const stepTarget = step.steps[idx].target;
+    const statePrefix = stepTarget.state === "Teevra" ? "Teevra " : stepTarget.state === "Komal" ? "Komal " : "";
+    const noteKey = `${statePrefix}${stepTarget.swara} (${stepTarget.octave})`;
+
+    if (!distinctNotes[noteKey]) {
+      distinctNotes[noteKey] = {
+        key: noteKey,
+        swara: stepTarget.swara,
+        octave: stepTarget.octave,
+        state: stepTarget.state ?? "Shuddha",
+        correctFrames: 0,
+        totalFrames: 0,
+        centsSum: 0,
+        centsFrames: 0,
+        noiseSum: 0,
+        noiseFrames: 0,
+        stabilitySum: 0,
+        stabilityFrames: 0,
+        missedCount: 0,
+        totalOccurrences: 0,
+      };
+    }
+
+    const stats = distinctNotes[noteKey];
+    stats.totalOccurrences += 1;
+    stats.correctFrames += res.correctFrames;
+    stats.totalFrames += res.totalFrames;
+
+    if (res.totalFrames === 0) {
+      stats.missedCount += 1;
+    }
+
+    if (res.avgCentsOffset != null) {
+      stats.centsSum += Math.abs(res.avgCentsOffset);
+      stats.centsFrames += 1;
+    }
+    if (res.avgNoise != null) {
+      stats.noiseSum += res.avgNoise;
+      stats.noiseFrames += 1;
+    }
+    if (res.avgStability != null) {
+      stats.stabilitySum += res.avgStability;
+      stats.stabilityFrames += 1;
+    }
+  });
+
+  const aggregatedList: AggregatedNoteResult[] = Object.values(distinctNotes).map((n) => {
+    const ratio = n.totalFrames > 0 ? n.correctFrames / n.totalFrames : 0;
+    const avgCentsOffset = n.centsFrames > 0 ? n.centsSum / n.centsFrames : null;
+    const avgNoise = n.noiseFrames > 0 ? n.noiseSum / n.noiseFrames : null;
+    const avgStability = n.stabilityFrames > 0 ? n.stabilitySum / n.stabilityFrames : null;
+
+    return {
+      key: n.key,
+      swara: n.swara,
+      octave: n.octave,
+      state: n.state,
+      correctFrames: n.correctFrames,
+      totalFrames: n.totalFrames,
+      ratio,
+      avgCentsOffset,
+      avgNoise,
+      avgStability,
+      missedCount: n.missedCount,
+      totalOccurrences: n.totalOccurrences,
+    };
+  });
+
+  if (aggregatedList.length === 0) {
     return {
       poorest: [],
       primaryIssue: "No note performance data was collected. Please make sure your microphone is enabled and working.",
     };
   }
 
-  // Sort by ratio (correct/total frames)
-  const sortedByScore = [...entries].sort((a, b) => a.result.ratio - b.result.ratio);
+  // Sort by ratio (mean accuracy) ascending
+  const poorest = [...aggregatedList].sort((a, b) => a.ratio - b.ratio).slice(0, 3);
+  const worst = poorest[0];
 
-  // Poorest notes (ratio < 0.70)
-  const poorest = sortedByScore.slice(0, 3);
-
-  // Analyze parameters
-  let totalCents = 0;
-  let totalNoise = 0;
-  let totalStability = 0;
-  let count = 0;
-  let countMissed = 0;
-
-  entries.forEach((e) => {
-    if (e.result.totalFrames === 0) {
-      countMissed += 1;
-    } else {
-      totalCents += e.result.avgCentsOffset != null ? Math.abs(e.result.avgCentsOffset) : 0;
-      totalNoise += e.result.avgNoise != null ? e.result.avgNoise : 0;
-      totalStability += e.result.avgStability != null ? e.result.avgStability : 0;
-      count += 1;
-    }
-  });
-
-  const worstNote = sortedByScore[0];
   let primaryIssue = "";
+  const totalMissedOccurrences = aggregatedList.reduce((acc, curr) => acc + curr.missedCount, 0);
+  const totalOccurrencesCount = aggregatedList.reduce((acc, curr) => acc + curr.totalOccurrences, 0);
 
-  if (countMissed === entries.length) {
+  if (totalMissedOccurrences === totalOccurrencesCount) {
     primaryIssue = "You did not play any notes during this attempt. Make sure you are blowing directly into the microphone at the correct time.";
-  } else if (countMissed > entries.length * 0.5) {
+  } else if (totalMissedOccurrences > totalOccurrencesCount * 0.5) {
     primaryIssue = "You missed more than half of the notes in this phrase. Try to follow the falling note tiles on the road and match their timing.";
-  } else if (worstNote) {
-    const { result: r, stepName, stepState } = worstNote;
-    const targetLabel = `${stepState === "Teevra" ? "Teevra " : stepState === "Komal" ? "Komal " : ""}${stepName}`;
+  } else if (worst) {
+    const targetLabel = `${worst.state === "Teevra" ? "Teevra " : worst.state === "Komal" ? "Komal " : ""}${worst.swara} (${worst.octave})`;
 
-    if (r.totalFrames === 0) {
-      primaryIssue = `The note "${targetLabel}" was completely missed. Try to anticipate it as it falls down the road.`;
-    } else if (r.lastDetectedSwara && r.lastDetectedSwara !== r.targetSwara) {
-      const playedLabel = `${r.lastDetectedState === "Teevra" ? "Teevra " : r.lastDetectedState === "Komal" ? "Komal " : ""}${r.lastDetectedSwara}`;
-      primaryIssue = `You consistently played the wrong note ("${playedLabel}" instead of "${targetLabel}"). Check your fingering for "${targetLabel}".`;
-    } else if (r.avgCentsOffset != null && Math.abs(r.avgCentsOffset) > pitchConfig.noteToleranceCents) {
-      const centsLabel = `${r.lastCentsOffset != null && r.lastCentsOffset > 0 ? "+" : ""}${r.lastCentsOffset != null ? Math.round(r.lastCentsOffset) : 0}¢`;
-      primaryIssue = `Your pitch for "${targetLabel}" was out of bounds (${centsLabel}). ${
-        (r.lastCentsOffset ?? 0) > 0 
-          ? "Try easing your blowing strength to bring the pitch down." 
+    if (worst.missedCount === worst.totalOccurrences) {
+      primaryIssue = `The note "${targetLabel}" was completely missed across all ${worst.totalOccurrences} occurrences. Try to anticipate it as it falls down the road.`;
+    } else if (worst.avgCentsOffset != null && Math.abs(worst.avgCentsOffset) > pitchConfig.noteToleranceCents) {
+      const centsLabel = `${worst.avgCentsOffset > 0 ? "+" : ""}${Math.round(worst.avgCentsOffset)}¢`;
+      primaryIssue = `Your average pitch offset for "${targetLabel}" was out of bounds (${centsLabel}). ${
+        worst.avgCentsOffset > 0 
+          ? "Try easing your blowing strength slightly to bring the pitch down." 
           : "Blow slightly stronger to support the note and raise the pitch."
       }`;
-    } else if (r.avgNoise != null && r.avgNoise > 25) {
-      primaryIssue = `Your tone for "${targetLabel}" was too noisy (${Math.round(r.avgNoise)}% breath hiss). Focus on your lip shape and center the air stream into the blowhole.`;
-    } else if (r.avgStability != null && r.avgStability < 75) {
-      primaryIssue = `Your note "${targetLabel}" was unstable (stability: ${Math.round(r.avgStability)}%). Keep your chest supported and blow a steady stream of air.`;
+    } else if (worst.avgNoise != null && worst.avgNoise > 25) {
+      primaryIssue = `Your tone for "${targetLabel}" was average of ${Math.round(worst.avgNoise)}% breath noise. Focus on centering the air stream into the embouchure hole.`;
+    } else if (worst.avgStability != null && worst.avgStability < 75) {
+      primaryIssue = `Your note "${targetLabel}" was unstable (average stability: ${Math.round(worst.avgStability)}%). Keep your breathing steady and column supported.`;
     } else {
-      primaryIssue = `You played "${targetLabel}" but could not hold it long enough. Work on sustaining your airflow for the full duration.`;
+      primaryIssue = `You played "${targetLabel}" but could not hold it long enough. Work on sustaining your airflow across all repetitions.`;
     }
   } else {
     primaryIssue = "Your performance was very close! Try again to lock in your score.";
@@ -1829,17 +1900,18 @@ export function SwaraTrainer() {
 
   const handleHeaderScroll = () => {
     updateMagnifiedLine();
-    isUserScrollingRef.current = true;
+  };
 
+  const handleUserScrollInteraction = useCallback(() => {
+    isUserScrollingRef.current = true;
     if (userScrollTimeoutRef.current) {
       window.clearTimeout(userScrollTimeoutRef.current);
     }
-
     userScrollTimeoutRef.current = window.setTimeout(() => {
       isUserScrollingRef.current = false;
       triggerAutoscroll();
-    }, 1200);
-  };
+    }, 2000);
+  }, [triggerAutoscroll]);
 
   useEffect(() => {
     if (!isUserScrollingRef.current) {
@@ -4007,6 +4079,8 @@ export function SwaraTrainer() {
                         <div
                           ref={headerViewportRef}
                           onScroll={handleHeaderScroll}
+                          onWheel={handleUserScrollInteraction}
+                          onTouchStart={handleUserScrollInteraction}
                           style={{
                             height: 130,
                             overflowY: "auto",
@@ -4197,6 +4271,47 @@ export function SwaraTrainer() {
         const nextStep = currentStepIndex !== -1 ? allLessonSteps[currentStepIndex + 1] : null;
         const steps = checkpointSummaryData.step.steps;
 
+        const popupLines: Array<{
+          lineIndex: number;
+          groups: Array<{
+            startIndex: number;
+            endIndex: number;
+            steps: typeof checkpointSummaryData.step.steps;
+          }>;
+        }> = [];
+        let currentLineGroups: Array<{
+          startIndex: number;
+          endIndex: number;
+          steps: typeof checkpointSummaryData.step.steps;
+        }> = [];
+        let currentGroupSteps: typeof checkpointSummaryData.step.steps = [];
+        let groupStartIdx = 0;
+
+        checkpointSummaryData.step.steps.forEach((step, idx) => {
+          currentGroupSteps.push(step);
+          const isLastStep = idx === checkpointSummaryData.step.steps.length - 1;
+          const shouldCloseGroup = step.hasSpaceAfter || step.hasNewlineAfter || isLastStep;
+          const shouldCloseLine = step.hasNewlineAfter || isLastStep;
+
+          if (shouldCloseGroup) {
+            currentLineGroups.push({
+              startIndex: groupStartIdx,
+              endIndex: idx,
+              steps: currentGroupSteps,
+            });
+            currentGroupSteps = [];
+            groupStartIdx = idx + 1;
+          }
+
+          if (shouldCloseLine) {
+            popupLines.push({
+              lineIndex: popupLines.length,
+              groups: currentLineGroups,
+            });
+            currentLineGroups = [];
+          }
+        });
+
         return (
           <div
             className="fixed inset-0 z-[10000] flex items-center justify-center p-4 modal-overlay-animate"
@@ -4307,7 +4422,7 @@ export function SwaraTrainer() {
                 </div>
               </div>
 
-              {/* Sargam notes breakdown - spacious view */}
+              {/* Sargam notes breakdown - spacious view matching notegroups */}
               <div>
                 <div style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Sequence Notes Summary
@@ -4315,89 +4430,111 @@ export function SwaraTrainer() {
                 <div 
                   className="hide-scrollbar"
                   style={{ 
-                    maxHeight: 110, 
+                    maxHeight: 160, 
                     overflowY: "auto", 
-                    background: "rgba(0,0,0,0.2)", 
-                    borderRadius: 14, 
-                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "rgba(0,0,0,0.25)", 
+                    borderRadius: 18, 
+                    border: "1px solid rgba(255,255,255,0.08)",
                     padding: "16px 20px",
                     display: "flex",
-                    flexWrap: "wrap",
-                    gap: 10,
-                    justifyContent: "flex-start",
-                    alignContent: "flex-start"
+                    flexDirection: "column",
+                    gap: 12,
                   }}
                 >
-                  {steps.map((step, idx) => {
-                    const res = checkpointSummaryData.results[idx];
-                    const finalStatus = res?.status ?? "red";
-                    const color = finalStatus === "green" 
-                      ? "rgba(46, 213, 115, 1)" 
-                      : finalStatus === "yellow" 
-                        ? "rgba(255, 159, 67, 1)" 
-                        : "rgba(255, 99, 99, 0.75)";
-                    const glyph = checkpointSummaryData.step.steps[idx].glyph ?? step.target.swara;
-                    return (
-                      <span
-                        key={idx}
-                        className="group relative"
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          minWidth: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          background: finalStatus === "green"
-                            ? "rgba(46, 213, 115, 0.08)"
-                            : finalStatus === "yellow"
-                              ? "rgba(255, 159, 67, 0.08)"
-                              : "rgba(255, 99, 99, 0.08)",
-                          border: `1px solid ${
-                            finalStatus === "green"
-                              ? "rgba(46, 213, 115, 0.25)"
-                              : finalStatus === "yellow"
-                                ? "rgba(255, 159, 67, 0.25)"
-                                : "rgba(255, 99, 99, 0.25)"
-                          }`,
-                          fontSize: 13,
-                          fontWeight: 750,
-                          color,
-                          cursor: "help",
-                          transition: "all 0.2s ease"
-                        }}
-                      >
-                        {glyph}
-                        {res && (
+                  {popupLines.map((line, lineIdx) => (
+                    <div
+                      key={lineIdx}
+                      style={{
+                        display: "flex",
+                        gap: 10,
+                        flexWrap: "wrap",
+                        justifyContent: "flex-start",
+                        alignItems: "center"
+                      }}
+                    >
+                      {line.groups.map((group, groupIdx) => {
+                        let isGroupPassed = true;
+                        for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
+                          const res = checkpointSummaryData.results[idx];
+                          if (!res || res.status !== "green") isGroupPassed = false;
+                        }
+
+                        return (
                           <div
-                            className="pointer-events-none absolute bottom-full left-1/2 mb-2 z-[10001] w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-150 origin-bottom"
+                            key={groupIdx}
                             style={{
-                              background: "rgba(15, 23, 42, 0.95)",
-                              border: "1px solid rgba(255, 255, 255, 0.15)",
-                              boxShadow: "0 4px 15px rgba(0, 0, 0, 0.4)",
-                              borderRadius: 6,
-                              padding: "6px 8px",
-                              color: "#fff",
-                              fontSize: "9px",
-                              fontWeight: 500,
-                              lineHeight: "1.4",
-                              textAlign: "left",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              padding: "4px 8px",
+                              borderRadius: 10,
+                              background: isGroupPassed ? "rgba(46, 213, 115, 0.05)" : "rgba(255, 255, 255, 0.02)",
+                              border: `1px solid ${isGroupPassed ? "rgba(46, 213, 115, 0.15)" : "rgba(255, 255, 255, 0.06)"}`,
+                              gap: 6,
                             }}
                           >
-                            <div style={{ fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: 2, marginBottom: 4 }}>
-                              Note {idx + 1} Info
-                            </div>
-                            <div>Target: {res.targetState === "Teevra" ? "Teevra " : res.targetState === "Komal" ? "Komal " : ""}{res.targetSwara} ({res.targetOctave})</div>
-                            <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
-                            <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
-                            <div style={{ marginTop: 2, fontWeight: 700, color }}>
-                              Accuracy: {Math.round(res.ratio * 100)}% ({((res.correctFrames * 16.67) / 1000).toFixed(2)}s / {((res.totalFrames * 16.67) / 1000).toFixed(2)}s)
-                            </div>
+                            {group.steps.map((step: any, stepIdx: number) => {
+                              const globalIdx = group.startIndex + stepIdx;
+                              const res = checkpointSummaryData.results[globalIdx];
+                              const finalStatus = res?.status ?? "red";
+                              const color = finalStatus === "green" 
+                                ? "rgba(46, 213, 115, 1)" 
+                                : finalStatus === "yellow" 
+                                  ? "rgba(255, 159, 67, 1)" 
+                                  : "rgba(255, 99, 99, 0.75)";
+                              const glyph = step.glyph ?? step.target.swara;
+                              return (
+                                <span
+                                  key={stepIdx}
+                                  className="group relative"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    minWidth: 22,
+                                    height: 22,
+                                    fontSize: 12,
+                                    fontWeight: 750,
+                                    color,
+                                    cursor: "help",
+                                    transition: "all 0.2s ease"
+                                  }}
+                                >
+                                  {glyph}
+                                  {res && (
+                                    <div
+                                      className="pointer-events-none absolute bottom-full left-1/2 mb-2 z-[10001] w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-150 origin-bottom"
+                                      style={{
+                                        background: "rgba(15, 23, 42, 0.95)",
+                                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                                        boxShadow: "0 4px 15px rgba(0, 0, 0, 0.4)",
+                                        borderRadius: 6,
+                                        padding: "6px 8px",
+                                        color: "#fff",
+                                        fontSize: "9px",
+                                        fontWeight: 500,
+                                        lineHeight: "1.4",
+                                        textAlign: "left",
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: 2, marginBottom: 4 }}>
+                                        Note {globalIdx + 1} Info
+                                      </div>
+                                      <div>Target: {res.targetState === "Teevra" ? "Teevra " : res.targetState === "Komal" ? "Komal " : ""}{res.targetSwara} ({res.targetOctave})</div>
+                                      <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
+                                      <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
+                                      <div style={{ marginTop: 2, fontWeight: 700, color }}>
+                                        Accuracy: {Math.round(res.ratio * 100)}% ({((res.correctFrames * 16.67) / 1000).toFixed(2)}s / {((res.totalFrames * 16.67) / 1000).toFixed(2)}s)
+                                      </div>
+                                    </div>
+                                  )}
+                                </span>
+                              );
+                            })}
                           </div>
-                        )}
-                      </span>
-                    );
-                  })}
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -4415,17 +4552,16 @@ export function SwaraTrainer() {
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {poorest.map((p, pIdx) => {
-                          const statePrefix = p.stepState === "Teevra" ? "Teevra " : p.stepState === "Komal" ? "Komal " : "";
-                          const label = `${statePrefix}${p.stepName} (${p.stepOctave})`;
+                          const color = p.ratio >= 0.70 ? "#2ed573" : p.ratio >= 0.30 ? "#ff9f43" : "#ff4757";
                           return (
                             <div key={pIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
                               <span style={{ color: "rgba(255,255,255,0.85)" }}>
-                                • {label}
+                                • {p.key}
                               </span>
-                              <span style={{ color: p.result.status === "yellow" ? "#ff9f43" : "#ff4757", fontWeight: 700 }}>
-                                {p.result.totalFrames === 0 
+                              <span style={{ color, fontWeight: 700 }}>
+                                {p.totalFrames === 0 
                                   ? "Missed entirely" 
-                                  : `Accuracy: ${Math.round(p.result.ratio * 100)}% (${((p.result.correctFrames * 16.67) / 1000).toFixed(1)}s)`
+                                  : `Mean Accuracy: ${Math.round(p.ratio * 100)}% (${((p.correctFrames * 16.67) / 1000).toFixed(1)}s / ${((p.totalFrames * 16.67) / 1000).toFixed(1)}s)`
                                 }
                               </span>
                             </div>
