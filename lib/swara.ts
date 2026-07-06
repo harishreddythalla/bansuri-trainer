@@ -45,11 +45,26 @@ const swaraSteps = [
   { swara: "Sa", step: 0 },
   { swara: "Re", step: 2 },
   { swara: "Ga", step: 4 },
-  { swara: "Ma", step: 6 }, // Teevra Ma (6 semitones offset instead of 5)
+  { swara: "Ma", step: 5 },
   { swara: "Pa", step: 7 },
   { swara: "Dha", step: 9 },
   { swara: "Ni", step: 11 },
 ] as const;
+
+export const chromaticSwaraMap: Array<{ swara: SwaraName; state: NoteState; step: number }> = [
+  { swara: "Sa", state: "Shuddha", step: 0 },
+  { swara: "Re", state: "Komal", step: 1 },
+  { swara: "Re", state: "Shuddha", step: 2 },
+  { swara: "Ga", state: "Komal", step: 3 },
+  { swara: "Ga", state: "Shuddha", step: 4 },
+  { swara: "Ma", state: "Shuddha", step: 5 },
+  { swara: "Ma", state: "Teevra", step: 6 },
+  { swara: "Pa", state: "Shuddha", step: 7 },
+  { swara: "Dha", state: "Komal", step: 8 },
+  { swara: "Dha", state: "Shuddha", step: 9 },
+  { swara: "Ni", state: "Komal", step: 10 },
+  { swara: "Ni", state: "Shuddha", step: 11 },
+];
 
 const tonicDefinitions: Array<{ tonic: TonicName; label: string; semitone: number }> = [
   { tonic: "C", label: "C", semitone: 0 },
@@ -191,13 +206,14 @@ export function classifySwara(
     | {
         swara: SwaraName;
         octave: OctaveName;
+        state: NoteState;
         midi: number;
         centsOffset: number;
       }
     | undefined;
 
   for (const octaveOffset of [-1, 0, 1] as const) {
-    for (const { swara, step } of swaraSteps) {
+    for (const { swara, state, step } of chromaticSwaraMap) {
       const targetMidi = tonicMidi + octaveOffset * 12 + step;
       const targetFrequency = midiToFrequency(targetMidi);
       const centsOffset = 1200 * Math.log2(frequency / targetFrequency);
@@ -206,6 +222,7 @@ export function classifySwara(
         bestMatch = {
           swara,
           octave: octaveOffset === -1 ? "Mandra" : octaveOffset === 0 ? "Madhya" : "Taar",
+          state,
           midi: targetMidi,
           centsOffset,
         };
@@ -220,7 +237,7 @@ export function classifySwara(
   return {
     swara: bestMatch.swara,
     octave: bestMatch.octave,
-    state: "Shuddha",
+    state: bestMatch.state,
     frequency,
     centsOffset: bestMatch.centsOffset,
     confidence,
@@ -484,26 +501,33 @@ export function scoreAttempt(params: {
     };
   }
 
+  const targetState = target.state ?? "Shuddha";
+  const detectedState = detected.state ?? "Shuddha";
+  const swaraScore = (detected.swara === target.swara && detectedState === targetState) ? 100 : 0;
+  const octaveScore = detected.octave === target.octave ? 100 : 0;
+
   const pitchPenalty = Math.min(Math.abs(detected.centsOffset), pitchToleranceCents * 2);
   const pitchScore = Math.max(0, 100 - (pitchPenalty / (pitchToleranceCents * 2)) * 100);
-  const octaveScore = detected.octave === target.octave ? 100 : 0;
-  const swaraScore = detected.swara === target.swara ? 100 : 0;
+
   const sustainScore = Math.min(100, (sustainMs / sustainNormalizationMs) * 100);
   const stabilityScore = Math.max(0, Math.min(100, stability));
   const noiseScore = Math.max(0, Math.min(100, 100 - noise));
 
+  // High weightage to correct note, octave and being in the pitch range (total 90% weightage)
   const score =
-    swaraScore * 0.3 +
-    pitchScore * 0.2 +
-    octaveScore * 0.15 +
-    sustainScore * 0.15 +
-    stabilityScore * 0.1 +
-    noiseScore * 0.1;
+    swaraScore * 0.50 +
+    octaveScore * 0.20 +
+    pitchScore * 0.20 +
+    sustainScore * 0.05 +
+    stabilityScore * 0.03 +
+    noiseScore * 0.02;
 
   let summary = "Good attempt. Keep the tone steady.";
 
-  if (detected.swara !== target.swara) {
-    summary = `You played ${detected.swara} instead of ${target.swara}.`;
+  if (detected.swara !== target.swara || detectedState !== targetState) {
+    const expectedLabel = targetState === "Teevra" ? `Teevra ${target.swara}` : targetState === "Komal" ? `Komal ${target.swara}` : target.swara;
+    const playedLabel = detectedState === "Teevra" ? `Teevra ${detected.swara}` : detectedState === "Komal" ? `Komal ${detected.swara}` : detected.swara;
+    summary = `You played ${playedLabel} instead of ${expectedLabel}.`;
   } else if (detected.octave !== target.octave) {
     summary = `Correct swara, but the octave is ${detected.octave} instead of ${target.octave}.`;
   } else if (Math.abs(detected.centsOffset) > pitchToleranceCents * 1.5) {

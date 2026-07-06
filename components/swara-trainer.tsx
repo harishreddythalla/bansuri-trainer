@@ -623,27 +623,34 @@ function scoreSequenceStepAttempt(params: {
     };
   }
 
-  const swaraScore = detected.swara === target.swara ? 100 : 0;
+  const targetState = target.state ?? "Shuddha";
+  const detectedState = detected.state ?? "Shuddha";
+  const swaraScore = (detected.swara === target.swara && detectedState === targetState) ? 100 : 0;
   const octaveScore = detected.octave === target.octave ? 100 : 0;
+
   const pitchWindow = Math.max(10, pitchToleranceCents * 1.5);
   const pitchPenalty = Math.min(Math.abs(detected.centsOffset), pitchWindow * 2);
   const pitchScore = Math.max(0, 100 - (pitchPenalty / (pitchWindow * 2)) * 100);
+
   const sustainScore = Math.min(100, (sustainMs / sustainNormalizationMs) * 100);
   const stabilityScore = Math.max(0, Math.min(100, stability));
   const noiseScore = Math.max(0, Math.min(100, 100 - noise));
 
+  // High weightage to correct note, octave and being in the pitch range (total 90% weightage)
   const score =
-    swaraScore * 0.42 +
-    octaveScore * 0.12 +
-    pitchScore * 0.26 +
-    sustainScore * 0.08 +
-    stabilityScore * 0.08 +
-    noiseScore * 0.04;
+    swaraScore * 0.50 +
+    octaveScore * 0.20 +
+    pitchScore * 0.20 +
+    sustainScore * 0.05 +
+    stabilityScore * 0.03 +
+    noiseScore * 0.02;
 
   let summary = "Good phrase shape. Keep the contour steady.";
 
-  if (detected.swara !== target.swara) {
-    summary = `You played ${detected.swara} instead of ${target.swara}.`;
+  if (detected.swara !== target.swara || detectedState !== targetState) {
+    const expectedLabel = targetState === "Teevra" ? `Teevra ${target.swara}` : targetState === "Komal" ? `Komal ${target.swara}` : target.swara;
+    const playedLabel = detectedState === "Teevra" ? `Teevra ${detected.swara}` : detectedState === "Komal" ? `Komal ${detected.swara}` : detected.swara;
+    summary = `You played ${playedLabel} instead of ${expectedLabel}.`;
   } else if (detected.octave !== target.octave) {
     summary = `Correct swara, but the octave is ${detected.octave} instead of ${target.octave}.`;
   } else if (Math.abs(detected.centsOffset) > pitchWindow * 1.4) {
@@ -927,6 +934,7 @@ export function SwaraTrainer() {
           const expectedPitchMatches =
             analysis.detected.swara === step.target.swara &&
             analysis.detected.octave === step.target.octave &&
+            (analysis.detected.state ?? "Shuddha") === (step.target.state ?? "Shuddha") &&
             Math.abs(analysis.detected.centsOffset) <= sequencePitchToleranceCents;
 
           if (expectedPitchMatches) {
@@ -1017,6 +1025,7 @@ export function SwaraTrainer() {
       selectedStep.target != null &&
       analysis.detected.swara === selectedStep.target.swara &&
       analysis.detected.octave === selectedStep.target.octave &&
+      (analysis.detected.state ?? "Shuddha") === (selectedStep.target.state ?? "Shuddha") &&
       Math.abs(analysis.detected.centsOffset) <= pitchConfig.noteToleranceCents
     );
   }, [analysis.detected, analysis.sustainMs, pitchConfig.noteToleranceCents, result.score, selectedStep, sequenceProgress]);
@@ -2174,6 +2183,7 @@ export function SwaraTrainer() {
         const expectedPitchMatches =
           activeSequenceReading.swara === liveTarget.swara &&
           activeSequenceReading.octave === liveTarget.octave &&
+          (activeSequenceReading.state ?? "Shuddha") === (liveTarget.state ?? "Shuddha") &&
           Math.abs(activeSequenceReading.centsOffset) <= sequencePitchToleranceCents;
         const sustainReady = (sustainMs ?? 0) >= Math.max(liveDynamicSustainMs, PRACTICE_HOLD_FLOOR_MS);
         const lockAge = noteLockRef.current ? now - noteLockRef.current.startedAt : 0;
@@ -2186,10 +2196,12 @@ export function SwaraTrainer() {
           now <= handoff.until &&
           activeSequenceReading.swara === handoff.from.swara &&
           activeSequenceReading.octave === handoff.from.octave &&
+          (activeSequenceReading.state ?? "Shuddha") === (handoff.from.state ?? "Shuddha") &&
           Math.abs(activeSequenceReading.centsOffset) <= sequencePitchToleranceCents;
         const isCurrentTarget =
           activeSequenceReading.swara === liveTarget.swara &&
           activeSequenceReading.octave === liveTarget.octave &&
+          (activeSequenceReading.state ?? "Shuddha") === (liveTarget.state ?? "Shuddha") &&
           Math.abs(activeSequenceReading.centsOffset) <= sequencePitchToleranceCents;
 
         if (expectedPitchMatches && sustainReady) {

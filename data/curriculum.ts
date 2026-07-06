@@ -382,8 +382,9 @@ function notationTarget(glyph: string): SwaraTarget | null {
     case "Ṗ":
       return { swara: "Pa", octave: "Taar" };
     case "ṁ":
+      return { swara: "Ma", octave: "Taar", state: "Shuddha" };
     case "Ṁ":
-      return { swara: "Ma", octave: "Taar" };
+      return { swara: "Ma", octave: "Taar", state: "Teevra" };
     case "Ġ":
       return { swara: "Ga", octave: "Taar" };
     case "S":
@@ -392,9 +393,10 @@ function notationTarget(glyph: string): SwaraTarget | null {
       return { swara: "Re", octave: "Madhya" };
     case "G":
       return { swara: "Ga", octave: "Madhya" };
-    case "M":
     case "m":
-      return { swara: "Ma", octave: "Madhya" };
+      return { swara: "Ma", octave: "Madhya", state: "Shuddha" };
+    case "M":
+      return { swara: "Ma", octave: "Madhya", state: "Teevra" };
     case "P":
       return { swara: "Pa", octave: "Madhya" };
     case "D":
