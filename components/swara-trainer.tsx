@@ -726,6 +726,107 @@ function isCheckpointPlayable(step: LessonStep, fluteProfile: FluteProfile) {
   return step.steps.every((sequenceStep) => isPlayableSwaraForProfile(fluteProfile, sequenceStep.target));
 }
 
+interface RoadStepResult {
+  status: "green" | "yellow" | "red";
+  correctFrames: number;
+  totalFrames: number;
+  ratio: number;
+  targetSwara: string;
+  targetOctave: string;
+  targetState: string;
+  lastDetectedSwara?: string;
+  lastDetectedOctave?: string;
+  lastDetectedState?: string;
+  lastCentsOffset?: number;
+  avgCentsOffset?: number;
+  avgNoise?: number;
+  avgStability?: number;
+}
+
+function analyzeCheckpointPerformance(
+  results: Record<number, RoadStepResult>,
+  step: SequenceLessonStep,
+  pitchConfig: PitchDifficultyConfig
+) {
+  const entries = Object.entries(results).map(([idxStr, res]) => ({
+    index: Number(idxStr),
+    result: res,
+    stepName: step.steps[Number(idxStr)].target.swara,
+    stepOctave: step.steps[Number(idxStr)].target.octave,
+    stepState: step.steps[Number(idxStr)].target.state ?? "Shuddha",
+  }));
+
+  if (entries.length === 0) {
+    return {
+      poorest: [],
+      primaryIssue: "No note performance data was collected. Please make sure your microphone is enabled and working.",
+    };
+  }
+
+  // Sort by ratio (correct/total frames)
+  const sortedByScore = [...entries].sort((a, b) => a.result.ratio - b.result.ratio);
+
+  // Poorest notes (ratio < 0.70)
+  const poorest = sortedByScore.slice(0, 3);
+
+  // Analyze parameters
+  let totalCents = 0;
+  let totalNoise = 0;
+  let totalStability = 0;
+  let count = 0;
+  let countMissed = 0;
+
+  entries.forEach((e) => {
+    if (e.result.totalFrames === 0) {
+      countMissed += 1;
+    } else {
+      totalCents += e.result.avgCentsOffset != null ? Math.abs(e.result.avgCentsOffset) : 0;
+      totalNoise += e.result.avgNoise != null ? e.result.avgNoise : 0;
+      totalStability += e.result.avgStability != null ? e.result.avgStability : 0;
+      count += 1;
+    }
+  });
+
+  const worstNote = sortedByScore[0];
+  let primaryIssue = "";
+
+  if (countMissed === entries.length) {
+    primaryIssue = "You did not play any notes during this attempt. Make sure you are blowing directly into the microphone at the correct time.";
+  } else if (countMissed > entries.length * 0.5) {
+    primaryIssue = "You missed more than half of the notes in this phrase. Try to follow the falling note tiles on the road and match their timing.";
+  } else if (worstNote) {
+    const { result: r, stepName, stepState } = worstNote;
+    const targetLabel = `${stepState === "Teevra" ? "Teevra " : stepState === "Komal" ? "Komal " : ""}${stepName}`;
+
+    if (r.totalFrames === 0) {
+      primaryIssue = `The note "${targetLabel}" was completely missed. Try to anticipate it as it falls down the road.`;
+    } else if (r.lastDetectedSwara && r.lastDetectedSwara !== r.targetSwara) {
+      const playedLabel = `${r.lastDetectedState === "Teevra" ? "Teevra " : r.lastDetectedState === "Komal" ? "Komal " : ""}${r.lastDetectedSwara}`;
+      primaryIssue = `You consistently played the wrong note ("${playedLabel}" instead of "${targetLabel}"). Check your fingering for "${targetLabel}".`;
+    } else if (r.avgCentsOffset != null && Math.abs(r.avgCentsOffset) > pitchConfig.noteToleranceCents) {
+      const centsLabel = `${r.lastCentsOffset != null && r.lastCentsOffset > 0 ? "+" : ""}${r.lastCentsOffset != null ? Math.round(r.lastCentsOffset) : 0}¢`;
+      primaryIssue = `Your pitch for "${targetLabel}" was out of bounds (${centsLabel}). ${
+        (r.lastCentsOffset ?? 0) > 0 
+          ? "Try easing your blowing strength to bring the pitch down." 
+          : "Blow slightly stronger to support the note and raise the pitch."
+      }`;
+    } else if (r.avgNoise != null && r.avgNoise > 25) {
+      primaryIssue = `Your tone for "${targetLabel}" was too noisy (${Math.round(r.avgNoise)}% breath hiss). Focus on your lip shape and center the air stream into the blowhole.`;
+    } else if (r.avgStability != null && r.avgStability < 75) {
+      primaryIssue = `Your note "${targetLabel}" was unstable (stability: ${Math.round(r.avgStability)}%). Keep your chest supported and blow a steady stream of air.`;
+    } else {
+      primaryIssue = `You played "${targetLabel}" but could not hold it long enough. Work on sustaining your airflow for the full duration.`;
+    }
+  } else {
+    primaryIssue = "Your performance was very close! Try again to lock in your score.";
+  }
+
+  return {
+    poorest,
+    primaryIssue,
+  };
+}
+
 export function SwaraTrainer() {
   const [selectedStepId, setSelectedStepId] = useState<string>(firstStep?.id ?? "");
   const [completedStepIds, setCompletedStepIds] = useState<string[]>([]);
@@ -791,19 +892,6 @@ export function SwaraTrainer() {
   const [sequenceLiveScore, setSequenceLiveScore] = useState<number | null>(null);
   const [fluteViewTick, setFluteViewTick] = useState(() => Date.now());
   const [fluteViewStartedAt, setFluteViewStartedAt] = useState(() => Date.now());
-  interface RoadStepResult {
-    status: "green" | "yellow" | "red";
-    correctFrames: number;
-    totalFrames: number;
-    ratio: number;
-    targetSwara: string;
-    targetOctave: string;
-    targetState: string;
-    lastDetectedSwara?: string;
-    lastDetectedOctave?: string;
-    lastDetectedState?: string;
-    lastCentsOffset?: number;
-  }
   const [roadStepResults, setRoadStepResults] = useState<Record<number, RoadStepResult>>({});
   const roadStepAccumulatorRef = useRef<Record<number, {
     correct: number;
@@ -812,10 +900,23 @@ export function SwaraTrainer() {
     lastDetectedOctave?: string;
     lastDetectedState?: string;
     lastCentsOffset?: number;
+    totalCentsOffset: number;
+    totalNoise: number;
+    totalStability: number;
+    pitchFrames: number;
   }>>({});
   const [isFluteRoadPaused, setIsFluteRoadPaused] = useState(false);
   const isFluteRoadPausedRef = useRef(false);
   const pauseStartRef = useRef<number | null>(null);
+
+  const [showCheckpointSummaryPopup, setShowCheckpointSummaryPopup] = useState(false);
+  const [checkpointSummaryData, setCheckpointSummaryData] = useState<{
+    step: SequenceLessonStep;
+    score: number;
+    passed: boolean;
+    results: Record<number, RoadStepResult>;
+  } | null>(null);
+  const [animatedScore, setAnimatedScore] = useState(0);
   const [isFluteRoadLooping, setIsFluteRoadLooping] = useState(false);
   const isFluteRoadLoopingRef = useRef(false);
   const [analysis, setAnalysis] = useState<AnalysisState>({
@@ -926,6 +1027,60 @@ export function SwaraTrainer() {
     });
   }, [sequenceDrill, fluteViewStartedAt, fluteViewTick, beatsPerNote, metronomeBpm]);
 
+  function triggerConfetti(stepId: string) {
+    if (celebrationTimerRef.current !== null) {
+      window.clearTimeout(celebrationTimerRef.current);
+    }
+    setCelebrationPieces(
+      Array.from({ length: 36 }, (_, index) => ({
+        id: `${stepId}-${Date.now()}-${index}`,
+        left: Math.random() * 100,
+        delay: Math.random() * 180,
+        duration: 900 + Math.random() * 600,
+        drift: -70 + Math.random() * 140,
+        hue: [103, 117, 255, 47, 30, 200][index % 6],
+      })),
+    );
+    celebrationTimerRef.current = window.setTimeout(() => {
+      setCelebrationPieces([]);
+      celebrationTimerRef.current = null;
+    }, 1800);
+    playSuccessChime();
+  }
+
+  useEffect(() => {
+    if (!showCheckpointSummaryPopup || !checkpointSummaryData) return;
+    setAnimatedScore(0);
+    const end = checkpointSummaryData.score;
+    if (end === 0) {
+      return;
+    }
+    const duration = 1200;
+    const startTime = performance.now();
+    let animFrameId: number;
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easedProgress = progress * (2 - progress);
+      const current = Math.round(easedProgress * end);
+      setAnimatedScore(current);
+
+      if (progress < 1) {
+        animFrameId = requestAnimationFrame(animate);
+      } else {
+        if (checkpointSummaryData.passed) {
+          triggerConfetti(checkpointSummaryData.step.id);
+        }
+      }
+    };
+
+    animFrameId = requestAnimationFrame(animate);
+    return () => {
+      cancelAnimationFrame(animFrameId);
+    };
+  }, [showCheckpointSummaryPopup, checkpointSummaryData]);
+
   const activeVisualIndex = sequenceVisualStates.findIndex((state) => state.isActive);
   const fluteProfile = useMemo(
     () => fluteProfileForSelection(selectedTonic, selectedRegister),
@@ -945,8 +1100,25 @@ export function SwaraTrainer() {
     sequenceVisualStates.forEach((state, index) => {
       if (state.isActive) {
         // Initialize or fetch current counters
-        const accum = roadStepAccumulatorRef.current[index] ?? { correct: 0, total: 0 };
+        const accum = roadStepAccumulatorRef.current[index] ?? {
+          correct: 0,
+          total: 0,
+          totalCentsOffset: 0,
+          totalNoise: 0,
+          totalStability: 0,
+          pitchFrames: 0,
+        };
         accum.total += 1;
+        if (analysis.detected) {
+          accum.totalCentsOffset += Math.abs(analysis.detected.centsOffset);
+          accum.pitchFrames += 1;
+        }
+        if (analysis.noise != null) {
+          accum.totalNoise += analysis.noise;
+        }
+        if (analysis.stability != null) {
+          accum.totalStability += analysis.stability;
+        }
 
         const step = sequenceDrill.steps[index];
         if (step && analysis.detected) {
@@ -986,6 +1158,10 @@ export function SwaraTrainer() {
             }
           }
 
+          const avgCentsOffset = accum && accum.pitchFrames > 0 ? accum.totalCentsOffset / accum.pitchFrames : undefined;
+          const avgNoise = accum && accum.total > 0 ? accum.totalNoise / accum.total : undefined;
+          const avgStability = accum && accum.total > 0 ? accum.totalStability / accum.total : undefined;
+
           const target = sequenceDrill.steps[index].target;
           return {
             ...prev,
@@ -1001,6 +1177,9 @@ export function SwaraTrainer() {
               lastDetectedOctave: accum?.lastDetectedOctave,
               lastDetectedState: accum?.lastDetectedState,
               lastCentsOffset: accum?.lastCentsOffset,
+              avgCentsOffset,
+              avgNoise,
+              avgStability,
             },
           };
         });
@@ -2289,6 +2468,15 @@ export function SwaraTrainer() {
 
             if (loopPassed) {
               if (liveProgress.repeatIndex + 1 >= liveSequenceStep.repeatCount) {
+                const finalResults = { ...roadStepResults };
+                setCheckpointSummaryData({
+                  step: liveSequenceStep,
+                  score: phraseScore ?? 0,
+                  passed: true,
+                  results: finalResults,
+                });
+                setShowCheckpointSummaryPopup(true);
+
                 setSequenceRunResult({
                   kind: "success",
                   message: `Phrase passed with ${phraseScore}/100.`,
@@ -2358,6 +2546,16 @@ export function SwaraTrainer() {
                 sequenceRepeatIndex: liveProgress.repeatIndex,
                 detail: result.message,
               });
+
+              const finalResults = { ...roadStepResults };
+              setCheckpointSummaryData({
+                step: liveSequenceStep,
+                score: result.score ?? 0,
+                passed: false,
+                results: finalResults,
+              });
+              setShowCheckpointSummaryPopup(true);
+
               resetSequenceAttempt(liveSequenceStep, liveProgress.repeatIndex, {
                 kind: "failure",
                 message: result.message,
@@ -2808,6 +3006,20 @@ export function SwaraTrainer() {
           0% { transform: scale(0.65); opacity: 0; }
           20% { transform: scale(1.05); opacity: 1; }
           100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes modal-fade-in {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        @keyframes modal-scale-in {
+          0% { transform: scale(0.92); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .modal-overlay-animate {
+          animation: modal-fade-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .modal-card-animate {
+          animation: modal-scale-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
         }
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
@@ -3874,10 +4086,6 @@ export function SwaraTrainer() {
                                                     textAlign: "left",
                                                   }}
                                                 >
-                                                  <div style={{ fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: 4, marginBottom: 4 }}>
-                                                    Note {globalIdx + 1} Score Info
-                                                  </div>
-                                                  <div>Target: {resultInfo.targetState === "Teevra" ? "Teevra " : resultInfo.targetState === "Komal" ? "Komal " : ""}{resultInfo.targetSwara} ({resultInfo.targetOctave})</div>
                                                   <div>Played: {resultInfo.lastDetectedSwara ? `${resultInfo.lastDetectedState === "Teevra" ? "Teevra " : resultInfo.lastDetectedState === "Komal" ? "Komal " : ""}${resultInfo.lastDetectedSwara} (${resultInfo.lastDetectedOctave})` : "None"}</div>
                                                   <div>Offset: {resultInfo.lastCentsOffset != null ? `${resultInfo.lastCentsOffset > 0 ? "+" : ""}${Math.round(resultInfo.lastCentsOffset)}¢` : "N/A"}</div>
                                                   <div style={{ marginTop: 4, fontWeight: 700, color: resultInfo.status === "green" ? "#2ed573" : resultInfo.status === "yellow" ? "#ff9f43" : "#ff4757" }}>
@@ -3911,6 +4119,324 @@ export function SwaraTrainer() {
 
         </section>
       </div>
+
+      {showCheckpointSummaryPopup && checkpointSummaryData && (() => {
+        const { poorest, primaryIssue } = analyzeCheckpointPerformance(
+          checkpointSummaryData.results,
+          checkpointSummaryData.step,
+          pitchConfig
+        );
+        const minScore = Math.max(checkpointSummaryData.step.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
+        const currentStepIndex = allLessonSteps.findIndex((s) => s.id === selectedStepId);
+        const nextStep = currentStepIndex !== -1 ? allLessonSteps[currentStepIndex + 1] : null;
+        const steps = checkpointSummaryData.step.steps;
+
+        return (
+          <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 modal-overlay-animate"
+            style={{
+              background: "rgba(5, 10, 20, 0.78)",
+              backdropFilter: "blur(12px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div
+              className="modal-card-animate"
+              style={{
+                width: "min(680px, 95vw)",
+                background: "linear-gradient(180deg, #18233c 0%, #0d1527 100%)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                borderRadius: 28,
+                boxShadow: "0 24px 60px rgba(0, 0, 0, 0.5)",
+                padding: "32px 36px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 24,
+                color: "#fff",
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em" }}>
+                    Checkpoint Complete
+                  </div>
+                  <h2 style={{ fontSize: "24px", fontWeight: 800, margin: "2px 0 0 0", color: "#fff", letterSpacing: "-0.03em" }}>
+                    {checkpointSummaryData.step.title}
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setShowCheckpointSummaryPopup(false)}
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "none",
+                    borderRadius: 999,
+                    color: "rgba(255,255,255,0.6)",
+                    width: 32,
+                    height: 32,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    fontSize: 18,
+                  }}
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Score section */}
+              <div style={{ display: "flex", gap: 24, alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 20, padding: "20px 24px" }}>
+                <div 
+                  style={{ 
+                    position: "relative", 
+                    width: 110, 
+                    height: 110, 
+                    borderRadius: 999, 
+                    background: checkpointSummaryData.passed 
+                      ? "radial-gradient(circle, rgba(46,213,115,0.15) 0%, rgba(46,213,115,0.02) 100%)"
+                      : "radial-gradient(circle, rgba(255,71,87,0.15) 0%, rgba(255,71,87,0.02) 100%)",
+                    border: `4px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.25)" : "rgba(255,71,87,0.25)"}`,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0
+                  }}
+                >
+                  <div style={{ fontSize: "38px", fontWeight: 900, lineHeight: 1, letterSpacing: "-0.04em", color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" }}>
+                    {animatedScore}
+                  </div>
+                  <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+                    out of 100
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span 
+                      style={{ 
+                        padding: "4px 10px", 
+                        borderRadius: 999, 
+                        fontSize: "11px", 
+                        fontWeight: 750, 
+                        background: checkpointSummaryData.passed ? "rgba(46, 213, 115, 0.16)" : "rgba(255, 71, 87, 0.16)",
+                        color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" 
+                      }}
+                    >
+                      {checkpointSummaryData.passed ? "PASSED" : "FAILED"}
+                    </span>
+                    <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+                      Req. score: {minScore}
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: "13px", lineHeight: "1.4", color: "rgba(255,255,255,0.75)" }}>
+                    {checkpointSummaryData.passed 
+                      ? "Congratulations! You've matched the phrase contours successfully."
+                      : `You did not pass the minimum threshold of ${minScore}. Let's refine your breath support and try again.`
+                    }
+                  </p>
+                </div>
+              </div>
+
+              {/* Sargam notes breakdown - spacious view */}
+              <div>
+                <div style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Sequence Notes Summary
+                </div>
+                <div 
+                  className="hide-scrollbar"
+                  style={{ 
+                    maxHeight: 110, 
+                    overflowY: "auto", 
+                    background: "rgba(0,0,0,0.2)", 
+                    borderRadius: 14, 
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    padding: "16px 20px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 10,
+                    justifyContent: "flex-start",
+                    alignContent: "flex-start"
+                  }}
+                >
+                  {steps.map((step, idx) => {
+                    const res = checkpointSummaryData.results[idx];
+                    const finalStatus = res?.status ?? "red";
+                    const color = finalStatus === "green" 
+                      ? "rgba(46, 213, 115, 1)" 
+                      : finalStatus === "yellow" 
+                        ? "rgba(255, 159, 67, 1)" 
+                        : "rgba(255, 99, 99, 0.75)";
+                    const glyph = checkpointSummaryData.step.steps[idx].glyph ?? step.target.swara;
+                    return (
+                      <span
+                        key={idx}
+                        className="group relative"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          minWidth: 32,
+                          height: 32,
+                          borderRadius: 8,
+                          background: finalStatus === "green"
+                            ? "rgba(46, 213, 115, 0.08)"
+                            : finalStatus === "yellow"
+                              ? "rgba(255, 159, 67, 0.08)"
+                              : "rgba(255, 99, 99, 0.08)",
+                          border: `1px solid ${
+                            finalStatus === "green"
+                              ? "rgba(46, 213, 115, 0.25)"
+                              : finalStatus === "yellow"
+                                ? "rgba(255, 159, 67, 0.25)"
+                                : "rgba(255, 99, 99, 0.25)"
+                          }`,
+                          fontSize: 13,
+                          fontWeight: 750,
+                          color,
+                          cursor: "help",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        {glyph}
+                        {res && (
+                          <div
+                            className="pointer-events-none absolute bottom-full left-1/2 mb-2 z-[10001] w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-150 origin-bottom"
+                            style={{
+                              background: "rgba(15, 23, 42, 0.95)",
+                              border: "1px solid rgba(255, 255, 255, 0.15)",
+                              boxShadow: "0 4px 15px rgba(0, 0, 0, 0.4)",
+                              borderRadius: 6,
+                              padding: "6px 8px",
+                              color: "#fff",
+                              fontSize: "9px",
+                              fontWeight: 500,
+                              lineHeight: "1.4",
+                              textAlign: "left",
+                            }}
+                          >
+                            <div style={{ fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: 2, marginBottom: 4 }}>
+                              Note {idx + 1} Info
+                            </div>
+                            <div>Target: {res.targetState === "Teevra" ? "Teevra " : res.targetState === "Komal" ? "Komal " : ""}{res.targetSwara} ({res.targetOctave})</div>
+                            <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
+                            <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
+                            <div style={{ marginTop: 2, fontWeight: 700, color }}>
+                              Accuracy: {Math.round(res.ratio * 100)}% ({((res.correctFrames * 16.67) / 1000).toFixed(2)}s / {((res.totalFrames * 16.67) / 1000).toFixed(2)}s)
+                            </div>
+                          </div>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Analysis Section */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Intelligent Performance Analysis
+                </div>
+                <div style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.05)", borderRadius: 16, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                  {/* Poorest notes list */}
+                  {poorest.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>
+                        Holes / Notes needing improvement:
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {poorest.map((p, pIdx) => {
+                          const statePrefix = p.stepState === "Teevra" ? "Teevra " : p.stepState === "Komal" ? "Komal " : "";
+                          const label = `${statePrefix}${p.stepName} (${p.stepOctave})`;
+                          return (
+                            <div key={pIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
+                              <span style={{ color: "rgba(255,255,255,0.85)" }}>
+                                • {label}
+                              </span>
+                              <span style={{ color: p.result.status === "yellow" ? "#ff9f43" : "#ff4757", fontWeight: 700 }}>
+                                {p.result.totalFrames === 0 
+                                  ? "Missed entirely" 
+                                  : `Accuracy: ${Math.round(p.result.ratio * 100)}% (${((p.result.correctFrames * 16.67) / 1000).toFixed(1)}s)`
+                                }
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Primary advice */}
+                  <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.06)", paddingTop: 10 }}>
+                    <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
+                      Coaching Feedback:
+                    </div>
+                    <div style={{ fontSize: "12px", lineHeight: "1.5", color: "rgba(255, 255, 255, 0.8)" }}>
+                      {primaryIssue}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: "flex", gap: 14, justifyContent: "flex-end", marginTop: 8 }}>
+                <button
+                  onClick={() => {
+                    handleRetryFluteRoad();
+                    setShowCheckpointSummaryPopup(false);
+                  }}
+                  style={{
+                    background: "rgba(255, 255, 255, 0.08)",
+                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                    borderRadius: 14,
+                    color: "#fff",
+                    padding: "12px 24px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  className="hover:bg-white/12 active:scale-[0.98]"
+                >
+                  Retry Checkpoint
+                </button>
+                {nextStep && (
+                  <button
+                    disabled={!checkpointSummaryData.passed}
+                    onClick={() => {
+                      handleSelectStep(nextStep.id);
+                      setShowCheckpointSummaryPopup(false);
+                    }}
+                    style={{
+                      background: checkpointSummaryData.passed ? "#2ed573" : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.15)" : "rgba(255,255,255,0.05)"}`,
+                      borderRadius: 14,
+                      color: checkpointSummaryData.passed ? "#050a12" : "rgba(255,255,255,0.35)",
+                      padding: "12px 24px",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      cursor: checkpointSummaryData.passed ? "pointer" : "not-allowed",
+                      transition: "all 0.2s ease",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    className={checkpointSummaryData.passed ? "hover:brightness-105 active:scale-[0.98]" : ""}
+                  >
+                    Next Checkpoint &rarr;
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </main>
   );
 }
