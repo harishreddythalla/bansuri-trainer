@@ -3881,7 +3881,7 @@ export function SwaraTrainer() {
                                                   <div>Played: {resultInfo.lastDetectedSwara ? `${resultInfo.lastDetectedState === "Teevra" ? "Teevra " : resultInfo.lastDetectedState === "Komal" ? "Komal " : ""}${resultInfo.lastDetectedSwara} (${resultInfo.lastDetectedOctave})` : "None"}</div>
                                                   <div>Offset: {resultInfo.lastCentsOffset != null ? `${resultInfo.lastCentsOffset > 0 ? "+" : ""}${Math.round(resultInfo.lastCentsOffset)}¢` : "N/A"}</div>
                                                   <div style={{ marginTop: 4, fontWeight: 700, color: resultInfo.status === "green" ? "#2ed573" : resultInfo.status === "yellow" ? "#ff9f43" : "#ff4757" }}>
-                                                    Accuracy: {Math.round(resultInfo.ratio * 100)}% ({resultInfo.correctFrames}/{resultInfo.totalFrames} frames)
+                                                    Accuracy: {Math.round(resultInfo.ratio * 100)}% ({((resultInfo.correctFrames * 16.67) / 1000).toFixed(2)}s / {((resultInfo.totalFrames * 16.67) / 1000).toFixed(2)}s)
                                                   </div>
                                                 </div>
                                               )}
