@@ -194,8 +194,8 @@ const SEQUENCE_HANDOFF_GRACE_MS = 650;
 const SEQUENCE_REARTICULATION_RELEASE_MS = 120;
 const AUTO_CLEAR_HOLD_MS = 140;
 const TARGET_HOLD_GRACE_MS = 220;
-const ACTIVE_CONFIDENCE = 0.45;
-const ACTIVE_ENERGY = 0.012;
+const ACTIVE_CONFIDENCE = 0.40;
+const ACTIVE_ENERGY = 0.0035;
 const TREND_WINDOW_MS = 15000;
 const TREND_SAMPLE_MS = 40;
 const PITCH_TREND_WINDOW_STORAGE_KEY = "bansuri.pitchTrendWindow";
@@ -1165,163 +1165,7 @@ export function SwaraTrainer() {
     isSequenceEvaluatedRef.current = false;
   }, [fluteViewStartedAt]);
 
-  useEffect(() => {
-    if (!sequenceDrill) return;
-    const now = fluteViewTick;
-
-    sequenceVisualStates.forEach((state, index) => {
-      if (state.isActive) {
-        // Initialize or fetch current counters
-        const accum = roadStepAccumulatorRef.current[index] ?? {
-          correct: 0,
-          total: 0,
-          totalCentsOffset: 0,
-          totalNoise: 0,
-          totalStability: 0,
-          pitchFrames: 0,
-        };
-        accum.total += 1;
-        if (analysis.detected) {
-          accum.totalCentsOffset += Math.abs(analysis.detected.centsOffset);
-          accum.pitchFrames += 1;
-        }
-        if (analysis.noise != null) {
-          accum.totalNoise += analysis.noise;
-        }
-        if (analysis.stability != null) {
-          accum.totalStability += analysis.stability;
-        }
-
-        const step = sequenceDrill.steps[index];
-        if (step && analysis.detected) {
-          const sequencePitchToleranceCents = Math.max(sequenceDrill.pitchToleranceCents, pitchConfig.sequenceToleranceCents);
-          const expectedPitchMatches =
-            analysis.detected.swara === step.target.swara &&
-            analysis.detected.octave === step.target.octave &&
-            (analysis.detected.state ?? "Shuddha") === (step.target.state ?? "Shuddha") &&
-            Math.abs(analysis.detected.centsOffset) <= sequencePitchToleranceCents;
-
-          if (expectedPitchMatches) {
-            accum.correct += 1;
-          }
-
-          // Track last detected values for tooltip
-          accum.lastDetectedSwara = analysis.detected.swara;
-          accum.lastDetectedOctave = analysis.detected.octave;
-          accum.lastDetectedState = analysis.detected.state ?? "Shuddha";
-          accum.lastCentsOffset = analysis.detected.centsOffset;
-        }
-        roadStepAccumulatorRef.current[index] = accum;
-      } else if (state.isPassed) {
-        // When the note has passed, evaluate and lock the final status
-        setRoadStepResults((prev) => {
-          if (prev[index]) return prev;
-
-          const accum = roadStepAccumulatorRef.current[index];
-          let status: "green" | "yellow" | "red" = "red";
-          let ratio = 0;
-
-          if (accum && accum.total > 0) {
-            ratio = accum.correct / accum.total;
-            if (ratio >= 0.70) {
-              status = "green";
-            } else if (ratio >= 0.30) {
-              status = "yellow";
-            }
-          }
-
-          const avgCentsOffset = accum && accum.pitchFrames > 0 ? accum.totalCentsOffset / accum.pitchFrames : undefined;
-          const avgNoise = accum && accum.total > 0 ? accum.totalNoise / accum.total : undefined;
-          const avgStability = accum && accum.total > 0 ? accum.totalStability / accum.total : undefined;
-
-          const target = sequenceDrill.steps[index].target;
-          return {
-            ...prev,
-            [index]: {
-              status,
-              correctFrames: accum?.correct ?? 0,
-              totalFrames: accum?.total ?? 0,
-              ratio,
-              targetSwara: target.swara,
-              targetOctave: target.octave,
-              targetState: target.state ?? "Shuddha",
-              lastDetectedSwara: accum?.lastDetectedSwara,
-              lastDetectedOctave: accum?.lastDetectedOctave,
-              lastDetectedState: accum?.lastDetectedState,
-              lastCentsOffset: accum?.lastCentsOffset,
-              avgCentsOffset,
-              avgNoise,
-              avgStability,
-            },
-          };
-        });
-      }
-    });
-
-    const allPassed = sequenceVisualStates.length > 0 && sequenceVisualStates.every((state) => state.isPassed);
-    if (allPassed && !isSequenceEvaluatedRef.current) {
-      isSequenceEvaluatedRef.current = true;
-
-      const compiledResults: Record<number, RoadStepResult> = {};
-      const phraseScores: number[] = [];
-
-      sequenceDrill.steps.forEach((step, idx) => {
-        const accum = roadStepAccumulatorRef.current[idx];
-        let status: "green" | "yellow" | "red" = "red";
-        let ratio = 0;
-
-        if (accum && accum.total > 0) {
-          ratio = accum.correct / accum.total;
-          if (ratio >= 0.70) {
-            status = "green";
-          } else if (ratio >= 0.30) {
-            status = "yellow";
-          }
-        }
-
-        const avgCentsOffset = accum && accum.pitchFrames > 0 ? accum.totalCentsOffset / accum.pitchFrames : undefined;
-        const avgNoise = accum && accum.total > 0 ? accum.totalNoise / accum.total : undefined;
-        const avgStability = accum && accum.total > 0 ? accum.totalStability / accum.total : undefined;
-
-        compiledResults[idx] = {
-          status,
-          correctFrames: accum?.correct ?? 0,
-          totalFrames: accum?.total ?? 0,
-          ratio,
-          targetSwara: step.target.swara,
-          targetOctave: step.target.octave,
-          targetState: step.target.state ?? "Shuddha",
-          lastDetectedSwara: accum?.lastDetectedSwara,
-          lastDetectedOctave: accum?.lastDetectedOctave,
-          lastDetectedState: accum?.lastDetectedState,
-          lastCentsOffset: accum?.lastCentsOffset,
-          avgCentsOffset,
-          avgNoise,
-          avgStability,
-        };
-
-        phraseScores.push(ratio * 100);
-      });
-
-      const phraseScore = averageScore(phraseScores);
-      const passThreshold = Math.max(sequenceDrill.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
-      const passed = (phraseScore ?? 0) >= passThreshold;
-
-      setRoadStepResults(compiledResults);
-
-      setCheckpointSummaryData({
-        step: sequenceDrill,
-        score: Math.round(phraseScore ?? 0),
-        passed,
-        results: compiledResults,
-      });
-      setShowCheckpointSummaryPopup(true);
-
-      if (passed) {
-        completeStep(sequenceDrill, "auto");
-      }
-    }
-  }, [fluteViewTick, analysis.detected, sequenceVisualStates, sequenceDrill, pitchConfig.sequenceToleranceCents]);
+  // Real-time accumulation is now handled inside the tick() animation frame loop to bypass React render/state lag.
 
   const selectedStepRef = useRef<LessonStep | null>(selectedStep ?? null);
   const targetRef = useRef<SwaraTarget>(selectedStep?.target ?? target);
@@ -2094,7 +1938,7 @@ export function SwaraTrainer() {
       const audioContext = new window.AudioContext();
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 4096;
-      analyser.smoothingTimeConstant = 0.35;
+      analyser.smoothingTimeConstant = 0.05;
 
       const source = audioContext.createMediaStreamSource(stream);
       source.connect(analyser);
@@ -2231,7 +2075,7 @@ export function SwaraTrainer() {
       detected &&
       pitch.confidence >= ACTIVE_CONFIDENCE &&
       energy >= ACTIVE_ENERGY &&
-      preliminaryNoise <= 58,
+      preliminaryNoise <= 75,
     );
     let hissPercent = 0;
 
@@ -2798,6 +2642,197 @@ export function SwaraTrainer() {
         autoClearArmedRef.current = null;
         if (!liveStep) {
           autoClearDoneRef.current = null;
+        }
+      }
+    }
+
+    if (liveSequenceStep) {
+      const countdownDelayMs = (60 / metronomeBpmRef.current) * 1000;
+      const dynamicSustainMs = beatsPerNoteRef.current * (60 / metronomeBpmRef.current) * 1000;
+      const TILE_PX_PER_MS = 0.10;
+      const SPAWN_MARGIN = 58;
+
+      const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS));
+      const countdownSpawnY = -countdownHeight - SPAWN_MARGIN;
+      const countdownMsToFlute = Math.round((515 - countdownSpawnY) / TILE_PX_PER_MS);
+
+      const noteHeight = Math.round(dynamicSustainMs * TILE_PX_PER_MS);
+      const noteSpawnY = -noteHeight - SPAWN_MARGIN;
+      const noteMsToFlute = Math.round((515 - noteSpawnY) / TILE_PX_PER_MS);
+
+      const firstNoteArrivalAt = fluteViewStartedAt + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
+      let noteCursor = firstNoteArrivalAt - noteMsToFlute;
+
+      const currentTimestamp = Date.now();
+
+      liveSequenceStep.steps.forEach((step, index) => {
+        const timeArrivalTrailing = noteCursor + noteMsToFlute;
+        const timeArrivalLeading = timeArrivalTrailing - dynamicSustainMs;
+
+        noteCursor += dynamicSustainMs + (step.hasSpaceAfter ? countdownDelayMs : 0);
+
+        const isPassed = currentTimestamp > timeArrivalTrailing;
+        const isActiveForScoring = currentTimestamp >= timeArrivalLeading && currentTimestamp <= timeArrivalTrailing;
+
+        if (isActiveForScoring) {
+          const accum = roadStepAccumulatorRef.current[index] ?? {
+            correct: 0,
+            total: 0,
+            totalCentsOffset: 0,
+            totalNoise: 0,
+            totalStability: 0,
+            pitchFrames: 0,
+          };
+          accum.total += 1;
+
+          const activeReading = detected;
+
+          if (activeReading) {
+            accum.totalCentsOffset += Math.abs(activeReading.centsOffset);
+            accum.pitchFrames += 1;
+          }
+          if (hissPercent != null) {
+            accum.totalNoise += hissPercent;
+          }
+          if (stability != null) {
+            accum.totalStability += stability;
+          }
+
+          if (activeReading) {
+            const sequencePitchToleranceCents = Math.max(liveSequenceStep.pitchToleranceCents, livePitchConfig.sequenceToleranceCents);
+            const expectedPitchMatches =
+              activeReading.swara === step.target.swara &&
+              activeReading.octave === step.target.octave &&
+              (activeReading.state ?? "Shuddha") === (step.target.state ?? "Shuddha") &&
+              Math.abs(activeReading.centsOffset) <= sequencePitchToleranceCents;
+
+            if (expectedPitchMatches) {
+              accum.correct += 1;
+            }
+
+            accum.lastDetectedSwara = activeReading.swara;
+            accum.lastDetectedOctave = activeReading.octave;
+            accum.lastDetectedState = activeReading.state ?? "Shuddha";
+            accum.lastCentsOffset = activeReading.centsOffset;
+          }
+          roadStepAccumulatorRef.current[index] = accum;
+        } else if (isPassed) {
+          setRoadStepResults((prev) => {
+            if (prev[index]) return prev;
+
+            const accum = roadStepAccumulatorRef.current[index];
+            let status: "green" | "yellow" | "red" = "red";
+            let ratio = 0;
+
+            if (accum && accum.total > 0) {
+              ratio = accum.correct / accum.total;
+              if (ratio >= 0.70) {
+                status = "green";
+              } else if (ratio >= 0.30) {
+                status = "yellow";
+              }
+            }
+
+            const avgCentsOffset = accum && accum.pitchFrames > 0 ? accum.totalCentsOffset / accum.pitchFrames : undefined;
+            const avgNoise = accum && accum.total > 0 ? accum.totalNoise / accum.total : undefined;
+            const avgStability = accum && accum.total > 0 ? accum.totalStability / accum.total : undefined;
+
+            return {
+              ...prev,
+              [index]: {
+                status,
+                correctFrames: accum?.correct ?? 0,
+                totalFrames: accum?.total ?? 0,
+                ratio,
+                targetSwara: step.target.swara,
+                targetOctave: step.target.octave,
+                targetState: step.target.state ?? "Shuddha",
+                lastDetectedSwara: accum?.lastDetectedSwara,
+                lastDetectedOctave: accum?.lastDetectedOctave,
+                lastDetectedState: accum?.lastDetectedState,
+                lastCentsOffset: accum?.lastCentsOffset,
+                avgCentsOffset,
+                avgNoise,
+                avgStability,
+              },
+            };
+          });
+        }
+      });
+
+      const allPassed = liveSequenceStep.steps.every((_, idx) => {
+        let cursor = firstNoteArrivalAt - noteMsToFlute;
+        for (let i = 0; i <= idx; i++) {
+          const s = liveSequenceStep.steps[i];
+          if (i === idx) {
+            const trailing = cursor + noteMsToFlute;
+            return currentTimestamp > trailing;
+          }
+          cursor += dynamicSustainMs + (s.hasSpaceAfter ? countdownDelayMs : 0);
+        }
+        return false;
+      });
+
+      if (allPassed && !isSequenceEvaluatedRef.current) {
+        isSequenceEvaluatedRef.current = true;
+
+        const compiledResults: Record<number, RoadStepResult> = {};
+        const phraseScores: number[] = [];
+
+        liveSequenceStep.steps.forEach((step, idx) => {
+          const accum = roadStepAccumulatorRef.current[idx];
+          let status: "green" | "yellow" | "red" = "red";
+          let ratio = 0;
+
+          if (accum && accum.total > 0) {
+            ratio = accum.correct / accum.total;
+            if (ratio >= 0.70) {
+              status = "green";
+            } else if (ratio >= 0.30) {
+              status = "yellow";
+            }
+          }
+
+          const avgCentsOffset = accum && accum.pitchFrames > 0 ? accum.totalCentsOffset / accum.pitchFrames : undefined;
+          const avgNoise = accum && accum.total > 0 ? accum.totalNoise / accum.total : undefined;
+          const avgStability = accum && accum.total > 0 ? accum.totalStability / accum.total : undefined;
+
+          compiledResults[idx] = {
+            status,
+            correctFrames: accum?.correct ?? 0,
+            totalFrames: accum?.total ?? 0,
+            ratio,
+            targetSwara: step.target.swara,
+            targetOctave: step.target.octave,
+            targetState: step.target.state ?? "Shuddha",
+            lastDetectedSwara: accum?.lastDetectedSwara,
+            lastDetectedOctave: accum?.lastDetectedOctave,
+            lastDetectedState: accum?.lastDetectedState,
+            lastCentsOffset: accum?.lastCentsOffset,
+            avgCentsOffset,
+            avgNoise,
+            avgStability,
+          };
+
+          phraseScores.push(ratio * 100);
+        });
+
+        const phraseScore = averageScore(phraseScores);
+        const passThreshold = Math.max(liveSequenceStep.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
+        const passed = (phraseScore ?? 0) >= passThreshold;
+
+        setRoadStepResults(compiledResults);
+
+        setCheckpointSummaryData({
+          step: liveSequenceStep,
+          score: Math.round(phraseScore ?? 0),
+          passed,
+          results: compiledResults,
+        });
+        setShowCheckpointSummaryPopup(true);
+
+        if (passed) {
+          completeStep(liveSequenceStep, "auto");
         }
       }
     }
