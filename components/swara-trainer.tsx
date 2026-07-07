@@ -6920,7 +6920,7 @@ function FluteRoadView(props: {
           className="trainer-flute-svg"
           viewBox={`0 0 ${FLUTE_BOARD_WIDTH} ${FLUTE_BOARD_HEIGHT}`}
           width="100%"
-          preserveAspectRatio="xMaxYMid meet"
+          preserveAspectRatio="xMaxYMin meet"
           style={{ height: props.isFullscreen ? "calc(100dvh - 120px)" : "auto", maxHeight: props.isFullscreen ? undefined : (props.boardMaxHeight ?? FLUTE_BOARD_HEIGHT), display: "block", width: "100%" }}
           aria-hidden="true"
         >
