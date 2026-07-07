@@ -3190,7 +3190,7 @@ export function SwaraTrainer() {
     layoutSvgScale = Math.min(boardWrapperWidth / FLUTE_BOARD_WIDTH, maxScale);
   }
   const layoutSvgRenderedWidth = FLUTE_BOARD_WIDTH * layoutSvgScale;
-  const layoutSvgLeftOffset = boardWrapperWidth - layoutSvgRenderedWidth; // xMaxYMid alignment
+  const layoutSvgLeftOffset = 0; // xMinYMid alignment
   const layoutFirstLaneScreenX = layoutSvgLeftOffset + FLUTE_LANES[0].x * layoutSvgScale;
   // 20px gap on left, 45px gap on right (before the first lane Ga/Ma center at layoutFirstLaneScreenX)
   const computedOverlayWidth = layoutFirstLaneScreenX - 65;
@@ -6920,7 +6920,7 @@ function FluteRoadView(props: {
           className="trainer-flute-svg"
           viewBox={`0 0 ${FLUTE_BOARD_WIDTH} ${FLUTE_BOARD_HEIGHT}`}
           width="100%"
-          preserveAspectRatio="xMaxYMin meet"
+          preserveAspectRatio="xMinYMid meet"
           style={{ height: props.isFullscreen ? "calc(100dvh - 120px)" : "auto", maxHeight: props.isFullscreen ? undefined : (props.boardMaxHeight ?? FLUTE_BOARD_HEIGHT), display: "block", width: "100%" }}
           aria-hidden="true"
         >
