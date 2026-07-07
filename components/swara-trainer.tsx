@@ -2459,7 +2459,13 @@ export function SwaraTrainer() {
               .map((record) => record.score);
             const phraseScore = averageScore(phraseScores);
             const passThreshold = Math.max(liveSequenceStep.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
-            const loopPassed = phraseScore != null && phraseScore >= passThreshold;
+            // A loop passes only if score meets threshold AND no individual note is red (ratio < 0.3)
+            const hasAnyRedNote = liveSequenceStep.steps.some((_, idx) => {
+              const accum = roadStepAccumulatorRef.current[idx];
+              if (!accum || accum.total === 0) return true; // no data = red
+              return accum.correct / accum.total < 0.30;
+            });
+            const loopPassed = phraseScore != null && phraseScore >= passThreshold && !hasAnyRedNote;
             const historyEntry = buildLoopHistoryEntry({
               repeatIndex: liveProgress.repeatIndex,
               kind: loopPassed ? "success" : "failure",
@@ -2847,7 +2853,9 @@ export function SwaraTrainer() {
 
         const phraseScore = averageScore(phraseScores);
         const passThreshold = Math.max(liveSequenceStep.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
-        const passed = (phraseScore ?? 0) >= passThreshold;
+        // Fails if score below threshold OR any note is red (ratio < 0.3 → status === "red")
+        const hasAnyRedNoteInResults = Object.values(compiledResults).some((r) => r.status === "red");
+        const passed = (phraseScore ?? 0) >= passThreshold && !hasAnyRedNoteInResults;
 
         setRoadStepResults(compiledResults);
 
@@ -5928,25 +5936,34 @@ function SignalTrace(props: {
     let curBand: StaticBand | null = null;
 
     for (const pt of staticPoints) {
-      if (pt.centsOffset == null || !pt.active || pt.swara == null) {
+      // Draw trace for any point where pitch was detected (centsOffset != null)
+      // Don't require active=true — that's only for scoring, not visualization
+      if (pt.centsOffset == null) {
+        // Silence gap: break current segment so the line doesn't bridge gaps
         curSeg = null;
-        curBand = null;
+        if (pt.swara == null) curBand = null;
         continue;
       }
       const x = tsToX(pt.timestamp);
       const y = centsToYStatic(pt.centsOffset);
 
-      if (!curSeg || curSeg.swara !== pt.swara || curSeg.octave !== pt.octave) {
-        curSeg = { points: [], swara: pt.swara, octave: pt.octave ?? null };
+      // Group trace segments by detected swara (for coloring)
+      const segSwara = pt.swara ?? "?";
+      const segOctave = pt.octave ?? null;
+      if (!curSeg || curSeg.swara !== segSwara || curSeg.octave !== segOctave) {
+        curSeg = { points: [], swara: segSwara, octave: segOctave };
         staticSegs.push(curSeg);
       }
       curSeg.points.push({ x, y });
 
-      if (!curBand || curBand.swara !== pt.swara || curBand.octave !== pt.octave) {
-        curBand = { swara: pt.swara, octave: pt.octave ?? null, x1: x, x2: x };
-        staticBands.push(curBand);
-      } else {
-        curBand.x2 = x;
+      // Note bands only for active (sustained) notes
+      if (pt.active && pt.swara != null) {
+        if (!curBand || curBand.swara !== pt.swara || curBand.octave !== pt.octave) {
+          curBand = { swara: pt.swara, octave: pt.octave ?? null, x1: x, x2: x };
+          staticBands.push(curBand);
+        } else {
+          curBand.x2 = x;
+        }
       }
     }
 
@@ -6120,7 +6137,7 @@ function SignalTrace(props: {
           ))}
 
           {/* Empty state */}
-          {staticPoints.filter(p => p.centsOffset != null && p.active).length === 0 && (
+          {staticPoints.filter(p => p.centsOffset != null).length === 0 && (
             <text x={svgW / 2} y={svgH / 2} fill={THEME.pitch.mutedLabel} fontSize="11" textAnchor="middle">No pitch data recorded</text>
           )}
         </svg>
