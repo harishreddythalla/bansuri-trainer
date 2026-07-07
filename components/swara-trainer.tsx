@@ -194,8 +194,8 @@ const SEQUENCE_HANDOFF_GRACE_MS = 650;
 const SEQUENCE_REARTICULATION_RELEASE_MS = 120;
 const AUTO_CLEAR_HOLD_MS = 140;
 const TARGET_HOLD_GRACE_MS = 220;
-const ACTIVE_CONFIDENCE = 0.40;
-const ACTIVE_ENERGY = 0.0035;
+const ACTIVE_CONFIDENCE = 0.45;
+const ACTIVE_ENERGY = 0.007;
 const TREND_WINDOW_MS = 15000;
 const TREND_SAMPLE_MS = 40;
 const PITCH_TREND_WINDOW_STORAGE_KEY = "bansuri.pitchTrendWindow";
@@ -962,6 +962,10 @@ export function SwaraTrainer() {
   const [sequenceLiveScore, setSequenceLiveScore] = useState<number | null>(null);
   const [fluteViewTick, setFluteViewTick] = useState(() => Date.now());
   const [fluteViewStartedAt, setFluteViewStartedAt] = useState(() => Date.now());
+  const fluteViewStartedAtRef = useRef<number>(fluteViewStartedAt);
+  useEffect(() => {
+    fluteViewStartedAtRef.current = fluteViewStartedAt;
+  }, [fluteViewStartedAt]);
   const [roadStepResults, setRoadStepResults] = useState<Record<number, RoadStepResult>>({});
   const roadStepAccumulatorRef = useRef<Record<number, {
     correct: number;
@@ -2075,7 +2079,7 @@ export function SwaraTrainer() {
       detected &&
       pitch.confidence >= ACTIVE_CONFIDENCE &&
       energy >= ACTIVE_ENERGY &&
-      preliminaryNoise <= 75,
+      preliminaryNoise <= 58,
     );
     let hissPercent = 0;
 
@@ -2660,7 +2664,7 @@ export function SwaraTrainer() {
       const noteSpawnY = -noteHeight - SPAWN_MARGIN;
       const noteMsToFlute = Math.round((515 - noteSpawnY) / TILE_PX_PER_MS);
 
-      const firstNoteArrivalAt = fluteViewStartedAt + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
+      const firstNoteArrivalAt = fluteViewStartedAtRef.current + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
       let noteCursor = firstNoteArrivalAt - noteMsToFlute;
 
       const currentTimestamp = Date.now();
