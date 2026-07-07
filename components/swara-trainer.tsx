@@ -4289,11 +4289,11 @@ export function SwaraTrainer() {
                                               {step.glyph ?? step.target.swara}
                                               {isPassed && resultInfo && (
                                                 <div
-                                                  className="pointer-events-none absolute bottom-full left-1/2 mb-2 z-50 w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-200 origin-bottom"
+                                                  className="pointer-events-none absolute top-full left-1/2 mt-2 z-[999999] w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-200 origin-top"
                                                   style={{
-                                                    background: "rgba(15, 23, 42, 0.95)",
-                                                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                                                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.4)",
+                                                    background: "rgba(15, 23, 42, 0.98)",
+                                                    border: "1px solid rgba(255, 255, 255, 0.18)",
+                                                    boxShadow: "0 8px 30px rgba(0, 0, 0, 0.5)",
                                                     borderRadius: 8,
                                                     padding: "8px 10px",
                                                     color: "#fff",
@@ -4579,11 +4579,11 @@ export function SwaraTrainer() {
                                   {glyph}
                                   {res && (
                                     <div
-                                      className="pointer-events-none absolute bottom-full left-1/2 mb-2 z-[10001] w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-150 origin-bottom"
+                                      className="pointer-events-none absolute top-full left-1/2 mt-2 z-[999999] w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-150 origin-top"
                                       style={{
-                                        background: "rgba(15, 23, 42, 0.95)",
-                                        border: "1px solid rgba(255, 255, 255, 0.15)",
-                                        boxShadow: "0 4px 15px rgba(0, 0, 0, 0.4)",
+                                        background: "rgba(15, 23, 42, 0.98)",
+                                        border: "1px solid rgba(255, 255, 255, 0.18)",
+                                        boxShadow: "0 8px 25px rgba(0, 0, 0, 0.5)",
                                         borderRadius: 6,
                                         padding: "6px 8px",
                                         color: "#fff",
