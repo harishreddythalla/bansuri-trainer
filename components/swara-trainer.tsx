@@ -3199,7 +3199,8 @@ export function SwaraTrainer() {
   const layoutSvgRenderedHeight = isLiveCardFullscreen
     ? (typeof window !== "undefined" ? window.innerHeight - 120 : 560)
     : Math.min(boardWrapperWidth * (currentBoardMaxHeight / FLUTE_BOARD_WIDTH), currentBoardMaxHeight);
-  const activeFluteY = fluteRoadMode === "reverse" ? 30 : FLUTE_BODY_OFFSET_Y;
+  // const activeFluteY = fluteRoadMode === "reverse" ? 30 : FLUTE_BODY_OFFSET_Y;
+  const activeFluteY = FLUTE_BODY_OFFSET_Y;
   const layoutFluteBodyScreenY = activeFluteY * layoutSvgScale;
   const computedOverlayHeight = isLiveCardFullscreen
     ? (typeof window !== "undefined" ? window.innerHeight - 160 : 400)
@@ -4539,10 +4540,10 @@ function CheckpointSummaryPopup(props: {
       padL,
       padR,
       usableW,
-        noteCenters: noteCenters.map((note: { idx: number; centerTs: number }) => ({
-          idx: note.idx,
-          x: padL + ((note.centerTs - graphStartTs) / totalMs) * usableW,
-        })),
+      noteCenters: noteCenters.map((note: { idx: number; centerTs: number }) => ({
+        idx: note.idx,
+        x: padL + ((note.centerTs - graphStartTs) / totalMs) * usableW,
+      })),
     };
   }, [checkpointSummaryData, beatsPerNote, metronomeBpm]);
 
@@ -4665,29 +4666,29 @@ function CheckpointSummaryPopup(props: {
           </div>
           <div ref={graphScrollRef} style={{ width: "100%", background: "rgba(0,0,0,0.3)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.06)", overflowX: "auto", scrollBehavior: "smooth" }}>
             <div style={{ width: graphLayout ? `${graphLayout.svgW}px` : "100%" }}>
-            <SignalTrace
-              points={derived.trendPoints}
-              detected={null}
-              target={checkpointSummaryData.step.steps[0].target}
-              pitchToleranceCents={popupPitchConfig.noteToleranceCents}
-              pitchReleaseCents={popupPitchConfig.releaseToleranceCents}
-              height={200}
-              fullscreen={false}
-              running={false}
-              pitchTrendWindowMs={15000}
-              pitchDifficulty="easy"
-              pitchDifficultyOptions={[]}
-              pitchTrendWindowOptions={[]}
-              onPitchDifficultyChange={() => {}}
-              onPitchTrendWindowChange={() => {}}
-              onToggleFullscreen={() => {}}
-              onToggleMic={() => {}}
-              sequenceDrill={checkpointSummaryData.step}
-              beatsPerNote={beatsPerNote}
-              metronomeBpm={metronomeBpm}
-              fluteViewStartedAt={checkpointSummaryData.fluteViewStartedAt}
-              staticView={true}
-            />
+              <SignalTrace
+                points={derived.trendPoints}
+                detected={null}
+                target={checkpointSummaryData.step.steps[0].target}
+                pitchToleranceCents={popupPitchConfig.noteToleranceCents}
+                pitchReleaseCents={popupPitchConfig.releaseToleranceCents}
+                height={200}
+                fullscreen={false}
+                running={false}
+                pitchTrendWindowMs={15000}
+                pitchDifficulty="easy"
+                pitchDifficultyOptions={[]}
+                pitchTrendWindowOptions={[]}
+                onPitchDifficultyChange={() => { }}
+                onPitchTrendWindowChange={() => { }}
+                onToggleFullscreen={() => { }}
+                onToggleMic={() => { }}
+                sequenceDrill={checkpointSummaryData.step}
+                beatsPerNote={beatsPerNote}
+                metronomeBpm={metronomeBpm}
+                fluteViewStartedAt={checkpointSummaryData.fluteViewStartedAt}
+                staticView={true}
+              />
             </div>
           </div>
         </div>
