@@ -3452,6 +3452,7 @@ export function SwaraTrainer() {
                 display: "grid",
                 gap: isLiveCardFullscreen ? 8 : 12,
                 minWidth: 880,
+                position: "relative",
                 ...(isLiveCardFullscreen ? {
                   position: "fixed" as const,
                   inset: 0,
@@ -4374,385 +4375,26 @@ export function SwaraTrainer() {
 
         </section>
 
-        {showCheckpointSummaryPopup && checkpointSummaryData && (() => {
-          const { poorest, primaryIssue } = analyzeCheckpointPerformance(
-            checkpointSummaryData.results,
-            checkpointSummaryData.step,
-            pitchConfig
-          );
-          const minScore = Math.max(checkpointSummaryData.step.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
-          const hasRedNote = Object.values(checkpointSummaryData.results).some((res) => res.status === "red");
-          const currentStepIndex = allLessonSteps.findIndex((s) => s.id === selectedStepId);
-          const nextStep = currentStepIndex !== -1 ? allLessonSteps[currentStepIndex + 1] : null;
-          const steps = checkpointSummaryData.step.steps;
+        {showCheckpointSummaryPopup && checkpointSummaryData && liveCardRef.current ? createPortal(
+          <CheckpointSummaryPopup
+            checkpointSummaryData={checkpointSummaryData}
+            derived={checkpointPopupDerivedFor(checkpointSummaryData, selectedStepId, allLessonSteps, pitchConfig)}
+            animatedScore={animatedScore}
+            beatsPerNote={beatsPerNote}
+            metronomeBpm={metronomeBpm}
+            setHoveredNoteTooltip={setHoveredNoteTooltip}
+            onRetry={() => {
+              handleRetryFluteRoad();
+              setShowCheckpointSummaryPopup(false);
+            }}
+            onNext={(nextStepId) => {
+              handleSelectStep(nextStepId);
+              setShowCheckpointSummaryPopup(false);
+            }}
+          />,
+          liveCardRef.current
+        ) : null}
 
-          const trendPoints = checkpointSummaryData.trend ?? [];
-          const hasTrendData = trendPoints.length >= 2;
-          const firstPointTimestamp = hasTrendData ? trendPoints[0].timestamp : 0;
-          const lastPointTimestamp = hasTrendData ? trendPoints[trendPoints.length - 1].timestamp : 0;
-          const totalDurationMs = hasTrendData
-            ? Math.max(1000, lastPointTimestamp - firstPointTimestamp)
-            : Math.max(1000, checkpointSummaryData.step.steps.length * (beatsPerNote * (60 / metronomeBpm) * 1000));
-
-          // Map scrollable width: 85px per second of duration, min 580px, max 2000px
-          const scrollWidth = hasTrendData
-            ? Math.min(2000, Math.max(580, Math.round((totalDurationMs / 1000) * 85)))
-            : 580;
-
-          const popupLines: Array<{
-            lineIndex: number;
-            groups: Array<{
-              startIndex: number;
-              endIndex: number;
-              steps: typeof checkpointSummaryData.step.steps;
-            }>;
-          }> = [];
-          let currentLineGroups: Array<{
-            startIndex: number;
-            endIndex: number;
-            steps: typeof checkpointSummaryData.step.steps;
-          }> = [];
-          let currentGroupSteps: typeof checkpointSummaryData.step.steps = [];
-          let groupStartIdx = 0;
-
-          checkpointSummaryData.step.steps.forEach((step, idx) => {
-            currentGroupSteps.push(step);
-            const isLastStep = idx === checkpointSummaryData.step.steps.length - 1;
-            const shouldCloseGroup = step.hasSpaceAfter || step.hasNewlineAfter || isLastStep;
-            const shouldCloseLine = step.hasNewlineAfter || isLastStep;
-
-            if (shouldCloseGroup) {
-              currentLineGroups.push({
-                startIndex: groupStartIdx,
-                endIndex: idx,
-                steps: currentGroupSteps,
-              });
-              currentGroupSteps = [];
-              groupStartIdx = idx + 1;
-            }
-
-            if (shouldCloseLine) {
-              popupLines.push({
-                lineIndex: popupLines.length,
-                groups: currentLineGroups,
-              });
-              currentLineGroups = [];
-            }
-          });
-
-          return (
-            <div
-              className="absolute inset-0 z-[10000] flex items-center justify-center p-4 modal-overlay-animate"
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: "rgba(5, 10, 20, 0.88)",
-                backdropFilter: "blur(12px)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                zIndex: 10000,
-              }}
-            >
-              <div
-                className="modal-card-animate"
-                style={{
-                  width: "min(640px, 95vw)",
-                  background: "linear-gradient(180deg, #18233c 0%, #0d1527 100%)",
-                  border: "1px solid rgba(255, 255, 255, 0.12)",
-                  borderRadius: 20,
-                  boxShadow: "0 18px 45px rgba(0, 0, 0, 0.5)",
-                  padding: "16px 20px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 12,
-                  color: "#fff",
-                }}
-              >
-                {/* Header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: "10px", textTransform: "uppercase", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em" }}>
-                      Checkpoint Complete
-                    </div>
-                    <h2 style={{ fontSize: "18px", fontWeight: 800, margin: "0", color: "#fff", letterSpacing: "-0.03em" }}>
-                      {checkpointSummaryData.step.title}
-                    </h2>
-                  </div>
-                </div>
-
-                {/* Row 1: Score Card + Notes Needing Improvement */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "stretch" }}>
-                  {/* Score section */}
-                  <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, padding: "8px 12px" }}>
-                    <div
-                      style={{
-                        position: "relative",
-                        width: 50,
-                        height: 50,
-                        borderRadius: 999,
-                        background: checkpointSummaryData.passed
-                          ? "radial-gradient(circle, rgba(46,213,115,0.15) 0%, rgba(46,213,115,0.02) 100%)"
-                          : "radial-gradient(circle, rgba(255,71,87,0.15) 0%, rgba(255,71,87,0.02) 100%)",
-                        border: `3px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.25)" : "rgba(255,71,87,0.25)"}`,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0
-                      }}
-                    >
-                      <div style={{ fontSize: "18px", fontWeight: 900, lineHeight: 1, letterSpacing: "-0.04em", color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" }}>
-                        {animatedScore}
-                      </div>
-                      <div style={{ fontSize: "8px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>
-                        / 100
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span
-                          style={{
-                            padding: "1px 6px",
-                            borderRadius: 999,
-                            fontSize: "9px",
-                            fontWeight: 800,
-                            background: checkpointSummaryData.passed ? "rgba(46, 213, 115, 0.14)" : "rgba(255, 71, 87, 0.14)",
-                            color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757"
-                          }}
-                        >
-                          {checkpointSummaryData.passed ? "PASSED" : "FAILED"}
-                        </span>
-                        <span style={{ fontSize: "9.5px", color: "rgba(255,255,255,0.45)", fontWeight: 600 }}>
-                          Min ≥ {minScore}
-                        </span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: "10.5px", lineHeight: "1.3", color: "rgba(255,255,255,0.7)" }}>
-                        {checkpointSummaryData.passed
-                          ? "Congratulations! You've matched the phrase contours."
-                          : hasRedNote
-                            ? "All notes must pass (no red notes under 30% accuracy)."
-                            : `Did not pass the minimum threshold score of ${minScore}.`
-                        }
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Notes needing improvement (right panel of row 1) */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, padding: "8px 12px" }}>
-                    <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                      Notes Needing Improvement
-                    </div>
-                    {poorest.length > 0 ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        {poorest.map((p, pIdx) => {
-                          const color = p.ratio >= 0.70 ? "#2ed573" : p.ratio >= 0.30 ? "#ff9f43" : "#ff4757";
-                          return (
-                            <div key={pIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px" }}>
-                              <span style={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>• {p.key}</span>
-                              <span style={{ color, fontWeight: 700, marginLeft: 8, whiteSpace: "nowrap" }}>
-                                {p.totalFrames === 0 ? "Missed" : `${Math.round(p.ratio * 100)}% (${((p.correctFrames * 16.67) / 1000).toFixed(1)}s)`}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: "11px", color: "rgba(46,213,115,0.9)", fontWeight: 600 }}>✓ All notes passed!</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Row 2: Coaching Feedback (single row) */}
-                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: "8px 12px", display: "flex", alignItems: "flex-start", gap: 8 }}>
-                  <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap", paddingTop: 1 }}>
-                    Coaching:
-                  </div>
-                  <div style={{ fontSize: "11px", lineHeight: "1.35", color: "rgba(255,255,255,0.82)" }}>
-                    {primaryIssue}
-                  </div>
-                </div>
-
-                {/* Row 3: Pitch Trajectory Chart */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Pitch Trajectory (Scroll ➔)
-                  </div>
-                  <div
-                    style={{
-                      width: "100%",
-                      background: "rgba(0,0,0,0.3)",
-                      borderRadius: 14,
-                      border: "1px solid rgba(255,255,255,0.06)",
-                      overflowX: "auto",
-                    }}
-                  >
-                    <SignalTrace
-                      points={trendPoints}
-                      detected={null}
-                      target={checkpointSummaryData.step.steps[0].target}
-                      pitchToleranceCents={checkpointSummaryData.step.pitchToleranceCents}
-                      pitchReleaseCents={checkpointSummaryData.step.pitchToleranceCents * 1.5}
-                      height={200}
-                      fullscreen={false}
-                      running={false}
-                      pitchTrendWindowMs={15000}
-                      pitchDifficulty="medium"
-                      pitchDifficultyOptions={[]}
-                      pitchTrendWindowOptions={[]}
-                      onPitchDifficultyChange={() => {}}
-                      onPitchTrendWindowChange={() => {}}
-                      onToggleFullscreen={() => {}}
-                      onToggleMic={() => {}}
-                      sequenceDrill={checkpointSummaryData.step}
-                      beatsPerNote={beatsPerNote}
-                      metronomeBpm={metronomeBpm}
-                      fluteViewStartedAt={checkpointSummaryData.fluteViewStartedAt}
-                      staticView={true}
-                    />
-                  </div>
-                </div>
-
-
-                {/* Row 4: Sequence Notes Summary */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Sequence Notes Summary
-                  </div>
-                  <div
-                    style={{
-                      background: "rgba(0,0,0,0.25)",
-                      borderRadius: 10,
-                      border: "1px solid rgba(255,255,255,0.06)",
-                      padding: "6px 10px",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 5,
-                    }}
-                  >
-                    {popupLines.map((line, lineIdx) => (
-                      <div
-                        key={lineIdx}
-                        style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-start", alignItems: "center" }}
-                      >
-                        {line.groups.map((group, groupIdx) => {
-                          let isGroupPassed = true;
-                          for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
-                            const res = checkpointSummaryData.results[idx];
-                            if (!res || res.status !== "green") isGroupPassed = false;
-                          }
-                          return (
-                            <div
-                              key={groupIdx}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                padding: "1px 4px",
-                                borderRadius: 5,
-                                background: isGroupPassed ? "rgba(46, 213, 115, 0.05)" : "rgba(255, 255, 255, 0.02)",
-                                border: `1px solid ${isGroupPassed ? "rgba(46, 213, 115, 0.12)" : "rgba(255, 255, 255, 0.05)"}`,
-                                gap: 3,
-                              }}
-                            >
-                              {group.steps.map((step: any, stepIdx: number) => {
-                                const globalIdx = group.startIndex + stepIdx;
-                                const res = checkpointSummaryData.results[globalIdx];
-                                const finalStatus = res?.status ?? "red";
-                                const color = finalStatus === "green" ? "rgba(46, 213, 115, 1)" : finalStatus === "yellow" ? "rgba(255, 159, 67, 1)" : "rgba(255, 99, 99, 0.75)";
-                                const glyph = step.glyph ?? step.target.swara;
-                                return (
-                                  <span
-                                    key={stepIdx}
-                                    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 16, height: 16, fontSize: 10, fontWeight: 750, color, cursor: "help" }}
-                                    onMouseEnter={(e) => {
-                                      if (res) {
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setHoveredNoteTooltip({
-                                          rect,
-                                          content: (
-                                            <>
-                                              <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
-                                              <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
-                                              <div style={{ marginTop: 4, fontWeight: 700, color }}>Accuracy: {Math.round(res.ratio * 100)}% ({((res.correctFrames * 16.67) / 1000).toFixed(2)}s / {((res.totalFrames * 16.67) / 1000).toFixed(2)}s)</div>
-                                            </>
-                                          ),
-                                        });
-                                      }
-                                    }}
-                                    onMouseLeave={() => setHoveredNoteTooltip(null)}
-                                  >
-                                    {renderSwaraGlyph(glyph)}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 2 }}>
-                  <button
-                    onClick={() => {
-                      handleRetryFluteRoad();
-                      setShowCheckpointSummaryPopup(false);
-                    }}
-                    style={{
-                      background: "rgba(255, 255, 255, 0.08)",
-                      border: "1px solid rgba(255, 255, 255, 0.12)",
-                      borderRadius: 12,
-                      color: "#fff",
-                      padding: "8px 16px",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    className="hover:bg-white/12 active:scale-[0.98]"
-                  >
-                    Retry Checkpoint
-                  </button>
-                  {nextStep && (
-                    <button
-                      disabled={!checkpointSummaryData.passed}
-                      onClick={() => {
-                        handleSelectStep(nextStep.id);
-                        setShowCheckpointSummaryPopup(false);
-                      }}
-                      style={{
-                        background: checkpointSummaryData.passed ? "#2ed573" : "rgba(255,255,255,0.03)",
-                        border: `1px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.15)" : "rgba(255,255,255,0.05)"}`,
-                        borderRadius: 12,
-                        color: checkpointSummaryData.passed ? "#050a12" : "rgba(255,255,255,0.35)",
-                        padding: "8px 16px",
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        cursor: checkpointSummaryData.passed ? "pointer" : "not-allowed",
-                        transition: "all 0.2s ease",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                      className={checkpointSummaryData.passed ? "hover:brightness-105 active:scale-[0.98]" : ""}
-                    >
-                      Next Checkpoint &rarr;
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
       </div>
       {typeof window !== "undefined" && hoveredNoteTooltip && createPortal(
         <div
@@ -4801,6 +4443,251 @@ function renderSwaraGlyph(glyph: string) {
     );
   }
   return glyph;
+}
+
+function checkpointPopupDerivedFor(
+  checkpointSummaryData: any,
+  selectedStepId: string,
+  allLessonSteps: Array<{ id: string }>,
+  pitchConfig: any
+) {
+  const minScore = Math.max(checkpointSummaryData.step.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
+  const hasRedNote = Object.values(checkpointSummaryData.results).some((res: any) => res.status === "red");
+  const currentStepIndex = allLessonSteps.findIndex((s) => s.id === selectedStepId);
+  const nextStep = currentStepIndex !== -1 ? allLessonSteps[currentStepIndex + 1] : null;
+  const trendPoints = checkpointSummaryData.trend ?? [];
+  const { poorest, primaryIssue } = analyzeCheckpointPerformance(checkpointSummaryData.results, checkpointSummaryData.step, pitchConfig);
+  const popupLines: Array<{ lineIndex: number; groups: Array<{ startIndex: number; endIndex: number; steps: any[] }> }> = [];
+  let currentLineGroups: Array<{ startIndex: number; endIndex: number; steps: any[] }> = [];
+  let currentGroupSteps: any[] = [];
+  let groupStartIdx = 0;
+
+  checkpointSummaryData.step.steps.forEach((step: any, idx: number) => {
+    currentGroupSteps.push(step);
+    const isLastStep = idx === checkpointSummaryData.step.steps.length - 1;
+    const shouldCloseGroup = step.hasSpaceAfter || step.hasNewlineAfter || isLastStep;
+    const shouldCloseLine = step.hasNewlineAfter || isLastStep;
+    if (shouldCloseGroup) {
+      currentLineGroups.push({ startIndex: groupStartIdx, endIndex: idx, steps: currentGroupSteps });
+      currentGroupSteps = [];
+      groupStartIdx = idx + 1;
+    }
+    if (shouldCloseLine) {
+      popupLines.push({ lineIndex: popupLines.length, groups: currentLineGroups });
+      currentLineGroups = [];
+    }
+  });
+
+  return { minScore, hasRedNote, nextStep, trendPoints, poorest, primaryIssue, popupLines };
+}
+
+function CheckpointSummaryPopup(props: {
+  checkpointSummaryData: any;
+  derived: ReturnType<typeof checkpointPopupDerivedFor>;
+  animatedScore: number;
+  beatsPerNote: number;
+  metronomeBpm: number;
+  setHoveredNoteTooltip: (value: any) => void;
+  onRetry: () => void;
+  onNext: (nextStepId: string) => void;
+}) {
+  const { checkpointSummaryData, derived, animatedScore, beatsPerNote, metronomeBpm, setHoveredNoteTooltip, onRetry, onNext } = props;
+  const nextStep = derived.nextStep;
+
+  return (
+    <div
+      className="absolute inset-0 z-[10000] flex items-center justify-center p-4 modal-overlay-animate"
+      style={{
+        position: "absolute",
+        inset: 0,
+        background: "rgba(5, 10, 20, 0.88)",
+        backdropFilter: "blur(12px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10000,
+      }}
+    >
+      <div
+        className="modal-card-animate"
+        style={{
+          width: "min(640px, 95vw)",
+          background: "linear-gradient(180deg, #18233c 0%, #0d1527 100%)",
+          border: "1px solid rgba(255, 255, 255, 0.12)",
+          borderRadius: 20,
+          boxShadow: "0 18px 45px rgba(0, 0, 0, 0.5)",
+          padding: "16px 20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          color: "#fff",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: "10px", textTransform: "uppercase", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em" }}>
+              Checkpoint Complete
+            </div>
+            <h2 style={{ fontSize: "18px", fontWeight: 800, margin: "0", color: "#fff", letterSpacing: "-0.03em" }}>
+              {checkpointSummaryData.step.title}
+            </h2>
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", fontWeight: 700 }}>
+            {animatedScore}/100
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "stretch" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, padding: "8px 12px" }}>
+            <div style={{ position: "relative", width: 50, height: 50, borderRadius: 999, background: checkpointSummaryData.passed ? "radial-gradient(circle, rgba(46,213,115,0.15) 0%, rgba(46,213,115,0.02) 100%)" : "radial-gradient(circle, rgba(255,71,87,0.15) 0%, rgba(255,71,87,0.02) 100%)", border: `3px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.25)" : "rgba(255,71,87,0.25)"}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <div style={{ fontSize: "18px", fontWeight: 900, lineHeight: 1, letterSpacing: "-0.04em", color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" }}>
+                {animatedScore}
+              </div>
+              <div style={{ fontSize: "8px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>/ 100</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ padding: "1px 6px", borderRadius: 999, fontSize: "9px", fontWeight: 800, background: checkpointSummaryData.passed ? "rgba(46, 213, 115, 0.14)" : "rgba(255, 71, 87, 0.14)", color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" }}>
+                  {checkpointSummaryData.passed ? "PASSED" : "FAILED"}
+                </span>
+                <span style={{ fontSize: "9.5px", color: "rgba(255,255,255,0.45)", fontWeight: 600 }}>Min ≥ {derived.minScore}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: "10.5px", lineHeight: "1.3", color: "rgba(255,255,255,0.7)" }}>
+                {checkpointSummaryData.passed
+                  ? "Congratulations! You've matched the phrase contours."
+                  : derived.hasRedNote
+                    ? "All notes must pass (no red notes under 30% accuracy)."
+                    : `Did not pass the minimum threshold score of ${derived.minScore}.`
+                }
+              </p>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, padding: "8px 12px" }}>
+            <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Notes Needing Improvement
+            </div>
+            {derived.poorest.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {derived.poorest.map((p: any, pIdx: number) => {
+                  const color = p.ratio >= 0.70 ? "#2ed573" : p.ratio >= 0.30 ? "#ff9f43" : "#ff4757";
+                  return (
+                    <div key={pIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px" }}>
+                      <span style={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}>• {p.key}</span>
+                      <span style={{ color, fontWeight: 700, marginLeft: 8, whiteSpace: "nowrap" }}>
+                        {p.totalFrames === 0 ? "Missed" : `${Math.round(p.ratio * 100)}% (${((p.correctFrames * 16.67) / 1000).toFixed(1)}s)`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ fontSize: "11px", color: "rgba(46,213,115,0.9)", fontWeight: 600 }}>✓ All notes passed!</div>
+            )}
+          </div>
+        </div>
+        <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: "8px 12px", display: "flex", alignItems: "flex-start", gap: 8 }}>
+          <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap", paddingTop: 1 }}>
+            Coaching:
+          </div>
+          <div style={{ fontSize: "11px", lineHeight: "1.35", color: "rgba(255,255,255,0.82)" }}>
+            {derived.primaryIssue}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Pitch Trajectory (Scroll ➔)
+          </div>
+          <div style={{ width: "100%", background: "rgba(0,0,0,0.3)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.06)", overflowX: "auto" }}>
+            <SignalTrace
+              points={derived.trendPoints}
+              detected={null}
+              target={checkpointSummaryData.step.steps[0].target}
+              pitchToleranceCents={checkpointSummaryData.step.pitchToleranceCents}
+              pitchReleaseCents={checkpointSummaryData.step.pitchToleranceCents * 1.5}
+              height={200}
+              fullscreen={false}
+              running={false}
+              pitchTrendWindowMs={15000}
+              pitchDifficulty="medium"
+              pitchDifficultyOptions={[]}
+              pitchTrendWindowOptions={[]}
+              onPitchDifficultyChange={() => {}}
+              onPitchTrendWindowChange={() => {}}
+              onToggleFullscreen={() => {}}
+              onToggleMic={() => {}}
+              sequenceDrill={checkpointSummaryData.step}
+              beatsPerNote={beatsPerNote}
+              metronomeBpm={metronomeBpm}
+              fluteViewStartedAt={checkpointSummaryData.fluteViewStartedAt}
+              staticView={true}
+            />
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Sequence Notes Summary
+          </div>
+          <div style={{ background: "rgba(0,0,0,0.25)", borderRadius: 10, border: "1px solid rgba(255,255,255,0.06)", padding: "6px 10px", display: "flex", flexDirection: "column", gap: 5 }}>
+            {derived.popupLines.map((line, lineIdx) => (
+              <div key={lineIdx} style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-start", alignItems: "center" }}>
+                {line.groups.map((group, groupIdx) => {
+                  let isGroupPassed = true;
+                  for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
+                    const res = checkpointSummaryData.results[idx];
+                    if (!res || res.status !== "green") isGroupPassed = false;
+                  }
+                  return (
+                    <div key={groupIdx} style={{ display: "inline-flex", alignItems: "center", padding: "1px 4px", borderRadius: 5, background: isGroupPassed ? "rgba(46, 213, 115, 0.05)" : "rgba(255, 255, 255, 0.02)", border: `1px solid ${isGroupPassed ? "rgba(46, 213, 115, 0.12)" : "rgba(255, 255, 255, 0.05)"}`, gap: 3 }}>
+                      {group.steps.map((step: any, stepIdx: number) => {
+                        const globalIdx = group.startIndex + stepIdx;
+                        const res = checkpointSummaryData.results[globalIdx];
+                        const finalStatus = res?.status ?? "red";
+                        const color = finalStatus === "green" ? "rgba(46, 213, 115, 1)" : finalStatus === "yellow" ? "rgba(255, 159, 67, 1)" : "rgba(255, 99, 99, 0.75)";
+                        const glyph = step.glyph ?? step.target.swara;
+                        return (
+                          <span
+                            key={stepIdx}
+                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 16, height: 16, fontSize: 10, fontWeight: 750, color, cursor: "help" }}
+                            onMouseEnter={(e) => {
+                              if (res) {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setHoveredNoteTooltip({
+                                  rect,
+                                  content: (
+                                    <>
+                                      <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
+                                      <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
+                                      <div style={{ marginTop: 4, fontWeight: 700, color }}>{`Accuracy: ${Math.round(res.ratio * 100)}% (${((res.correctFrames * 16.67) / 1000).toFixed(2)}s / ${((res.totalFrames * 16.67) / 1000).toFixed(2)}s)`}</div>
+                                    </>
+                                  ),
+                                });
+                              }
+                            }}
+                            onMouseLeave={() => setHoveredNoteTooltip(null)}
+                          >
+                            {renderSwaraGlyph(glyph)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 2 }}>
+          <button onClick={onRetry} className="button button-secondary">
+            Retry Checkpoint
+          </button>
+          {nextStep ? (
+            <button disabled={!checkpointSummaryData.passed} onClick={() => onNext(nextStep.id)} className="button button-primary">
+              Next Checkpoint
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MetricCard(props: {
@@ -6175,7 +6062,7 @@ function SignalTrace(props: {
         </svg>
       </div>
     );
-  }  return (
+  } return (
 
     <article
       className={`glass ${props.className ?? ""}`.trim()}
