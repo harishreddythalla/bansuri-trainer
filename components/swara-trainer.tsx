@@ -4572,7 +4572,7 @@ export function SwaraTrainer() {
                 {/* Row 3: Pitch Trajectory Chart */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Pitch Trajectory
+                    Pitch Trajectory (Scroll ➔)
                   </div>
                   <div
                     style={{
@@ -4580,7 +4580,7 @@ export function SwaraTrainer() {
                       background: "rgba(0,0,0,0.3)",
                       borderRadius: 14,
                       border: "1px solid rgba(255,255,255,0.06)",
-                      overflow: "hidden",
+                      overflowX: "auto",
                     }}
                   >
                     <SignalTrace
@@ -4589,7 +4589,7 @@ export function SwaraTrainer() {
                       target={checkpointSummaryData.step.steps[0].target}
                       pitchToleranceCents={checkpointSummaryData.step.pitchToleranceCents}
                       pitchReleaseCents={checkpointSummaryData.step.pitchToleranceCents * 1.5}
-                      height={120}
+                      height={200}
                       fullscreen={false}
                       running={false}
                       pitchTrendWindowMs={15000}
@@ -5896,14 +5896,21 @@ function SignalTrace(props: {
     const lastTs = staticPoints[staticPoints.length - 1]?.timestamp ?? (firstTs + 1000);
     const totalMs = Math.max(1000, lastTs - firstTs);
 
-    const svgW = width;
+    // 80px per second → ~8 seconds visible in a 640px container
+    const PX_PER_SEC = 80;
+    const svgW = Math.max(640, Math.round((totalMs / 1000) * PX_PER_SEC));
     const svgH = height;
-    const padL = 12;
-    const padR = 8;
+    const padL = 14;
+    const padR = 10;
     const usableW = svgW - padL - padR;
+
+    // Direct linear timestamp → X mapping (no live-view math)
     const tsToX = (ts: number) => padL + ((ts - firstTs) / totalMs) * usableW;
+
+    // Reserve bottom 26px for target note line + labels
+    const tracePadB = 30;
     const centsToYStatic = (cents: number) =>
-      svgH - 24 - clamp((cents - minCents) / (maxCents - minCents), 0, 1) * (svgH - 48);
+      (svgH - tracePadB - 12) - clamp((cents - minCents) / (maxCents - minCents), 0, 1) * (svgH - tracePadB - 24);
 
     const centerYS = centsToYStatic(0);
     const highLockYS = centsToYStatic(props.pitchToleranceCents);
@@ -5911,12 +5918,11 @@ function SignalTrace(props: {
     const highRelYS = centsToYStatic(props.pitchReleaseCents);
     const lowRelYS = centsToYStatic(-props.pitchReleaseCents);
 
-    // Build trace path + note band segments directly from trend data
+    // Build trace segments + played-note bands from trend data
     type StaticSeg = { points: { x: number; y: number }[]; swara: string; octave: string | null };
     const staticSegs: StaticSeg[] = [];
     let curSeg: StaticSeg | null = null;
 
-    // Build swara-labeled note bands from continuous runs in trend data
     type StaticBand = { swara: string; octave: string | null; x1: number; x2: number };
     const staticBands: StaticBand[] = [];
     let curBand: StaticBand | null = null;
@@ -5930,14 +5936,12 @@ function SignalTrace(props: {
       const x = tsToX(pt.timestamp);
       const y = centsToYStatic(pt.centsOffset);
 
-      // Trace segments
       if (!curSeg || curSeg.swara !== pt.swara || curSeg.octave !== pt.octave) {
         curSeg = { points: [], swara: pt.swara, octave: pt.octave ?? null };
         staticSegs.push(curSeg);
       }
       curSeg.points.push({ x, y });
 
-      // Note bands (merge consecutive same-note)
       if (!curBand || curBand.swara !== pt.swara || curBand.octave !== pt.octave) {
         curBand = { swara: pt.swara, octave: pt.octave ?? null, x1: x, x2: x };
         staticBands.push(curBand);
@@ -5946,49 +5950,90 @@ function SignalTrace(props: {
       }
     }
 
-    // Time axis ticks (up to 6 evenly spaced)
-    const tickCount = Math.min(6, Math.floor(totalMs / 1000));
-    const tickIntervalMs = totalMs / Math.max(1, tickCount);
-    const timeTicks: { x: number; label: string }[] = [];
-    for (let i = 0; i <= tickCount; i++) {
-      const ms = i * tickIntervalMs;
-      const x = tsToX(firstTs + ms);
-      const secs = (ms / 1000).toFixed(0);
-      timeTicks.push({ x, label: i === 0 ? "0s" : i === tickCount ? "End" : `+${secs}s` });
+    // Target note timeline at bottom — same timing math as live view but mapped through tsToX
+    type TargetNoteLine = { swara: string; octave: string; x1: number; x2: number; col: ReturnType<typeof noteVisual> };
+    const targetNoteLines: TargetNoteLine[] = [];
+
+    const bpNote = props.beatsPerNote ?? 1;
+    const bpm = props.metronomeBpm ?? 60;
+    const startOffsetTime = props.fluteViewStartedAt && props.fluteViewStartedAt > 0
+      ? props.fluteViewStartedAt
+      : (firstTs > 0 ? firstTs : Date.now());
+
+    if (props.sequenceDrill) {
+      const dynMs = bpNote * (60 / bpm) * 1000;
+      const beatMs = (60 / bpm) * 1000;
+      const TILE_PX_PER_MS = 0.10;
+      const SPAWN_MARGIN = 58;
+      const countdownH = Math.max(40, Math.round(beatMs * TILE_PX_PER_MS));
+      const countdownMsToFlute = Math.round((515 - (-countdownH - SPAWN_MARGIN)) / TILE_PX_PER_MS);
+      const noteH = Math.round(dynMs * TILE_PX_PER_MS);
+      const noteMsToFlute = Math.round((515 - (-noteH - SPAWN_MARGIN)) / TILE_PX_PER_MS);
+
+      const firstNoteArrivalAt = startOffsetTime + countdownMsToFlute + 2 * beatMs + dynMs;
+      let cursor = firstNoteArrivalAt - noteMsToFlute;
+
+      for (const step of props.sequenceDrill.steps) {
+        const trailing = cursor + noteMsToFlute;
+        const leading = trailing - dynMs;
+        cursor += dynMs + (step.hasSpaceAfter ? beatMs : 0);
+
+        const x1 = tsToX(leading);
+        const x2 = tsToX(trailing);
+        if (x2 > padL && x1 < svgW - padR) {
+          targetNoteLines.push({
+            swara: step.glyph ?? step.target.swara,
+            octave: step.target.octave,
+            x1: Math.max(padL, x1),
+            x2: Math.min(svgW - padR, x2),
+            col: noteVisual(step.target.swara, step.target.octave),
+          });
+        }
+      }
     }
 
+    // Time ticks every ~5 seconds
+    const tickEveryMs = 5000;
+    const tickCount = Math.floor(totalMs / tickEveryMs);
+    const timeTicks: { x: number; label: string }[] = [{ x: tsToX(firstTs), label: "0s" }];
+    for (let i = 1; i <= tickCount; i++) {
+      const ms = i * tickEveryMs;
+      timeTicks.push({ x: tsToX(firstTs + ms), label: `+${ms / 1000}s` });
+    }
+
+    const targetLineY = svgH - tracePadB + 5;
+    const targetTextY = svgH - 6;
+
     return (
-      <div style={{ width: "100%", height: "100%", borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ width: "100%", overflowX: "auto", borderRadius: 14 }}>
         <svg
-          viewBox={`0 0 ${svgW} ${svgH}`}
-          width="100%"
+          width={svgW}
           height={svgH}
-          style={{ display: "block" }}
+          style={{ display: "block", minWidth: "100%" }}
           aria-hidden="true"
         >
           {/* Background zones */}
           <rect x={0} y={highRelYS} width={svgW} height={highLockYS - highRelYS} fill={THEME.pitch.releaseZone} />
-          <rect x={0} y={lowLockYS} width={svgW} height={lowRelYS - lowLockYS} fill={THEME.pitch.releaseZone} />
+          <rect x={0} y={lowRelYS} width={svgW} height={lowRelYS - lowLockYS} fill={THEME.pitch.releaseZone} />
           <rect x={0} y={highLockYS} width={svgW} height={lowLockYS - highLockYS} fill={THEME.pitch.targetZone} />
 
-          {/* Note background columns */}
+          {/* Played-note background columns */}
           {staticBands.map((band, idx) => {
             const col = noteVisual(band.swara, band.octave);
             const bw = Math.max(0, band.x2 - band.x1);
             return (
-              <g key={idx}>
-                <rect
-                  x={band.x1}
-                  y={24}
-                  width={bw}
-                  height={svgH - 48}
-                  rx={6}
-                  fill={col.band}
-                  stroke={col.stroke}
-                  strokeWidth={0.8}
-                  opacity={0.25}
-                />
-              </g>
+              <rect
+                key={idx}
+                x={band.x1}
+                y={20}
+                width={bw}
+                height={svgH - tracePadB - 20}
+                rx={5}
+                fill={col.band}
+                stroke={col.stroke}
+                strokeWidth={0.7}
+                opacity={0.22}
+              />
             );
           })}
 
@@ -6016,23 +6061,13 @@ function SignalTrace(props: {
             );
           })}
 
-          {/* Note labels on bands */}
+          {/* Played-note labels (top of band) */}
           {staticBands.map((band, idx) => {
             const bw = band.x2 - band.x1;
-            if (bw < 18) return null;
+            if (bw < 20) return null;
             const col = noteVisual(band.swara, band.octave);
-            const midX = band.x1 + bw / 2;
             return (
-              <text
-                key={idx}
-                x={midX}
-                y={38}
-                fill={col.stroke}
-                fontSize="11"
-                fontWeight="800"
-                textAnchor="middle"
-                opacity={0.9}
-              >
+              <text key={idx} x={band.x1 + bw / 2} y={34} fill={col.stroke} fontSize="11" fontWeight="800" textAnchor="middle" opacity={0.85}>
                 {band.swara}
               </text>
             );
@@ -6042,26 +6077,56 @@ function SignalTrace(props: {
           <text x={svgW - padR - 2} y={highLockYS - 4} fill={THEME.pitch.axisLabel} fontSize="9" textAnchor="end">+{props.pitchToleranceCents}¢</text>
           <text x={svgW - padR - 2} y={lowLockYS + 10} fill={THEME.pitch.axisLabel} fontSize="9" textAnchor="end">-{props.pitchToleranceCents}¢</text>
 
-          {/* Time axis ticks */}
+          {/* Target note lines at bottom */}
+          {targetNoteLines.map((tn, idx) => {
+            const bw = tn.x2 - tn.x1;
+            const isMandra = tn.octave === "Mandra" || tn.swara.includes("\u0323") || tn.swara.includes("̣");
+            const displaySwara = isMandra ? tn.swara.replace(/[\u0323̣]/g, "") : tn.swara;
+            return (
+              <g key={`tn-${idx}`}>
+                <line
+                  x1={tn.x1} y1={targetLineY}
+                  x2={tn.x2} y2={targetLineY}
+                  stroke={tn.col.stroke}
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                  opacity={0.85}
+                />
+                {bw > 16 && (
+                  <>
+                    <text
+                      x={tn.x1 + bw / 2} y={targetTextY}
+                      fill={tn.col.stroke}
+                      fontSize="9" fontWeight="800" textAnchor="middle"
+                      style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.9)" }}
+                    >
+                      {displaySwara}
+                    </text>
+                    {isMandra && (
+                      <circle cx={tn.x1 + bw / 2} cy={targetTextY + 2.5} r={1.1} fill={tn.col.stroke} />
+                    )}
+                  </>
+                )}
+              </g>
+            );
+          })}
+
+          {/* Time ticks */}
           {timeTicks.map((tick, idx) => (
             <g key={idx}>
-              <line x1={tick.x} y1={svgH - 16} x2={tick.x} y2={svgH - 12} stroke={THEME.pitch.gridLine} strokeWidth={1} />
-              <text x={tick.x} y={svgH - 4} fill={THEME.pitch.mutedLabel} fontSize="9" textAnchor="middle">{tick.label}</text>
+              <line x1={tick.x} y1={targetLineY - 2} x2={tick.x} y2={targetLineY + 2} stroke={THEME.pitch.gridLine} strokeWidth={1} opacity={0.5} />
+              <text x={tick.x} y={targetTextY} fill={THEME.pitch.mutedLabel} fontSize="8" textAnchor="middle" opacity={0.55}>{tick.label}</text>
             </g>
           ))}
 
-          {/* Empty state label */}
+          {/* Empty state */}
           {staticPoints.filter(p => p.centsOffset != null && p.active).length === 0 && (
             <text x={svgW / 2} y={svgH / 2} fill={THEME.pitch.mutedLabel} fontSize="11" textAnchor="middle">No pitch data recorded</text>
           )}
         </svg>
       </div>
     );
-  }
-
-
-
-  return (
+  }  return (
 
     <article
       className={`glass ${props.className ?? ""}`.trim()}
