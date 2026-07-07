@@ -765,7 +765,7 @@ const alankarPairs: AlankarPairDefinition[] = [
     avarohNotation: "ṖṀṖ NṠṘĠṀ PDNṠṘĠṀṖ | ṀĠṀ DNṠṘĠ MPDNṠṘĠṀ | ĠṘĠ PDNṠṘ GMPDNṠṘĠ | ṘṠṘ MPDNṠ RGMPDNṠṘ | ṠNṠ GMPDN SRGMPDNṠ | NDN RGMPD ṆSRGMPDN | DPD SRGMP ḌNSRGMPD | PMP ṆSRGMP P̣ḌNSRGMP",
     aarohCoaching: "Balance high-blow and low-blow pressures. Keep embouchure flexible.",
     avarohCoaching: "Ensure the descending runs remain centered and dynamic.",
-    avarohMistakes: ["Shifting register flat", "Pitch lagging on peak turns"],
+    aarohMistakes: ["Shifting register flat", "Pitch lagging on peak turns"],
     avarohMistakes: ["Rushing final landing notes", "Unstable breath pressure"],
     minimumScore: 84,
     pitchToleranceCents: 10,
