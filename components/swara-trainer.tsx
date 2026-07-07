@@ -3203,7 +3203,7 @@ export function SwaraTrainer() {
   const isReverse = fluteRoadMode === "reverse";
   const activeFluteY = isReverse ? 30 : FLUTE_BODY_OFFSET_Y;
   const layoutFluteBodyScreenY = activeFluteY * layoutSvgScale;
-  
+
   // 2. Adjust available height for the overlay panels dynamically
   const computedOverlayHeight = isLiveCardFullscreen
     ? (typeof window !== "undefined" ? window.innerHeight - 160 : 400)
@@ -4060,9 +4060,9 @@ export function SwaraTrainer() {
                       : (isReverse ? layoutFluteBodyScreenY + (110 * layoutSvgScale) : 20),
                     // Dynamically calculate bottom constraint to prevent element height collapse
                     bottom: isLiveCardFullscreen
-                      ? (isReverse 
-                          ? 20 
-                          : (typeof window !== "undefined" ? window.innerHeight - 190 : 400) / 2 + (FLUTE_BOARD_HEIGHT / 2 - FLUTE_BODY_OFFSET_Y) * layoutSvgScale + 15)
+                      ? (isReverse
+                        ? 20
+                        : (typeof window !== "undefined" ? window.innerHeight - 190 : 400) / 2 + (FLUTE_BOARD_HEIGHT / 2 - FLUTE_BODY_OFFSET_Y) * layoutSvgScale + 15)
                       : (isReverse ? 20 : layoutSvgRenderedHeight - layoutFluteBodyScreenY - 15),
                     zIndex: 10,
                     pointerEvents: "none",
