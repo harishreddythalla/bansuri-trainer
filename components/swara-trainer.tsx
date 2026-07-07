@@ -5898,14 +5898,49 @@ function SignalTrace(props: {
   );
 
   if (props.staticView) {
-    // Trim leading silence: start from the first point with actual pitch data
     const staticPoints = props.points;
+
+    // ── Step 1: compute the exact time window the graph should cover ──────────
+    // Use the same animation math as the live view to find when notes arrive.
+    // Graph starts at the first note's leading edge; any pitch detected before
+    // the countdown (3-2-1) is excluded.
+    let graphStartTs: number | null = null;
+    let graphEndTs: number | null = null;
+
+    if (props.sequenceDrill && props.beatsPerNote && props.metronomeBpm && props.fluteViewStartedAt) {
+      const dynamicSustainMs = props.beatsPerNote * (60 / props.metronomeBpm) * 1000;
+      const countdownDelayMs = (60 / props.metronomeBpm) * 1000;
+      const TILE_PX_PER_MS_S = 0.10;
+      const SPAWN_MARGIN_S = 58;
+      const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS_S));
+      const countdownSpawnY = -countdownHeight - SPAWN_MARGIN_S;
+      const countdownMsToFlute = Math.round((515 - countdownSpawnY) / TILE_PX_PER_MS_S);
+      const noteHeight = Math.round(dynamicSustainMs * TILE_PX_PER_MS_S);
+      const noteSpawnY = -noteHeight - SPAWN_MARGIN_S;
+      const noteMsToFlute = Math.round((515 - noteSpawnY) / TILE_PX_PER_MS_S);
+      const firstNoteArrivalAt = props.fluteViewStartedAt + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
+
+      graphStartTs = firstNoteArrivalAt - noteMsToFlute; // leading edge of first note
+
+      // Accumulate duration across all steps to find last note trailing edge
+      let cursorEnd = firstNoteArrivalAt - noteMsToFlute;
+      for (const step of props.sequenceDrill.steps) {
+        cursorEnd += dynamicSustainMs + (step.hasSpaceAfter ? countdownDelayMs : 0);
+      }
+      graphEndTs = cursorEnd + noteMsToFlute; // add a little breathing room
+    }
+
+    // Fallback: use first detected pitch point if timing info not available
     const firstPitchedIdx = staticPoints.findIndex(p => p.centsOffset != null);
-    // If no pitch data at all, fall back to full array (will show empty state)
-    const trimmedPoints = firstPitchedIdx > 0 ? staticPoints.slice(firstPitchedIdx) : staticPoints;
-    const firstTs = trimmedPoints[0]?.timestamp ?? 0;
-    const lastTs = trimmedPoints[trimmedPoints.length - 1]?.timestamp ?? (firstTs + 1000);
+    const fallbackStartTs = firstPitchedIdx >= 0 ? staticPoints[firstPitchedIdx].timestamp : 0;
+    const firstTs = graphStartTs ?? fallbackStartTs;
+    const lastTs = graphEndTs
+      ?? staticPoints[staticPoints.length - 1]?.timestamp
+      ?? (firstTs + 1000);
     const totalMs = Math.max(1000, lastTs - firstTs);
+
+    // Clip trend points to the graph window (drop anything before firstTs)
+    const trimmedPoints = staticPoints.filter(p => p.timestamp >= firstTs);
 
     // 80px per second → ~8 seconds visible in a 640px container
     const PX_PER_SEC = 80;
@@ -5968,16 +6003,43 @@ function SignalTrace(props: {
       }
     }
 
-    // Target note reference line — derived directly from played staticBands (swara transitions)
-    // Each band represents when that swara was active → use same color + label at bottom strip
-    type TargetNoteLine = { swara: string; octave: string | null; x1: number; x2: number; col: ReturnType<typeof noteVisual> };
-    const targetNoteLines: TargetNoteLine[] = staticBands.map(band => ({
-      swara: band.swara,
-      octave: band.octave,
-      x1: band.x1,
-      x2: band.x2,
-      col: noteVisual(band.swara, band.octave),
-    }));
+    // ── Target note reference line: SAME timing math as the live view ──────────
+    // This computes when each curriculum note is supposed to arrive, not what was played.
+    type TargetNoteLine = { swara: string; octave: string; x1: number; x2: number; col: ReturnType<typeof noteVisual> };
+    const targetNoteLines: TargetNoteLine[] = [];
+
+    if (props.sequenceDrill && props.beatsPerNote && props.metronomeBpm && props.fluteViewStartedAt) {
+      const dynamicSustainMs = props.beatsPerNote * (60 / props.metronomeBpm) * 1000;
+      const countdownDelayMs = (60 / props.metronomeBpm) * 1000;
+      const TILE_PX_PER_MS_T = 0.10;
+      const SPAWN_MARGIN_T = 58;
+      const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS_T));
+      const countdownSpawnY = -countdownHeight - SPAWN_MARGIN_T;
+      const countdownMsToFlute = Math.round((515 - countdownSpawnY) / TILE_PX_PER_MS_T);
+      const noteHeight = Math.round(dynamicSustainMs * TILE_PX_PER_MS_T);
+      const noteSpawnY = -noteHeight - SPAWN_MARGIN_T;
+      const noteMsToFlute = Math.round((515 - noteSpawnY) / TILE_PX_PER_MS_T);
+      const firstNoteArrivalAt = props.fluteViewStartedAt + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
+      let noteCursor = firstNoteArrivalAt - noteMsToFlute;
+
+      for (const step of props.sequenceDrill.steps) {
+        const timeArrivalTrailing = noteCursor + noteMsToFlute;
+        const timeArrivalLeading = timeArrivalTrailing - dynamicSustainMs;
+        noteCursor += dynamicSustainMs + (step.hasSpaceAfter ? countdownDelayMs : 0);
+
+        const x1 = tsToX(timeArrivalLeading);
+        const x2 = tsToX(timeArrivalTrailing);
+        if (x2 > padL && x1 < svgW - padR) {
+          targetNoteLines.push({
+            swara: step.glyph ?? step.target.swara,
+            octave: step.target.octave,
+            x1: Math.max(padL, x1),
+            x2: Math.min(svgW - padR, x2),
+            col: noteVisual(step.target.swara, step.target.octave),
+          });
+        }
+      }
+    }
 
     // Time ticks every 5 seconds
     const tickEveryMs = 5000;
@@ -5992,8 +6054,7 @@ function SignalTrace(props: {
     const targetTextY = svgH - 5;    // at the very bottom
 
     return (
-      // overflowX: scroll = scrollbar always visible; paddingBottom reserves space above scrollbar
-      <div style={{ width: "100%", overflowX: "scroll", borderRadius: 14, paddingBottom: 2 }}>
+      <div className="pitch-graph-scroll" style={{ width: "100%", borderRadius: 14 }}>
         <svg
           width={svgW}
           height={svgH}
