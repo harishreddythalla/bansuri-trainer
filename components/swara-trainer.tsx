@@ -4494,6 +4494,71 @@ function CheckpointSummaryPopup(props: {
   const { checkpointSummaryData, derived, animatedScore, beatsPerNote, metronomeBpm, setHoveredNoteTooltip, onRetry, onNext } = props;
   const nextStep = derived.nextStep;
   const popupPitchConfig = pitchDifficultyConfig("easy");
+  const graphScrollRef = useRef<HTMLDivElement | null>(null);
+  const [focusedNoteRequest, setFocusedNoteRequest] = useState<{ idx: number; token: number } | null>(null);
+  const graphLayout = useMemo(() => {
+    const steps = checkpointSummaryData?.step?.steps ?? [];
+    if (!steps.length || !checkpointSummaryData?.fluteViewStartedAt || !beatsPerNote || !metronomeBpm) {
+      return null;
+    }
+
+    const dynamicSustainMs = beatsPerNote * (60 / metronomeBpm) * 1000;
+    const countdownDelayMs = (60 / metronomeBpm) * 1000;
+    const TILE_PX_PER_MS = 0.10;
+    const SPAWN_MARGIN = 58;
+
+    const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS));
+    const countdownSpawnY = -countdownHeight - SPAWN_MARGIN;
+    const countdownMsToFlute = Math.round((515 - countdownSpawnY) / TILE_PX_PER_MS);
+    const noteHeight = Math.round(dynamicSustainMs * TILE_PX_PER_MS);
+    const noteSpawnY = -noteHeight - SPAWN_MARGIN;
+    const noteMsToFlute = Math.round((515 - noteSpawnY) / TILE_PX_PER_MS);
+    const firstNoteArrivalAt = checkpointSummaryData.fluteViewStartedAt + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
+    const graphStartTs = firstNoteArrivalAt - dynamicSustainMs;
+
+    let noteCursor = firstNoteArrivalAt - noteMsToFlute;
+    const noteCenters = steps.map((step: any, idx: number) => {
+      const trailing = noteCursor + noteMsToFlute;
+      const leading = trailing - dynamicSustainMs;
+      noteCursor += dynamicSustainMs + (step.hasSpaceAfter ? countdownDelayMs : 0);
+      return { idx, centerTs: (leading + trailing) / 2 };
+    });
+
+    const graphEndTs = noteCursor + noteMsToFlute;
+    const totalMs = Math.max(1000, graphEndTs - graphStartTs);
+    const svgW = Math.max(640, Math.round((totalMs / 1000) * 80));
+    const padL = 14;
+    const padR = 10;
+    const usableW = svgW - padL - padR;
+
+    return {
+      svgW,
+      totalMs,
+      graphStartTs,
+      padL,
+      padR,
+      usableW,
+        noteCenters: noteCenters.map((note: { idx: number; centerTs: number }) => ({
+          idx: note.idx,
+          x: padL + ((note.centerTs - graphStartTs) / totalMs) * usableW,
+        })),
+    };
+  }, [checkpointSummaryData, beatsPerNote, metronomeBpm]);
+
+  useEffect(() => {
+    if (!focusedNoteRequest || !graphLayout || !graphScrollRef.current) return;
+    const target = graphLayout.noteCenters.find((note: { idx: number; x: number }) => note.idx === focusedNoteRequest.idx);
+    if (!target) return;
+
+    const container = graphScrollRef.current;
+    const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+    const desiredLeft = clamp(target.x - container.clientWidth / 2, 0, maxScrollLeft);
+    const frame = window.requestAnimationFrame(() => {
+      container.scrollLeft = desiredLeft;
+      container.scrollTo({ left: desiredLeft, behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusedNoteRequest, graphLayout]);
 
   return (
     <div
@@ -4597,7 +4662,8 @@ function CheckpointSummaryPopup(props: {
           <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
             Pitch Trajectory (Scroll ➔)
           </div>
-          <div style={{ width: "100%", background: "rgba(0,0,0,0.3)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.06)", overflowX: "auto" }}>
+          <div ref={graphScrollRef} style={{ width: "100%", background: "rgba(0,0,0,0.3)", borderRadius: 14, border: "1px solid rgba(255,255,255,0.06)", overflowX: "auto", scrollBehavior: "smooth" }}>
+            <div style={{ width: graphLayout ? `${graphLayout.svgW}px` : "100%" }}>
             <SignalTrace
               points={derived.trendPoints}
               detected={null}
@@ -4621,6 +4687,7 @@ function CheckpointSummaryPopup(props: {
               fluteViewStartedAt={checkpointSummaryData.fluteViewStartedAt}
               staticView={true}
             />
+            </div>
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -4644,10 +4711,29 @@ function CheckpointSummaryPopup(props: {
                         const finalStatus = res?.status ?? "red";
                         const color = finalStatus === "green" ? "rgba(46, 213, 115, 1)" : finalStatus === "yellow" ? "rgba(255, 159, 67, 1)" : "rgba(255, 99, 99, 0.75)";
                         const glyph = step.glyph ?? step.target.swara;
+                        const isFocused = focusedNoteRequest?.idx === globalIdx;
                         return (
                           <span
                             key={stepIdx}
-                            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 16, height: 16, fontSize: 10, fontWeight: 750, color, cursor: "help" }}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Focus ${glyph}`}
+                            title="Scroll graph to this note"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              minWidth: 16,
+                              height: 16,
+                              fontSize: 10,
+                              fontWeight: 750,
+                              color,
+                              cursor: "pointer",
+                              borderRadius: 4,
+                              background: isFocused ? "rgba(255,255,255,0.07)" : "transparent",
+                              outline: isFocused ? "1px solid rgba(255,255,255,0.15)" : "none",
+                            }}
+                            onClick={() => setFocusedNoteRequest({ idx: globalIdx, token: Date.now() })}
                             onMouseEnter={(e) => {
                               if (res) {
                                 const rect = e.currentTarget.getBoundingClientRect();
@@ -4664,6 +4750,12 @@ function CheckpointSummaryPopup(props: {
                               }
                             }}
                             onMouseLeave={() => setHoveredNoteTooltip(null)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setFocusedNoteRequest({ idx: globalIdx, token: Date.now() });
+                              }
+                            }}
                           >
                             {renderSwaraGlyph(glyph)}
                           </span>
