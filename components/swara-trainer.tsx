@@ -2054,16 +2054,28 @@ export function SwaraTrainer() {
 
     const energy = rms(buffer);
     const pitch = detectPitch(buffer, audioContext.sampleRate);
-    const rawReading = classifySwara(pitch.frequency, liveFluteProfile.saFrequency, pitch.confidence);
-    const harmonicReading = resolveSwaraReading({
-      frequency: pitch.frequency,
-      tonicFrequency: liveFluteProfile.saFrequency,
-      confidence: pitch.confidence,
-      target: liveTarget,
-      previous: previousReadingRef.current,
-      spectrum,
-      sampleRate: audioContext.sampleRate,
-    });
+    const isValidFluteFrequency =
+      pitch.frequency > 0 &&
+      pitch.frequency >= liveFluteProfile.saFrequency * 0.63 &&
+      pitch.frequency <= liveFluteProfile.saFrequency * 4.5;
+
+    const rawReading =
+      isValidFluteFrequency
+        ? classifySwara(pitch.frequency, liveFluteProfile.saFrequency, pitch.confidence)
+        : null;
+
+    const harmonicReading =
+      isValidFluteFrequency
+        ? resolveSwaraReading({
+            frequency: pitch.frequency,
+            tonicFrequency: liveFluteProfile.saFrequency,
+            confidence: pitch.confidence,
+            target: liveTarget,
+            previous: previousReadingRef.current,
+            spectrum,
+            sampleRate: audioContext.sampleRate,
+          })
+        : null;
     const detected = rawReading ?? harmonicReading;
     const energyPercent = Math.min(100, energy * 5000);
     const preliminaryNoise = detected
