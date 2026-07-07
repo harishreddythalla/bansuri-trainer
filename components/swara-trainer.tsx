@@ -876,11 +876,10 @@ function analyzeCheckpointPerformance(
       primaryIssue = `The note "${targetLabel}" was completely missed across all ${worst.totalOccurrences} occurrences. Try to anticipate it as it falls down the road.`;
     } else if (worst.avgCentsOffset != null && Math.abs(worst.avgCentsOffset) > pitchConfig.noteToleranceCents) {
       const centsLabel = `${worst.avgCentsOffset > 0 ? "+" : ""}${Math.round(worst.avgCentsOffset)}¢`;
-      primaryIssue = `Your average pitch offset for "${targetLabel}" was out of bounds (${centsLabel}). ${
-        worst.avgCentsOffset > 0 
-          ? "Try easing your blowing strength slightly to bring the pitch down." 
-          : "Blow slightly stronger to support the note and raise the pitch."
-      }`;
+      primaryIssue = `Your average pitch offset for "${targetLabel}" was out of bounds (${centsLabel}). ${worst.avgCentsOffset > 0
+        ? "Try easing your blowing strength slightly to bring the pitch down."
+        : "Blow slightly stronger to support the note and raise the pitch."
+        }`;
     } else if (worst.avgNoise != null && worst.avgNoise > 25) {
       primaryIssue = `Your tone for "${targetLabel}" was average of ${Math.round(worst.avgNoise)}% breath noise. Focus on centering the air stream into the embouchure hole.`;
     } else if (worst.avgStability != null && worst.avgStability < 75) {
@@ -2308,6 +2307,7 @@ export function SwaraTrainer() {
           sustainReading &&
           sustainReading.swara === liveTarget.swara &&
           sustainReading.octave === liveTarget.octave &&
+          (sustainReading.state ?? "Shuddha") === (liveTarget.state ?? "Shuddha") &&
           Math.abs(sustainReading.centsOffset) <= livePitchZoneCents,
         );
 
@@ -2316,6 +2316,7 @@ export function SwaraTrainer() {
           sustainReading &&
           sustainReading.swara === liveTarget.swara &&
           sustainReading.octave === liveTarget.octave &&
+          (sustainReading.state ?? "Shuddha") === (liveTarget.state ?? "Shuddha") &&
           Math.abs(sustainReading.centsOffset) <= livePitchReleaseCents,
         );
 
@@ -4124,7 +4125,7 @@ export function SwaraTrainer() {
                                     alignItems: "center",
                                     gap: 8,
                                     flexWrap: "wrap",
-                                    padding: "2px 0",
+                                    padding: "2px 7px",
                                     opacity: lineOpacity,
                                     transform: `scale(${lineScale})`,
                                     transformOrigin: "center center",
@@ -4370,13 +4371,13 @@ export function SwaraTrainer() {
 
               {/* Score section */}
               <div style={{ display: "flex", gap: 24, alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 20, padding: "20px 24px" }}>
-                <div 
-                  style={{ 
-                    position: "relative", 
-                    width: 110, 
-                    height: 110, 
-                    borderRadius: 999, 
-                    background: checkpointSummaryData.passed 
+                <div
+                  style={{
+                    position: "relative",
+                    width: 110,
+                    height: 110,
+                    borderRadius: 999,
+                    background: checkpointSummaryData.passed
                       ? "radial-gradient(circle, rgba(46,213,115,0.15) 0%, rgba(46,213,115,0.02) 100%)"
                       : "radial-gradient(circle, rgba(255,71,87,0.15) 0%, rgba(255,71,87,0.02) 100%)",
                     border: `4px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.25)" : "rgba(255,71,87,0.25)"}`,
@@ -4397,14 +4398,14 @@ export function SwaraTrainer() {
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span 
-                      style={{ 
-                        padding: "4px 10px", 
-                        borderRadius: 999, 
-                        fontSize: "11px", 
-                        fontWeight: 750, 
+                    <span
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 999,
+                        fontSize: "11px",
+                        fontWeight: 750,
                         background: checkpointSummaryData.passed ? "rgba(46, 213, 115, 0.16)" : "rgba(255, 71, 87, 0.16)",
-                        color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" 
+                        color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757"
                       }}
                     >
                       {checkpointSummaryData.passed ? "PASSED" : "FAILED"}
@@ -4414,7 +4415,7 @@ export function SwaraTrainer() {
                     </span>
                   </div>
                   <p style={{ margin: 0, fontSize: "13px", lineHeight: "1.4", color: "rgba(255,255,255,0.75)" }}>
-                    {checkpointSummaryData.passed 
+                    {checkpointSummaryData.passed
                       ? "Congratulations! You've matched the phrase contours successfully."
                       : `You did not pass the minimum threshold of ${minScore}. Let's refine your breath support and try again.`
                     }
@@ -4427,13 +4428,13 @@ export function SwaraTrainer() {
                 <div style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Sequence Notes Summary
                 </div>
-                <div 
+                <div
                   className="hide-scrollbar"
-                  style={{ 
-                    maxHeight: 160, 
-                    overflowY: "auto", 
-                    background: "rgba(0,0,0,0.25)", 
-                    borderRadius: 18, 
+                  style={{
+                    maxHeight: 160,
+                    overflowY: "auto",
+                    background: "rgba(0,0,0,0.25)",
+                    borderRadius: 18,
                     border: "1px solid rgba(255,255,255,0.08)",
                     padding: "16px 20px",
                     display: "flex",
@@ -4476,10 +4477,10 @@ export function SwaraTrainer() {
                               const globalIdx = group.startIndex + stepIdx;
                               const res = checkpointSummaryData.results[globalIdx];
                               const finalStatus = res?.status ?? "red";
-                              const color = finalStatus === "green" 
-                                ? "rgba(46, 213, 115, 1)" 
-                                : finalStatus === "yellow" 
-                                  ? "rgba(255, 159, 67, 1)" 
+                              const color = finalStatus === "green"
+                                ? "rgba(46, 213, 115, 1)"
+                                : finalStatus === "yellow"
+                                  ? "rgba(255, 159, 67, 1)"
                                   : "rgba(255, 99, 99, 0.75)";
                               const glyph = step.glyph ?? step.target.swara;
                               return (
@@ -4516,10 +4517,6 @@ export function SwaraTrainer() {
                                         textAlign: "left",
                                       }}
                                     >
-                                      <div style={{ fontWeight: 700, borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: 2, marginBottom: 4 }}>
-                                        Note {globalIdx + 1} Info
-                                      </div>
-                                      <div>Target: {res.targetState === "Teevra" ? "Teevra " : res.targetState === "Komal" ? "Komal " : ""}{res.targetSwara} ({res.targetOctave})</div>
                                       <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
                                       <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
                                       <div style={{ marginTop: 2, fontWeight: 700, color }}>
@@ -4559,8 +4556,8 @@ export function SwaraTrainer() {
                                 • {p.key}
                               </span>
                               <span style={{ color, fontWeight: 700 }}>
-                                {p.totalFrames === 0 
-                                  ? "Missed entirely" 
+                                {p.totalFrames === 0
+                                  ? "Missed entirely"
                                   : `Mean Accuracy: ${Math.round(p.ratio * 100)}% (${((p.correctFrames * 16.67) / 1000).toFixed(1)}s / ${((p.totalFrames * 16.67) / 1000).toFixed(1)}s)`
                                 }
                               </span>
@@ -6180,6 +6177,7 @@ function FluteRoadView(props: {
         const nextCorrect =
           reverseDetected.swara === currentTarget.swara &&
           reverseDetected.octave === currentTarget.octave &&
+          (reverseDetected.state ?? "Shuddha") === (currentTarget.state ?? "Shuddha") &&
           Math.abs(reverseDetected.centsOffset) <= props.pitchToleranceCents;
 
         const nextTrail = [...current];
@@ -6201,6 +6199,7 @@ function FluteRoadView(props: {
     const correct =
       reverseDetected.swara === currentTarget.swara &&
       reverseDetected.octave === currentTarget.octave &&
+      (reverseDetected.state ?? "Shuddha") === (currentTarget.state ?? "Shuddha") &&
       Math.abs(reverseDetected.centsOffset) <= props.pitchToleranceCents;
     setReverseTrail((current) => [
       ...current.slice(-10),
@@ -6265,6 +6264,7 @@ function FluteRoadView(props: {
       activeDetected &&
       activeDetected.swara === step.target.swara &&
       activeDetected.octave === step.target.octave &&
+      (activeDetected.state ?? "Shuddha") === (step.target.state ?? "Shuddha") &&
       Math.abs(activeDetected.centsOffset) <= props.pitchToleranceCents
     );
 
