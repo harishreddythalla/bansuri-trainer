@@ -4493,6 +4493,7 @@ function CheckpointSummaryPopup(props: {
 }) {
   const { checkpointSummaryData, derived, animatedScore, beatsPerNote, metronomeBpm, setHoveredNoteTooltip, onRetry, onNext } = props;
   const nextStep = derived.nextStep;
+  const popupPitchConfig = pitchDifficultyConfig("easy");
 
   return (
     <div
@@ -4601,13 +4602,13 @@ function CheckpointSummaryPopup(props: {
               points={derived.trendPoints}
               detected={null}
               target={checkpointSummaryData.step.steps[0].target}
-              pitchToleranceCents={checkpointSummaryData.step.pitchToleranceCents}
-              pitchReleaseCents={checkpointSummaryData.step.pitchToleranceCents * 1.5}
+              pitchToleranceCents={popupPitchConfig.noteToleranceCents}
+              pitchReleaseCents={popupPitchConfig.releaseToleranceCents}
               height={200}
               fullscreen={false}
               running={false}
               pitchTrendWindowMs={15000}
-              pitchDifficulty="medium"
+              pitchDifficulty="easy"
               pitchDifficultyOptions={[]}
               pitchTrendWindowOptions={[]}
               onPitchDifficultyChange={() => {}}
