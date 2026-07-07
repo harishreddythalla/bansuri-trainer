@@ -3199,16 +3199,20 @@ export function SwaraTrainer() {
   const layoutSvgRenderedHeight = isLiveCardFullscreen
     ? (typeof window !== "undefined" ? window.innerHeight - 120 : 560)
     : Math.min(boardWrapperWidth * (currentBoardMaxHeight / FLUTE_BOARD_WIDTH), currentBoardMaxHeight);
-  // const activeFluteY = fluteRoadMode === "reverse" ? 30 : FLUTE_BODY_OFFSET_Y;
-  const activeFluteY = FLUTE_BODY_OFFSET_Y;
+  // 1. Create a clean mode flag
+  const isReverse = fluteRoadMode === "reverse";
+  const activeFluteY = isReverse ? 30 : FLUTE_BODY_OFFSET_Y;
   const layoutFluteBodyScreenY = activeFluteY * layoutSvgScale;
+  
+  // 2. Adjust available height for the overlay panels dynamically
   const computedOverlayHeight = isLiveCardFullscreen
     ? (typeof window !== "undefined" ? window.innerHeight - 160 : 400)
-    : Math.min(layoutFluteBodyScreenY - 15, layoutSvgRenderedHeight - 15);
+    : isReverse
+      ? layoutSvgRenderedHeight - layoutFluteBodyScreenY - 140
+      : layoutFluteBodyScreenY - 35;
 
-  // Reserve space for metric cards: 80px for 4-col row, 144px for 2-col grid (2x rows)
+  // 3. Keep your metric card variables clean
   const metricCardReservedHeight = useTwoColMetrics ? 144 : 80;
-  // Account for non-SVG height in SignalTrace card (108px) + overlay gap (10px) + margins (30px)
   const bottomSectionHeight = sequenceDrill ? 100 : 80;
   const computedPitchTrackerHeight = isLiveCardFullscreen
     ? 340
@@ -4050,17 +4054,21 @@ export function SwaraTrainer() {
                     position: "absolute",
                     left: 20,
                     width: computedOverlayWidth + "px",
+                    // Dynamically calculate top depending on where the flute sits
                     top: isLiveCardFullscreen
-                      ? ((typeof window !== "undefined" ? window.innerHeight - 20 : 560) - (FLUTE_BOARD_HEIGHT * layoutSvgScale)) / 2 + 20
-                      : 20,
+                      ? ((typeof window !== "undefined" ? window.innerHeight - 20 : 560) - (FLUTE_BOARD_HEIGHT * layoutSvgScale)) / 2 + (isReverse ? (120 * layoutSvgScale) : 20)
+                      : (isReverse ? layoutFluteBodyScreenY + (110 * layoutSvgScale) : 20),
+                    // Dynamically calculate bottom constraint to prevent element height collapse
                     bottom: isLiveCardFullscreen
-                      ? (typeof window !== "undefined" ? window.innerHeight - 190 : 400) / 2 + (FLUTE_BOARD_HEIGHT / 2 - FLUTE_BODY_OFFSET_Y) * layoutSvgScale + 15
-                      : layoutSvgRenderedHeight - layoutFluteBodyScreenY - 40,
+                      ? (isReverse 
+                          ? 20 
+                          : (typeof window !== "undefined" ? window.innerHeight - 190 : 400) / 2 + (FLUTE_BOARD_HEIGHT / 2 - FLUTE_BODY_OFFSET_Y) * layoutSvgScale + 15)
+                      : (isReverse ? 20 : layoutSvgRenderedHeight - layoutFluteBodyScreenY - 15),
                     zIndex: 10,
                     pointerEvents: "none",
                     display: "flex",
                     flexDirection: "column",
-                    justifyContent: "centre",
+                    justifyContent: "center",
                     gap: isLiveCardFullscreen ? 16 : 10,
                     padding: "0 8px",
                     overflow: "hidden",
