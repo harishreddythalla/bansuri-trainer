@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, Fragment, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Settings, ChevronLeft, ChevronRight, Play, Pause, RotateCcw, Repeat, Music, Maximize2, Minimize2, Timer, Gauge } from "lucide-react";
 import { foundationModules } from "@/data/lesson-plan";
 import {
@@ -966,6 +967,7 @@ export function SwaraTrainer() {
   useEffect(() => {
     fluteViewStartedAtRef.current = fluteViewStartedAt;
   }, [fluteViewStartedAt]);
+  const [hoveredNoteTooltip, setHoveredNoteTooltip] = useState<{ rect: DOMRect; content: React.ReactNode } | null>(null);
   const [roadStepResults, setRoadStepResults] = useState<Record<number, RoadStepResult>>({});
   const roadStepAccumulatorRef = useRef<Record<number, {
     correct: number;
@@ -4285,31 +4287,26 @@ export function SwaraTrainer() {
                                                 flexShrink: 0,
                                                 cursor: isPassed && resultInfo ? "help" : "default",
                                               }}
+                                              onMouseEnter={(e) => {
+                                                if (isPassed && resultInfo) {
+                                                  const rect = e.currentTarget.getBoundingClientRect();
+                                                  setHoveredNoteTooltip({
+                                                    rect,
+                                                    content: (
+                                                      <>
+                                                        <div>Played: {resultInfo.lastDetectedSwara ? `${resultInfo.lastDetectedState === "Teevra" ? "Teevra " : resultInfo.lastDetectedState === "Komal" ? "Komal " : ""}${resultInfo.lastDetectedSwara} (${resultInfo.lastDetectedOctave})` : "None"}</div>
+                                                        <div>Offset: {resultInfo.lastCentsOffset != null ? `${resultInfo.lastCentsOffset > 0 ? "+" : ""}${Math.round(resultInfo.lastCentsOffset)}¢` : "N/A"}</div>
+                                                        <div style={{ marginTop: 4, fontWeight: 700, color: resultInfo.status === "green" ? "#2ed573" : resultInfo.status === "yellow" ? "#ff9f43" : "#ff4757" }}>
+                                                          Accuracy: {Math.round(resultInfo.ratio * 100)}% ({((resultInfo.correctFrames * 16.67) / 1000).toFixed(2)}s / {((resultInfo.totalFrames * 16.67) / 1000).toFixed(2)}s)
+                                                        </div>
+                                                      </>
+                                                    ),
+                                                  });
+                                                }
+                                              }}
+                                              onMouseLeave={() => setHoveredNoteTooltip(null)}
                                             >
                                               {step.glyph ?? step.target.swara}
-                                              {isPassed && resultInfo && (
-                                                <div
-                                                  className="pointer-events-none absolute top-full left-1/2 mt-2 z-[999999] w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-200 origin-top"
-                                                  style={{
-                                                    background: "rgba(15, 23, 42, 0.98)",
-                                                    border: "1px solid rgba(255, 255, 255, 0.18)",
-                                                    boxShadow: "0 8px 30px rgba(0, 0, 0, 0.5)",
-                                                    borderRadius: 8,
-                                                    padding: "8px 10px",
-                                                    color: "#fff",
-                                                    fontSize: "10px",
-                                                    fontWeight: 500,
-                                                    lineHeight: "1.4",
-                                                    textAlign: "left",
-                                                  }}
-                                                >
-                                                  <div>Played: {resultInfo.lastDetectedSwara ? `${resultInfo.lastDetectedState === "Teevra" ? "Teevra " : resultInfo.lastDetectedState === "Komal" ? "Komal " : ""}${resultInfo.lastDetectedSwara} (${resultInfo.lastDetectedOctave})` : "None"}</div>
-                                                  <div>Offset: {resultInfo.lastCentsOffset != null ? `${resultInfo.lastCentsOffset > 0 ? "+" : ""}${Math.round(resultInfo.lastCentsOffset)}¢` : "N/A"}</div>
-                                                  <div style={{ marginTop: 4, fontWeight: 700, color: resultInfo.status === "green" ? "#2ed573" : resultInfo.status === "yellow" ? "#ff9f43" : "#ff4757" }}>
-                                                    Accuracy: {Math.round(resultInfo.ratio * 100)}% ({((resultInfo.correctFrames * 16.67) / 1000).toFixed(2)}s / {((resultInfo.totalFrames * 16.67) / 1000).toFixed(2)}s)
-                                                  </div>
-                                                </div>
-                                              )}
                                             </span>
                                           );
                                         })}
@@ -4575,31 +4572,26 @@ export function SwaraTrainer() {
                                     cursor: "help",
                                     transition: "all 0.2s ease"
                                   }}
+                                  onMouseEnter={(e) => {
+                                    if (res) {
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setHoveredNoteTooltip({
+                                        rect,
+                                        content: (
+                                          <>
+                                            <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
+                                            <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
+                                            <div style={{ marginTop: 4, fontWeight: 700, color }}>
+                                              Accuracy: {Math.round(res.ratio * 100)}% ({((res.correctFrames * 16.67) / 1000).toFixed(2)}s / {((res.totalFrames * 16.67) / 1000).toFixed(2)}s)
+                                            </div>
+                                          </>
+                                        ),
+                                      });
+                                    }
+                                  }}
+                                  onMouseLeave={() => setHoveredNoteTooltip(null)}
                                 >
                                   {glyph}
-                                  {res && (
-                                    <div
-                                      className="pointer-events-none absolute top-full left-1/2 mt-2 z-[999999] w-48 -translate-x-1/2 scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-150 origin-top"
-                                      style={{
-                                        background: "rgba(15, 23, 42, 0.98)",
-                                        border: "1px solid rgba(255, 255, 255, 0.18)",
-                                        boxShadow: "0 8px 25px rgba(0, 0, 0, 0.5)",
-                                        borderRadius: 6,
-                                        padding: "6px 8px",
-                                        color: "#fff",
-                                        fontSize: "9px",
-                                        fontWeight: 500,
-                                        lineHeight: "1.4",
-                                        textAlign: "left",
-                                      }}
-                                    >
-                                      <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
-                                      <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
-                                      <div style={{ marginTop: 2, fontWeight: 700, color }}>
-                                        Accuracy: {Math.round(res.ratio * 100)}% ({((res.correctFrames * 16.67) / 1000).toFixed(2)}s / {((res.totalFrames * 16.67) / 1000).toFixed(2)}s)
-                                      </div>
-                                    </div>
-                                  )}
                                 </span>
                               );
                             })}
@@ -4712,6 +4704,31 @@ export function SwaraTrainer() {
           </div>
         );
       })()}
+      {typeof window !== "undefined" && hoveredNoteTooltip && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            left: hoveredNoteTooltip.rect.left + hoveredNoteTooltip.rect.width / 2,
+            top: hoveredNoteTooltip.rect.top - 8,
+            transform: "translate(-50%, -100%)",
+            background: "rgba(15, 23, 42, 0.98)",
+            border: "1px solid rgba(255, 255, 255, 0.18)",
+            boxShadow: "0 8px 30px rgba(0, 0, 0, 0.5)",
+            borderRadius: 8,
+            padding: "8px 10px",
+            color: "#fff",
+            fontSize: "10px",
+            fontWeight: 500,
+            lineHeight: "1.4",
+            textAlign: "left",
+            zIndex: 99999999,
+            pointerEvents: "none",
+          }}
+        >
+          {hoveredNoteTooltip.content}
+        </div>,
+        document.body
+      )}
     </main>
   );
 }
