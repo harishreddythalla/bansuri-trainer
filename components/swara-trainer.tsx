@@ -4322,7 +4322,7 @@ export function SwaraTrainer() {
                                               }}
                                               onMouseLeave={() => setHoveredNoteTooltip(null)}
                                             >
-                                              {step.glyph ?? step.target.swara}
+                                              {renderSwaraGlyph(step.glyph ?? step.target.swara)}
                                             </span>
                                           );
                                         })}
@@ -4610,7 +4610,7 @@ export function SwaraTrainer() {
                                   }}
                                   onMouseLeave={() => setHoveredNoteTooltip(null)}
                                 >
-                                  {glyph}
+                                  {renderSwaraGlyph(glyph)}
                                 </span>
                               );
                             })}
@@ -4750,6 +4750,19 @@ export function SwaraTrainer() {
       )}
     </main>
   );
+}
+
+function renderSwaraGlyph(glyph: string) {
+  const isPaMandra = glyph === "P̣" || glyph === "P\u0323" || glyph === "\u1E56";
+  if (isPaMandra) {
+    return (
+      <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", position: "relative", width: "1.1em", height: "1.05em", justifyContent: "center", verticalAlign: "middle" }}>
+        <span style={{ position: "absolute", top: "0%" }}>P</span>
+        <span style={{ position: "absolute", bottom: "-30%", fontSize: "14px", fontWeight: "900", lineHeight: 0 }}>.</span>
+      </span>
+    );
+  }
+  return glyph;
 }
 
 function MetricCard(props: {
@@ -6219,10 +6232,13 @@ function SignalTrace(props: {
 
           {/* Target Note Timeline lines and label tags */}
           {targetNoteBands.map((band, idx) => {
-            const lineY = height - 19;
-            const textY = height - 16;
+            const lineY = height - 21;
+            const textY = height - 8;
             const bandWidth = Math.max(0, band.endX - band.startX);
             const midX = band.startX + bandWidth / 2;
+
+            const isPaMandra = band.swara === "P̣" || band.swara === "P\u0323" || band.swara === "\u1E56";
+            const displaySwara = isPaMandra ? "P" : band.swara;
 
             return (
               <g key={`target-note-band-${idx}`}>
@@ -6232,22 +6248,33 @@ function SignalTrace(props: {
                   x2={band.endX}
                   y2={lineY}
                   stroke={band.color.stroke}
-                  strokeWidth={4.5}
+                  strokeWidth={4}
                   strokeLinecap="round"
                   opacity={0.88}
                 />
                 {bandWidth > 14 && (
-                  <text
-                    x={midX}
-                    y={textY}
-                    fill="#ffffff"
-                    fontSize="8.5"
-                    fontWeight="800"
-                    textAnchor="middle"
-                    style={{ textShadow: "0px 1px 2px rgba(0, 0, 0, 0.9)" }}
-                  >
-                    {band.swara}
-                  </text>
+                  <>
+                    <text
+                      x={midX}
+                      y={textY}
+                      fill="#ffffff"
+                      fontSize="9"
+                      fontWeight="800"
+                      textAnchor="middle"
+                      style={{ textShadow: "0px 1px 2px rgba(0, 0, 0, 0.9)" }}
+                    >
+                      {displaySwara}
+                    </text>
+                    {isPaMandra && (
+                      <circle
+                        cx={midX}
+                        cy={textY + 2.5}
+                        r={1.15}
+                        fill="#ffffff"
+                        style={{ filter: "drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.9))" }}
+                      />
+                    )}
+                  </>
                 )}
               </g>
             );
