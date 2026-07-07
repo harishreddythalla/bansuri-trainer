@@ -992,7 +992,10 @@ export function SwaraTrainer() {
     score: number;
     passed: boolean;
     results: Record<number, RoadStepResult>;
+    trend: TrendPoint[];
+    fluteViewStartedAt: number;
   } | null>(null);
+  const sequenceTrendPointsRef = useRef<TrendPoint[]>([]);
   const [animatedScore, setAnimatedScore] = useState(0);
   const [isFluteRoadLooping, setIsFluteRoadLooping] = useState(false);
   const isFluteRoadLoopingRef = useRef(false);
@@ -2475,8 +2478,11 @@ export function SwaraTrainer() {
                   score: phraseScore ?? 0,
                   passed: true,
                   results: finalResults,
+                  trend: sequenceTrendPointsRef.current.slice(),
+                  fluteViewStartedAt: fluteViewStartedAtRef.current,
                 });
                 setShowCheckpointSummaryPopup(true);
+                setMetronomeActive(false);
 
                 setSequenceRunResult({
                   kind: "success",
@@ -2554,8 +2560,11 @@ export function SwaraTrainer() {
                 score: result.score ?? 0,
                 passed: false,
                 results: finalResults,
+                trend: sequenceTrendPointsRef.current.slice(),
+                fluteViewStartedAt: fluteViewStartedAtRef.current,
               });
               setShowCheckpointSummaryPopup(true);
+              setMetronomeActive(false);
 
               resetSequenceAttempt(liveSequenceStep, liveProgress.repeatIndex, {
                 kind: "failure",
@@ -2846,6 +2855,8 @@ export function SwaraTrainer() {
           score: Math.round(phraseScore ?? 0),
           passed,
           results: compiledResults,
+          trend: sequenceTrendPointsRef.current.slice(),
+          fluteViewStartedAt: fluteViewStartedAtRef.current,
         });
         setShowCheckpointSummaryPopup(true);
 
@@ -4361,6 +4372,14 @@ export function SwaraTrainer() {
         const nextStep = currentStepIndex !== -1 ? allLessonSteps[currentStepIndex + 1] : null;
         const steps = checkpointSummaryData.step.steps;
 
+        const trendPoints = checkpointSummaryData.trend ?? [];
+        const firstPointTimestamp = trendPoints[0]?.timestamp ?? 0;
+        const lastPointTimestamp = trendPoints[trendPoints.length - 1]?.timestamp ?? Date.now();
+        const totalDurationMs = Math.max(1000, lastPointTimestamp - firstPointTimestamp);
+
+        // Map scrollable width: 85px per second of duration, min 580px
+        const scrollWidth = Math.max(580, Math.round((totalDurationMs / 1000) * 85));
+
         const popupLines: Array<{
           lineIndex: number;
           groups: Array<{
@@ -4440,193 +4459,241 @@ export function SwaraTrainer() {
                 </div>
               </div>
 
-              {/* Score section */}
-              <div style={{ display: "flex", gap: 16, alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, padding: "10px 16px" }}>
-                <div
-                  style={{
-                    position: "relative",
-                    width: 70,
-                    height: 70,
-                    borderRadius: 999,
-                    background: checkpointSummaryData.passed
-                      ? "radial-gradient(circle, rgba(46,213,115,0.15) 0%, rgba(46,213,115,0.02) 100%)"
-                      : "radial-gradient(circle, rgba(255,71,87,0.15) 0%, rgba(255,71,87,0.02) 100%)",
-                    border: `3px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.25)" : "rgba(255,71,87,0.25)"}`,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0
-                  }}
-                >
-                  <div style={{ fontSize: "24px", fontWeight: 900, lineHeight: 1, letterSpacing: "-0.04em", color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" }}>
-                    {animatedScore}
-                  </div>
-                  <div style={{ fontSize: "9px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>
-                    out of 100
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span
-                      style={{
-                        padding: "2px 8px",
-                        borderRadius: 999,
-                        fontSize: "10px",
-                        fontWeight: 750,
-                        background: checkpointSummaryData.passed ? "rgba(46, 213, 115, 0.16)" : "rgba(255, 71, 87, 0.16)",
-                        color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757"
-                      }}
-                    >
-                      {checkpointSummaryData.passed ? "PASSED" : "FAILED"}
-                    </span>
-                    <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", fontWeight: 600 }}>
-                      Passing Criteria: Score ≥ {minScore} & no failed notes (🔴)
-                    </span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: "11.5px", lineHeight: "1.35", color: "rgba(255,255,255,0.75)" }}>
-                    {checkpointSummaryData.passed
-                      ? "Congratulations! You've matched the phrase contours successfully."
-                      : hasRedNote
-                        ? `Failure: Enforced criteria requires all notes to pass (no failed red notes under 30% accuracy).`
-                        : `Failure: You did not pass the minimum threshold score of ${minScore}.`
-                    }
-                  </p>
-                </div>
-              </div>
-
-              {/* Sargam notes breakdown - space efficient view */}
-              <div>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Sequence Notes Summary
-                </div>
-                <div
-                  className="hide-scrollbar"
-                  style={{
-                    maxHeight: 110,
-                    overflowY: "auto",
-                    background: "rgba(0,0,0,0.25)",
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    padding: "8px 12px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 6,
-                  }}
-                >
-                  {popupLines.map((line, lineIdx) => (
-                    <div
-                      key={lineIdx}
-                      style={{
-                        display: "flex",
-                        gap: 10,
-                        flexWrap: "wrap",
-                        justifyContent: "flex-start",
-                        alignItems: "center"
-                      }}
-                    >
-                      {line.groups.map((group, groupIdx) => {
-                        let isGroupPassed = true;
-                        for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
-                          const res = checkpointSummaryData.results[idx];
-                          if (!res || res.status !== "green") isGroupPassed = false;
-                        }
-
-                        return (
-                          <div
-                            key={groupIdx}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              padding: "2px 5px",
-                              borderRadius: 6,
-                              background: isGroupPassed ? "rgba(46, 213, 115, 0.05)" : "rgba(255, 255, 255, 0.02)",
-                              border: `1px solid ${isGroupPassed ? "rgba(46, 213, 115, 0.15)" : "rgba(255, 255, 255, 0.06)"}`,
-                              gap: 4,
-                            }}
-                          >
-                            {group.steps.map((step: any, stepIdx: number) => {
-                              const globalIdx = group.startIndex + stepIdx;
-                              const res = checkpointSummaryData.results[globalIdx];
-                              const finalStatus = res?.status ?? "red";
-                              const color = finalStatus === "green"
-                                ? "rgba(46, 213, 115, 1)"
-                                : finalStatus === "yellow"
-                                  ? "rgba(255, 159, 67, 1)"
-                                  : "rgba(255, 99, 99, 0.75)";
-                              const glyph = step.glyph ?? step.target.swara;
-                              return (
-                                <span
-                                  key={stepIdx}
-                                  className="group relative"
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    minWidth: 18,
-                                    height: 18,
-                                    fontSize: 11,
-                                    fontWeight: 750,
-                                    color,
-                                    cursor: "help",
-                                    transition: "all 0.2s ease"
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (res) {
-                                      const rect = e.currentTarget.getBoundingClientRect();
-                                      setHoveredNoteTooltip({
-                                        rect,
-                                        content: (
-                                          <>
-                                            <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
-                                            <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
-                                            <div style={{ marginTop: 4, fontWeight: 700, color }}>
-                                              Accuracy: {Math.round(res.ratio * 100)}% ({((res.correctFrames * 16.67) / 1000).toFixed(2)}s / {((res.totalFrames * 16.67) / 1000).toFixed(2)}s)
-                                            </div>
-                                          </>
-                                        ),
-                                      });
-                                    }
-                                  }}
-                                  onMouseLeave={() => setHoveredNoteTooltip(null)}
-                                >
-                                  {renderSwaraGlyph(glyph)}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
+              {/* Dashboard Row: Score Card & Note Summary Card */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.05fr", gap: 12, alignItems: "stretch" }}>
+                {/* Score section */}
+                <div style={{ display: "flex", gap: 10, alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, padding: "8px 12px" }}>
+                  <div
+                    style={{
+                      position: "relative",
+                      width: 50,
+                      height: 50,
+                      borderRadius: 999,
+                      background: checkpointSummaryData.passed
+                        ? "radial-gradient(circle, rgba(46,213,115,0.15) 0%, rgba(46,213,115,0.02) 100%)"
+                        : "radial-gradient(circle, rgba(255,71,87,0.15) 0%, rgba(255,71,87,0.02) 100%)",
+                      border: `3px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.25)" : "rgba(255,71,87,0.25)"}`,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0
+                    }}
+                  >
+                    <div style={{ fontSize: "18px", fontWeight: 900, lineHeight: 1, letterSpacing: "-0.04em", color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" }}>
+                      {animatedScore}
                     </div>
-                  ))}
+                    <div style={{ fontSize: "8px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>
+                      / 100
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span
+                        style={{
+                          padding: "1px 6px",
+                          borderRadius: 999,
+                          fontSize: "9px",
+                          fontWeight: 800,
+                          background: checkpointSummaryData.passed ? "rgba(46, 213, 115, 0.14)" : "rgba(255, 71, 87, 0.14)",
+                          color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757"
+                        }}
+                      >
+                        {checkpointSummaryData.passed ? "PASSED" : "FAILED"}
+                      </span>
+                      <span style={{ fontSize: "9.5px", color: "rgba(255,255,255,0.45)", fontWeight: 600 }}>
+                        Min ≥ {minScore}
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: "10.5px", lineHeight: "1.3", color: "rgba(255,255,255,0.7)" }}>
+                      {checkpointSummaryData.passed
+                        ? "Congratulations! You've matched the phrase contours."
+                        : hasRedNote
+                          ? "All notes must pass (no red notes under 30% accuracy)."
+                          : `Did not pass the minimum threshold score of ${minScore}.`
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sargam notes breakdown */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, padding: "8px 12px" }}>
+                  <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Sequence Notes Summary
+                  </div>
+                  <div
+                    className="hide-scrollbar"
+                    style={{
+                      flex: 1,
+                      maxHeight: 46,
+                      overflowY: "auto",
+                      background: "rgba(0,0,0,0.25)",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      padding: "6px 10px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 5,
+                    }}
+                  >
+                    {popupLines.map((line, lineIdx) => (
+                      <div
+                        key={lineIdx}
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                          justifyContent: "flex-start",
+                          alignItems: "center"
+                        }}
+                      >
+                        {line.groups.map((group, groupIdx) => {
+                          let isGroupPassed = true;
+                          for (let idx = group.startIndex; idx <= group.endIndex; idx++) {
+                            const res = checkpointSummaryData.results[idx];
+                            if (!res || res.status !== "green") isGroupPassed = false;
+                          }
+
+                          return (
+                            <div
+                              key={groupIdx}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                padding: "1px 4px",
+                                borderRadius: 5,
+                                background: isGroupPassed ? "rgba(46, 213, 115, 0.05)" : "rgba(255, 255, 255, 0.02)",
+                                border: `1px solid ${isGroupPassed ? "rgba(46, 213, 115, 0.12)" : "rgba(255, 255, 255, 0.05)"}`,
+                                gap: 3,
+                              }}
+                            >
+                              {group.steps.map((step: any, stepIdx: number) => {
+                                const globalIdx = group.startIndex + stepIdx;
+                                const res = checkpointSummaryData.results[globalIdx];
+                                const finalStatus = res?.status ?? "red";
+                                const color = finalStatus === "green"
+                                  ? "rgba(46, 213, 115, 1)"
+                                  : finalStatus === "yellow"
+                                    ? "rgba(255, 159, 67, 1)"
+                                    : "rgba(255, 99, 99, 0.75)";
+                                const glyph = step.glyph ?? step.target.swara;
+                                return (
+                                  <span
+                                    key={stepIdx}
+                                    className="group relative"
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      minWidth: 16,
+                                      height: 16,
+                                      fontSize: 10,
+                                      fontWeight: 750,
+                                      color,
+                                      cursor: "help",
+                                      transition: "all 0.2s ease"
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (res) {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setHoveredNoteTooltip({
+                                          rect,
+                                          content: (
+                                            <>
+                                              <div>Played: {res.lastDetectedSwara ? `${res.lastDetectedState === "Teevra" ? "Teevra " : res.lastDetectedState === "Komal" ? "Komal " : ""}${res.lastDetectedSwara} (${res.lastDetectedOctave})` : "None"}</div>
+                                              <div>Offset: {res.lastCentsOffset != null ? `${res.lastCentsOffset > 0 ? "+" : ""}${Math.round(res.lastCentsOffset)}¢` : "N/A"}</div>
+                                              <div style={{ marginTop: 4, fontWeight: 700, color }}>
+                                                Accuracy: {Math.round(res.ratio * 100)}% ({((res.correctFrames * 16.67) / 1000).toFixed(2)}s / {((res.totalFrames * 16.67) / 1000).toFixed(2)}s)
+                                              </div>
+                                            </>
+                                          ),
+                                        });
+                                      }
+                                    }}
+                                    onMouseLeave={() => setHoveredNoteTooltip(null)}
+                                  >
+                                    {renderSwaraGlyph(glyph)}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Analysis Section */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              {/* Scrollable Attempt Pitch Trajectory Chart */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Phrase Pitch Contours & Trajectory (Scroll Horizontally)
+                </div>
+                <div
+                  className="custom-scrollbar hide-scrollbar"
+                  style={{
+                    width: "100%",
+                    overflowX: "auto",
+                    background: "rgba(0,0,0,0.3)",
+                    borderRadius: 14,
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    padding: "8px 0px"
+                  }}
+                >
+                  <div style={{ width: scrollWidth, height: 96 }}>
+                    <SignalTrace
+                      points={trendPoints}
+                      detected={null}
+                      target={checkpointSummaryData.step.steps[0].target}
+                      pitchToleranceCents={checkpointSummaryData.step.pitchToleranceCents}
+                      pitchReleaseCents={checkpointSummaryData.step.pitchToleranceCents * 1.5}
+                      height={96}
+                      fullscreen={false}
+                      running={false}
+                      pitchTrendWindowMs={totalDurationMs}
+                      pitchDifficulty="medium"
+                      pitchDifficultyOptions={[]}
+                      pitchTrendWindowOptions={[]}
+                      onPitchDifficultyChange={() => {}}
+                      onPitchTrendWindowChange={() => {}}
+                      onToggleFullscreen={() => {}}
+                      onToggleMic={() => {}}
+                      sequenceDrill={checkpointSummaryData.step}
+                      beatsPerNote={beatsPerNote}
+                      metronomeBpm={metronomeBpm}
+                      fluteViewStartedAt={checkpointSummaryData.fluteViewStartedAt}
+                      staticView={true}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance Analysis section */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Intelligent Performance Analysis
                 </div>
-                <div style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.05)", borderRadius: 12, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)", borderRadius: 12, padding: "8px 12px", display: "grid", gridTemplateColumns: poorest.length > 0 ? "1.2fr 1fr" : "1fr", gap: 12 }}>
                   {/* Poorest notes list */}
-                  {poorest.length > 0 && (
+                  {poorest.length > 0 ? (
                     <div>
-                      <div style={{ fontSize: "10.5px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
+                      <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
                         Notes needing improvement:
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         {poorest.map((p, pIdx) => {
                           const color = p.ratio >= 0.70 ? "#2ed573" : p.ratio >= 0.30 ? "#ff9f43" : "#ff4757";
                           return (
-                            <div key={pIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11.5px" }}>
+                            <div key={pIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px" }}>
                               <span style={{ color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>
                                 • {p.key}
                               </span>
                               <span style={{ color, fontWeight: 700 }}>
                                 {p.totalFrames === 0
                                   ? "Missed entirely"
-                                  : `${Math.round(p.ratio * 100)}% (${((p.correctFrames * 16.67) / 1000).toFixed(1)}s / ${((p.totalFrames * 16.67) / 1000).toFixed(1)}s)`
+                                  : `${Math.round(p.ratio * 100)}% (${((p.correctFrames * 16.67) / 1000).toFixed(1)}s)`
                                 }
                               </span>
                             </div>
@@ -4634,14 +4701,14 @@ export function SwaraTrainer() {
                         })}
                       </div>
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Primary advice */}
-                  <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.06)", paddingTop: 6 }}>
+                  <div style={poorest.length > 0 ? { borderLeft: "1px solid rgba(255, 255, 255, 0.06)", paddingLeft: 12 } : {}}>
                     <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>
                       Coaching Feedback:
                     </div>
-                    <div style={{ fontSize: "11.5px", lineHeight: "1.4", color: "rgba(255, 255, 255, 0.85)" }}>
+                    <div style={{ fontSize: "11px", lineHeight: "1.35", color: "rgba(255, 255, 255, 0.8)" }}>
                       {primaryIssue}
                     </div>
                   </div>
@@ -4649,7 +4716,7 @@ export function SwaraTrainer() {
               </div>
 
               {/* Actions */}
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 2 }}>
                 <button
                   onClick={() => {
                     handleRetryFluteRoad();
@@ -5602,7 +5669,7 @@ function compactNoteLabel(swara: string, octave: string | null) {
   return dot ? (head + dot).normalize("NFC") : head;
 }
 
-function formatPitchWindowLabel(windowMs: PitchTrendWindowMs) {
+function formatPitchWindowLabel(windowMs: number) {
   return `${windowMs / 1000}s`;
 }
 
@@ -5616,7 +5683,7 @@ function SignalTrace(props: {
   height?: number;
   fullscreen: boolean;
   running: boolean;
-  pitchTrendWindowMs: PitchTrendWindowMs;
+  pitchTrendWindowMs: number;
   pitchDifficulty: PitchDifficulty;
   pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; description: string }>;
   pitchTrendWindowOptions: Array<{ value: PitchTrendWindowMs; label: string; description: string }>;
@@ -5628,6 +5695,7 @@ function SignalTrace(props: {
   beatsPerNote?: number;
   metronomeBpm?: number;
   fluteViewStartedAt?: number;
+  staticView?: boolean;
 }) {
   const width = props.fullscreen ? 1440 : 860;
   const height = props.height ?? (props.fullscreen ? 420 : 132);
@@ -5650,7 +5718,9 @@ function SignalTrace(props: {
   const maxCents = 60;
   const usableWidth = width - 24;
   const leftPad = 12;
-  const points = filterTrendWindow(props.points, props.pitchTrendWindowMs);
+  const points = props.staticView
+    ? props.points
+    : filterTrendWindow(props.points, props.pitchTrendWindowMs as PitchTrendWindowMs);
   const latestTimestamp = points.at(-1)?.timestamp ?? Date.now();
   const traceSilenceGapMs = 2000;
 
@@ -5844,6 +5914,199 @@ function SignalTrace(props: {
       ]),
     ).values(),
   );
+
+  if (props.staticView) {
+    return (
+      <div
+        style={{
+          borderRadius: 24,
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          width: "100%",
+          height: "100%",
+        }}
+      >
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          width="100%"
+          height={props.fullscreen ? height : undefined}
+          style={props.fullscreen ? undefined : { height: "auto", maxHeight: height, display: "block" }}
+          aria-hidden="true"
+        >
+          {/* Background bands */}
+          <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill={THEME.pitch.releaseZone} />
+          <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill={THEME.pitch.releaseZone} />
+          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill={THEME.pitch.targetZone} />
+
+          {/* Dynamic note sections */}
+          {segmentationEnabled
+            ? visibleNoteBands.map((band, index) => {
+              const bandWidth = Math.max(0, band.endX - band.startX);
+              const shouldLabel = props.fullscreen || bandWidth >= labelThresholdPx;
+              const labelX = clamp(band.startX + 8, 16, width - 18);
+              const bandInset = 1;
+              const rectX = clamp(band.startX + bandInset, 0, width);
+              const rectWidth = Math.max(0, bandWidth - bandInset * 2);
+              return (
+                <g key={`${band.key}-${index}`}>
+                  <rect
+                    x={rectX}
+                    y={24}
+                    width={rectWidth}
+                    height={height - 48}
+                    rx={14}
+                    fill={band.color.band}
+                    stroke={band.color.stroke}
+                    strokeWidth={1}
+                    opacity={0.34}
+                  />
+                  <line
+                    x1={rectX}
+                    y1={24}
+                    x2={rectX}
+                    y2={height - 24}
+                    stroke={band.color.stroke}
+                    strokeWidth={1.5}
+                    strokeDasharray="3 4"
+                    opacity={0.7}
+                  />
+                  <line
+                    x1={rectX + rectWidth}
+                    y1={24}
+                    x2={rectX + rectWidth}
+                    y2={height - 24}
+                    stroke={band.color.stroke}
+                    strokeWidth={1.5}
+                    strokeDasharray="3 4"
+                    opacity={0.7}
+                  />
+                  {shouldLabel && (
+                    <text
+                      x={labelX}
+                      y={40}
+                      fill={band.color.stroke}
+                      fontSize="12"
+                      fontWeight="800"
+                      opacity={0.9}
+                      style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.8)" }}
+                    >
+                      {band.swara}
+                    </text>
+                  )}
+                </g>
+              );
+            })
+            : null}
+
+          {/* Grid lines */}
+          <line x1="0" y1={centerY} x2={width} y2={centerY} stroke={THEME.pitch.gridLine} strokeWidth={1} strokeDasharray="6 8" />
+          <line x1="0" y1={highLockY} x2={width} y2={highLockY} stroke={THEME.pitch.gridLine} strokeWidth={0.8} strokeDasharray="3 4" />
+          <line x1="0" y1={lowLockY} x2={width} y2={lowLockY} stroke={THEME.pitch.gridLine} strokeWidth={0.8} strokeDasharray="3 4" />
+          <line x1="0" y1={highReleaseY} x2={width} y2={highReleaseY} stroke={THEME.pitch.gridLine} strokeWidth={0.8} opacity={0.6} />
+          <line x1="0" y1={lowReleaseY} x2={width} y2={lowReleaseY} stroke={THEME.pitch.gridLine} strokeWidth={0.8} opacity={0.6} />
+
+          {/* Target & Lock Ranges */}
+          <line x1="12" y1={highLockY} x2={12} y2={lowLockY} stroke="rgba(117,184,255,0.4)" strokeWidth={3} strokeLinecap="round" />
+          <circle cx="12" cy={centerY} r={5} fill="rgba(117,184,255,0.4)" />
+
+          {/* Active curve segments */}
+          {segments.map((segment, index) => {
+            const pathData = segment.points
+              .map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+              .join(" ");
+            const color = noteVisual(segment.swara ?? "Sa", segment.octave);
+            return (
+              <path
+                key={index}
+                d={pathData}
+                fill="none"
+                stroke={color.stroke}
+                strokeWidth={props.fullscreen ? 4.5 : 3.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  filter: `drop-shadow(0 0 4px ${color.stroke})`,
+                }}
+              />
+            );
+          })}
+
+          {/* Real-time lock bubble */}
+          {latest && props.running && (
+            <g transform={`translate(${leftPad + usableWidth - 10}, ${centsToY(latest.centsOffset ?? 0)})`}>
+              <circle cx="0" cy="0" r="7.5" fill="var(--accent)" style={{ filter: "drop-shadow(0 0 8px var(--accent))" }} />
+              <circle cx="0" cy="0" r="3.5" fill="#ffffff" />
+            </g>
+          )}
+
+          {/* Axis Labels */}
+          <text x="8" y="15" fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="start">High</text>
+          <text x="8" y={centerY + 4} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="start">Target zone</text>
+          <text x="8" y={height - 8} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="start">Low</text>
+          <text x={width - 8} y={highLockY - 4} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="end">
+            +{props.pitchToleranceCents}¢
+          </text>
+          <text x={width - 8} y={lowLockY + 12} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="end">
+            -{props.pitchToleranceCents}¢
+          </text>
+          <text x={width - 8} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10" textAnchor="end">Now</text>
+          <text x={leftPad} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10" textAnchor="start">~15s ago</text>
+          <text x={width / 2 - 16} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10">{`~${props.pitchTrendWindowMs / 2000}s`}</text>
+
+          {/* Target Note Timeline lines and label tags */}
+          {targetNoteBands.map((band, idx) => {
+            const lineY = height - 21;
+            const textY = height - 8;
+            const bandWidth = Math.max(0, band.endX - band.startX);
+            const midX = band.startX + bandWidth / 2;
+
+            const isPaMandra = band.swara === "P̣" || band.swara === "P\u0323" || band.swara === "\u1E56";
+            const displaySwara = isPaMandra ? "P" : band.swara;
+
+            return (
+              <g key={`target-note-band-${idx}`}>
+                <line
+                  x1={band.startX}
+                  y1={lineY}
+                  x2={band.endX}
+                  y2={lineY}
+                  stroke={band.color.stroke}
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                  opacity={0.88}
+                />
+                {bandWidth > 14 && (
+                  <>
+                    <text
+                      x={midX}
+                      y={textY}
+                      fill="#ffffff"
+                      fontSize="9"
+                      fontWeight="800"
+                      textAnchor="middle"
+                      style={{ textShadow: "0px 1px 2px rgba(0, 0, 0, 0.9)" }}
+                    >
+                      {displaySwara}
+                    </text>
+                    {isPaMandra && (
+                      <circle
+                        cx={midX}
+                        cy={textY + 2.5}
+                        r={1.15}
+                        fill="#ffffff"
+                        style={{ filter: "drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.9))" }}
+                      />
+                    )}
+                  </>
+                )}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  }
 
   return (
     <article
