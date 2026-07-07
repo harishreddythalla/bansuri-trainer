@@ -784,8 +784,8 @@ function analyzeCheckpointPerformance(
   Object.entries(results).forEach(([idxStr, res]) => {
     const idx = Number(idxStr);
     const stepTarget = step.steps[idx].target;
-    const statePrefix = stepTarget.state === "Teevra" ? "Teevra " : stepTarget.state === "Komal" ? "Komal " : "";
-    const noteKey = `${statePrefix}${stepTarget.swara} (${stepTarget.octave})`;
+    // Format noteKey strictly as the dot notation glyph
+    const noteKey = step.steps[idx].glyph ?? stepTarget.swara;
 
     if (!distinctNotes[noteKey]) {
       distinctNotes[noteKey] = {
@@ -4341,6 +4341,7 @@ export function SwaraTrainer() {
           pitchConfig
         );
         const minScore = Math.max(checkpointSummaryData.step.minimumScore, SEQUENCE_MIN_PRACTICE_SCORE);
+        const hasRedNote = Object.values(checkpointSummaryData.results).some((res) => res.status === "red");
         const currentStepIndex = allLessonSteps.findIndex((s) => s.id === selectedStepId);
         const nextStep = currentStepIndex !== -1 ? allLessonSteps[currentStepIndex + 1] : null;
         const steps = checkpointSummaryData.step.steps;
@@ -4400,25 +4401,25 @@ export function SwaraTrainer() {
             <div
               className="modal-card-animate"
               style={{
-                width: "min(680px, 95vw)",
+                width: "min(640px, 95vw)",
                 background: "linear-gradient(180deg, #18233c 0%, #0d1527 100%)",
                 border: "1px solid rgba(255, 255, 255, 0.12)",
-                borderRadius: 28,
-                boxShadow: "0 24px 60px rgba(0, 0, 0, 0.5)",
-                padding: "32px 36px",
+                borderRadius: 20,
+                boxShadow: "0 18px 45px rgba(0, 0, 0, 0.5)",
+                padding: "16px 20px",
                 display: "flex",
                 flexDirection: "column",
-                gap: 24,
+                gap: 12,
                 color: "#fff",
               }}
             >
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em" }}>
+                  <div style={{ fontSize: "10px", textTransform: "uppercase", fontWeight: 700, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em" }}>
                     Checkpoint Complete
                   </div>
-                  <h2 style={{ fontSize: "24px", fontWeight: 800, margin: "2px 0 0 0", color: "#fff", letterSpacing: "-0.03em" }}>
+                  <h2 style={{ fontSize: "18px", fontWeight: 800, margin: "0", color: "#fff", letterSpacing: "-0.03em" }}>
                     {checkpointSummaryData.step.title}
                   </h2>
                 </div>
@@ -4443,17 +4444,17 @@ export function SwaraTrainer() {
               </div>
 
               {/* Score section */}
-              <div style={{ display: "flex", gap: 24, alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 20, padding: "20px 24px" }}>
+              <div style={{ display: "flex", gap: 16, alignItems: "center", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 16, padding: "10px 16px" }}>
                 <div
                   style={{
                     position: "relative",
-                    width: 110,
-                    height: 110,
+                    width: 70,
+                    height: 70,
                     borderRadius: 999,
                     background: checkpointSummaryData.passed
                       ? "radial-gradient(circle, rgba(46,213,115,0.15) 0%, rgba(46,213,115,0.02) 100%)"
                       : "radial-gradient(circle, rgba(255,71,87,0.15) 0%, rgba(255,71,87,0.02) 100%)",
-                    border: `4px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.25)" : "rgba(255,71,87,0.25)"}`,
+                    border: `3px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.25)" : "rgba(255,71,87,0.25)"}`,
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
@@ -4461,21 +4462,21 @@ export function SwaraTrainer() {
                     flexShrink: 0
                   }}
                 >
-                  <div style={{ fontSize: "38px", fontWeight: 900, lineHeight: 1, letterSpacing: "-0.04em", color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" }}>
+                  <div style={{ fontSize: "24px", fontWeight: 900, lineHeight: 1, letterSpacing: "-0.04em", color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757" }}>
                     {animatedScore}
                   </div>
-                  <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginTop: 2 }}>
+                  <div style={{ fontSize: "9px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginTop: 1 }}>
                     out of 100
                   </div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span
                       style={{
-                        padding: "4px 10px",
+                        padding: "2px 8px",
                         borderRadius: 999,
-                        fontSize: "11px",
+                        fontSize: "10px",
                         fontWeight: 750,
                         background: checkpointSummaryData.passed ? "rgba(46, 213, 115, 0.16)" : "rgba(255, 71, 87, 0.16)",
                         color: checkpointSummaryData.passed ? "#2ed573" : "#ff4757"
@@ -4483,36 +4484,38 @@ export function SwaraTrainer() {
                     >
                       {checkpointSummaryData.passed ? "PASSED" : "FAILED"}
                     </span>
-                    <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
-                      Req. score: {minScore}
+                    <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)", fontWeight: 600 }}>
+                      Passing Criteria: Score ≥ {minScore} & no failed notes (🔴)
                     </span>
                   </div>
-                  <p style={{ margin: 0, fontSize: "13px", lineHeight: "1.4", color: "rgba(255,255,255,0.75)" }}>
+                  <p style={{ margin: 0, fontSize: "11.5px", lineHeight: "1.35", color: "rgba(255,255,255,0.75)" }}>
                     {checkpointSummaryData.passed
                       ? "Congratulations! You've matched the phrase contours successfully."
-                      : `You did not pass the minimum threshold of ${minScore}. Let's refine your breath support and try again.`
+                      : hasRedNote
+                        ? `Failure: Enforced criteria requires all notes to pass (no failed red notes under 30% accuracy).`
+                        : `Failure: You did not pass the minimum threshold score of ${minScore}.`
                     }
                   </p>
                 </div>
               </div>
 
-              {/* Sargam notes breakdown - spacious view matching notegroups */}
+              {/* Sargam notes breakdown - space efficient view */}
               <div>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.4)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Sequence Notes Summary
                 </div>
                 <div
                   className="hide-scrollbar"
                   style={{
-                    maxHeight: 160,
+                    maxHeight: 110,
                     overflowY: "auto",
                     background: "rgba(0,0,0,0.25)",
-                    borderRadius: 18,
+                    borderRadius: 12,
                     border: "1px solid rgba(255,255,255,0.08)",
-                    padding: "16px 20px",
+                    padding: "8px 12px",
                     display: "flex",
                     flexDirection: "column",
-                    gap: 12,
+                    gap: 6,
                   }}
                 >
                   {popupLines.map((line, lineIdx) => (
@@ -4539,11 +4542,11 @@ export function SwaraTrainer() {
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
-                              padding: "4px 8px",
-                              borderRadius: 10,
+                              padding: "2px 5px",
+                              borderRadius: 6,
                               background: isGroupPassed ? "rgba(46, 213, 115, 0.05)" : "rgba(255, 255, 255, 0.02)",
                               border: `1px solid ${isGroupPassed ? "rgba(46, 213, 115, 0.15)" : "rgba(255, 255, 255, 0.06)"}`,
-                              gap: 6,
+                              gap: 4,
                             }}
                           >
                             {group.steps.map((step: any, stepIdx: number) => {
@@ -4564,9 +4567,9 @@ export function SwaraTrainer() {
                                     display: "inline-flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    minWidth: 22,
-                                    height: 22,
-                                    fontSize: 12,
+                                    minWidth: 18,
+                                    height: 18,
+                                    fontSize: 11,
                                     fontWeight: 750,
                                     color,
                                     cursor: "help",
@@ -4604,29 +4607,29 @@ export function SwaraTrainer() {
               </div>
 
               {/* Analysis Section */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                   Intelligent Performance Analysis
                 </div>
-                <div style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.05)", borderRadius: 16, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.05)", borderRadius: 12, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
                   {/* Poorest notes list */}
                   {poorest.length > 0 && (
                     <div>
-                      <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>
-                        Holes / Notes needing improvement:
+                      <div style={{ fontSize: "10.5px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
+                        Notes needing improvement:
                       </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         {poorest.map((p, pIdx) => {
                           const color = p.ratio >= 0.70 ? "#2ed573" : p.ratio >= 0.30 ? "#ff9f43" : "#ff4757";
                           return (
-                            <div key={pIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12px" }}>
-                              <span style={{ color: "rgba(255,255,255,0.85)" }}>
+                            <div key={pIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11.5px" }}>
+                              <span style={{ color: "rgba(255,255,255,0.9)", fontWeight: 600 }}>
                                 • {p.key}
                               </span>
                               <span style={{ color, fontWeight: 700 }}>
                                 {p.totalFrames === 0
                                   ? "Missed entirely"
-                                  : `Mean Accuracy: ${Math.round(p.ratio * 100)}% (${((p.correctFrames * 16.67) / 1000).toFixed(1)}s / ${((p.totalFrames * 16.67) / 1000).toFixed(1)}s)`
+                                  : `${Math.round(p.ratio * 100)}% (${((p.correctFrames * 16.67) / 1000).toFixed(1)}s / ${((p.totalFrames * 16.67) / 1000).toFixed(1)}s)`
                                 }
                               </span>
                             </div>
@@ -4637,11 +4640,11 @@ export function SwaraTrainer() {
                   )}
 
                   {/* Primary advice */}
-                  <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.06)", paddingTop: 10 }}>
-                    <div style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 4 }}>
+                  <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.06)", paddingTop: 6 }}>
+                    <div style={{ fontSize: "10px", fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 2 }}>
                       Coaching Feedback:
                     </div>
-                    <div style={{ fontSize: "12px", lineHeight: "1.5", color: "rgba(255, 255, 255, 0.8)" }}>
+                    <div style={{ fontSize: "11.5px", lineHeight: "1.4", color: "rgba(255, 255, 255, 0.85)" }}>
                       {primaryIssue}
                     </div>
                   </div>
@@ -4649,7 +4652,7 @@ export function SwaraTrainer() {
               </div>
 
               {/* Actions */}
-              <div style={{ display: "flex", gap: 14, justifyContent: "flex-end", marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
                 <button
                   onClick={() => {
                     handleRetryFluteRoad();
@@ -4658,10 +4661,10 @@ export function SwaraTrainer() {
                   style={{
                     background: "rgba(255, 255, 255, 0.08)",
                     border: "1px solid rgba(255, 255, 255, 0.12)",
-                    borderRadius: 14,
+                    borderRadius: 12,
                     color: "#fff",
-                    padding: "12px 24px",
-                    fontSize: "13px",
+                    padding: "8px 16px",
+                    fontSize: "12px",
                     fontWeight: 700,
                     cursor: "pointer",
                     transition: "all 0.2s ease",
@@ -4683,10 +4686,10 @@ export function SwaraTrainer() {
                     style={{
                       background: checkpointSummaryData.passed ? "#2ed573" : "rgba(255,255,255,0.03)",
                       border: `1px solid ${checkpointSummaryData.passed ? "rgba(46,213,115,0.15)" : "rgba(255,255,255,0.05)"}`,
-                      borderRadius: 14,
+                      borderRadius: 12,
                       color: checkpointSummaryData.passed ? "#050a12" : "rgba(255,255,255,0.35)",
-                      padding: "12px 24px",
-                      fontSize: "13px",
+                      padding: "8px 16px",
+                      fontSize: "12px",
                       fontWeight: 700,
                       cursor: checkpointSummaryData.passed ? "pointer" : "not-allowed",
                       transition: "all 0.2s ease",
