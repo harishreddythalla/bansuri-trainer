@@ -5898,27 +5898,33 @@ function SignalTrace(props: {
   );
 
   if (props.staticView) {
-    // Use direct linear time mapping: firstTs → lastTs = left → right
+    // Trim leading silence: start from the first point with actual pitch data
     const staticPoints = props.points;
-    const firstTs = staticPoints[0]?.timestamp ?? 0;
-    const lastTs = staticPoints[staticPoints.length - 1]?.timestamp ?? (firstTs + 1000);
+    const firstPitchedIdx = staticPoints.findIndex(p => p.centsOffset != null);
+    // If no pitch data at all, fall back to full array (will show empty state)
+    const trimmedPoints = firstPitchedIdx > 0 ? staticPoints.slice(firstPitchedIdx) : staticPoints;
+    const firstTs = trimmedPoints[0]?.timestamp ?? 0;
+    const lastTs = trimmedPoints[trimmedPoints.length - 1]?.timestamp ?? (firstTs + 1000);
     const totalMs = Math.max(1000, lastTs - firstTs);
 
     // 80px per second → ~8 seconds visible in a 640px container
     const PX_PER_SEC = 80;
     const svgW = Math.max(640, Math.round((totalMs / 1000) * PX_PER_SEC));
+    // SVG height excludes the bottom label strip — label strip lives in the container below SVG
+    const tracePadB = 30; // bottom strip height (target note line + labels) inside the SVG
     const svgH = height;
     const padL = 14;
     const padR = 10;
     const usableW = svgW - padL - padR;
 
-    // Direct linear timestamp → X mapping (no live-view math)
+    // Direct linear timestamp → X mapping
     const tsToX = (ts: number) => padL + ((ts - firstTs) / totalMs) * usableW;
 
-    // Reserve bottom 26px for target note line + labels
-    const tracePadB = 30;
+    // Match live-view centsToY EXACTLY: height - 24 - clamp(...) * (height - 48)
+    // but we reserve the bottom tracePadB for the target note strip
+    const traceH = svgH - tracePadB; // usable trace area
     const centsToYStatic = (cents: number) =>
-      (svgH - tracePadB - 12) - clamp((cents - minCents) / (maxCents - minCents), 0, 1) * (svgH - tracePadB - 24);
+      traceH - 24 - clamp((cents - minCents) / (maxCents - minCents), 0, 1) * (traceH - 48);
 
     const centerYS = centsToYStatic(0);
     const highLockYS = centsToYStatic(props.pitchToleranceCents);
@@ -5926,7 +5932,7 @@ function SignalTrace(props: {
     const highRelYS = centsToYStatic(props.pitchReleaseCents);
     const lowRelYS = centsToYStatic(-props.pitchReleaseCents);
 
-    // Build trace segments + played-note bands from trend data
+    // Build trace segments + played-note bands
     type StaticSeg = { points: { x: number; y: number }[]; swara: string; octave: string | null };
     const staticSegs: StaticSeg[] = [];
     let curSeg: StaticSeg | null = null;
@@ -5935,11 +5941,8 @@ function SignalTrace(props: {
     const staticBands: StaticBand[] = [];
     let curBand: StaticBand | null = null;
 
-    for (const pt of staticPoints) {
-      // Draw trace for any point where pitch was detected (centsOffset != null)
-      // Don't require active=true — that's only for scoring, not visualization
+    for (const pt of trimmedPoints) {
       if (pt.centsOffset == null) {
-        // Silence gap: break current segment so the line doesn't bridge gaps
         curSeg = null;
         if (pt.swara == null) curBand = null;
         continue;
@@ -5947,7 +5950,6 @@ function SignalTrace(props: {
       const x = tsToX(pt.timestamp);
       const y = centsToYStatic(pt.centsOffset);
 
-      // Group trace segments by detected swara (for coloring)
       const segSwara = pt.swara ?? "?";
       const segOctave = pt.octave ?? null;
       if (!curSeg || curSeg.swara !== segSwara || curSeg.octave !== segOctave) {
@@ -5956,7 +5958,6 @@ function SignalTrace(props: {
       }
       curSeg.points.push({ x, y });
 
-      // Note bands only for active (sustained) notes
       if (pt.active && pt.swara != null) {
         if (!curBand || curBand.swara !== pt.swara || curBand.octave !== pt.octave) {
           curBand = { swara: pt.swara, octave: pt.octave ?? null, x1: x, x2: x };
@@ -5967,49 +5968,18 @@ function SignalTrace(props: {
       }
     }
 
-    // Target note timeline at bottom — same timing math as live view but mapped through tsToX
-    type TargetNoteLine = { swara: string; octave: string; x1: number; x2: number; col: ReturnType<typeof noteVisual> };
-    const targetNoteLines: TargetNoteLine[] = [];
+    // Target note reference line — derived directly from played staticBands (swara transitions)
+    // Each band represents when that swara was active → use same color + label at bottom strip
+    type TargetNoteLine = { swara: string; octave: string | null; x1: number; x2: number; col: ReturnType<typeof noteVisual> };
+    const targetNoteLines: TargetNoteLine[] = staticBands.map(band => ({
+      swara: band.swara,
+      octave: band.octave,
+      x1: band.x1,
+      x2: band.x2,
+      col: noteVisual(band.swara, band.octave),
+    }));
 
-    const bpNote = props.beatsPerNote ?? 1;
-    const bpm = props.metronomeBpm ?? 60;
-    const startOffsetTime = props.fluteViewStartedAt && props.fluteViewStartedAt > 0
-      ? props.fluteViewStartedAt
-      : (firstTs > 0 ? firstTs : Date.now());
-
-    if (props.sequenceDrill) {
-      const dynMs = bpNote * (60 / bpm) * 1000;
-      const beatMs = (60 / bpm) * 1000;
-      const TILE_PX_PER_MS = 0.10;
-      const SPAWN_MARGIN = 58;
-      const countdownH = Math.max(40, Math.round(beatMs * TILE_PX_PER_MS));
-      const countdownMsToFlute = Math.round((515 - (-countdownH - SPAWN_MARGIN)) / TILE_PX_PER_MS);
-      const noteH = Math.round(dynMs * TILE_PX_PER_MS);
-      const noteMsToFlute = Math.round((515 - (-noteH - SPAWN_MARGIN)) / TILE_PX_PER_MS);
-
-      const firstNoteArrivalAt = startOffsetTime + countdownMsToFlute + 2 * beatMs + dynMs;
-      let cursor = firstNoteArrivalAt - noteMsToFlute;
-
-      for (const step of props.sequenceDrill.steps) {
-        const trailing = cursor + noteMsToFlute;
-        const leading = trailing - dynMs;
-        cursor += dynMs + (step.hasSpaceAfter ? beatMs : 0);
-
-        const x1 = tsToX(leading);
-        const x2 = tsToX(trailing);
-        if (x2 > padL && x1 < svgW - padR) {
-          targetNoteLines.push({
-            swara: step.glyph ?? step.target.swara,
-            octave: step.target.octave,
-            x1: Math.max(padL, x1),
-            x2: Math.min(svgW - padR, x2),
-            col: noteVisual(step.target.swara, step.target.octave),
-          });
-        }
-      }
-    }
-
-    // Time ticks every ~5 seconds
+    // Time ticks every 5 seconds
     const tickEveryMs = 5000;
     const tickCount = Math.floor(totalMs / tickEveryMs);
     const timeTicks: { x: number; label: string }[] = [{ x: tsToX(firstTs), label: "0s" }];
@@ -6018,21 +5988,22 @@ function SignalTrace(props: {
       timeTicks.push({ x: tsToX(firstTs + ms), label: `+${ms / 1000}s` });
     }
 
-    const targetLineY = svgH - tracePadB + 5;
-    const targetTextY = svgH - 6;
+    const targetLineY = traceH + 5;  // just below the trace area
+    const targetTextY = svgH - 5;    // at the very bottom
 
     return (
-      <div style={{ width: "100%", overflowX: "auto", borderRadius: 14 }}>
+      // overflowX: scroll = scrollbar always visible; paddingBottom reserves space above scrollbar
+      <div style={{ width: "100%", overflowX: "scroll", borderRadius: 14, paddingBottom: 2 }}>
         <svg
           width={svgW}
           height={svgH}
           style={{ display: "block", minWidth: "100%" }}
           aria-hidden="true"
         >
-          {/* Background zones */}
-          <rect x={0} y={highRelYS} width={svgW} height={highLockYS - highRelYS} fill={THEME.pitch.releaseZone} />
-          <rect x={0} y={lowRelYS} width={svgW} height={lowRelYS - lowLockYS} fill={THEME.pitch.releaseZone} />
-          <rect x={0} y={highLockYS} width={svgW} height={lowLockYS - highLockYS} fill={THEME.pitch.targetZone} />
+          {/* Background zones — clipped to the trace area (0..traceH) */}
+          <rect x={0} y={highRelYS} width={svgW} height={Math.max(0, highLockYS - highRelYS)} fill={THEME.pitch.releaseZone} />
+          <rect x={0} y={lowLockYS} width={svgW} height={Math.max(0, lowRelYS - lowLockYS)} fill={THEME.pitch.releaseZone} />
+          <rect x={0} y={highLockYS} width={svgW} height={Math.max(0, lowLockYS - highLockYS)} fill={THEME.pitch.targetZone} />
 
           {/* Played-note background columns */}
           {staticBands.map((band, idx) => {
@@ -6044,7 +6015,7 @@ function SignalTrace(props: {
                 x={band.x1}
                 y={20}
                 width={bw}
-                height={svgH - tracePadB - 20}
+                height={traceH - 20}
                 rx={5}
                 fill={col.band}
                 stroke={col.stroke}
