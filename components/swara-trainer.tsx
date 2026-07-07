@@ -4348,9 +4348,8 @@ export function SwaraTrainer() {
           </div>
 
         </section>
-      </div>
 
-      {showCheckpointSummaryPopup && checkpointSummaryData && (() => {
+        {showCheckpointSummaryPopup && checkpointSummaryData && (() => {
         const { poorest, primaryIssue } = analyzeCheckpointPerformance(
           checkpointSummaryData.results,
           checkpointSummaryData.step,
@@ -4439,24 +4438,6 @@ export function SwaraTrainer() {
                     {checkpointSummaryData.step.title}
                   </h2>
                 </div>
-                <button
-                  onClick={() => setShowCheckpointSummaryPopup(false)}
-                  style={{
-                    background: "rgba(255,255,255,0.06)",
-                    border: "none",
-                    borderRadius: 999,
-                    color: "rgba(255,255,255,0.6)",
-                    width: 32,
-                    height: 32,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    fontSize: 18,
-                  }}
-                >
-                  &times;
-                </button>
               </div>
 
               {/* Score section */}
@@ -4723,6 +4704,7 @@ export function SwaraTrainer() {
           </div>
         );
       })()}
+      </div>
       {typeof window !== "undefined" && hoveredNoteTooltip && createPortal(
         <div
           style={{
