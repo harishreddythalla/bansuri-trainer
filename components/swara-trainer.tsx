@@ -2479,7 +2479,7 @@ export function SwaraTrainer() {
                   score: phraseScore ?? 0,
                   passed: true,
                   results: finalResults,
-                  trend: sequenceTrendPointsRef.current.slice(),
+                  trend: sequenceTrendPointsRef.current.length > 0 ? sequenceTrendPointsRef.current.slice() : trendRef.current.slice(),
                   fluteViewStartedAt: fluteViewStartedAtRef.current,
                 });
                 setShowCheckpointSummaryPopup(true);
@@ -2561,7 +2561,7 @@ export function SwaraTrainer() {
                 score: result.score ?? 0,
                 passed: false,
                 results: finalResults,
-                trend: sequenceTrendPointsRef.current.slice(),
+                trend: sequenceTrendPointsRef.current.length > 0 ? sequenceTrendPointsRef.current.slice() : trendRef.current.slice(),
                 fluteViewStartedAt: fluteViewStartedAtRef.current,
               });
               setShowCheckpointSummaryPopup(true);
@@ -2856,7 +2856,7 @@ export function SwaraTrainer() {
           score: Math.round(phraseScore ?? 0),
           passed,
           results: compiledResults,
-          trend: sequenceTrendPointsRef.current.slice(),
+          trend: sequenceTrendPointsRef.current.length > 0 ? sequenceTrendPointsRef.current.slice() : trendRef.current.slice(),
           fluteViewStartedAt: fluteViewStartedAtRef.current,
         });
         setShowCheckpointSummaryPopup(true);
@@ -4379,12 +4379,17 @@ export function SwaraTrainer() {
           const steps = checkpointSummaryData.step.steps;
 
           const trendPoints = checkpointSummaryData.trend ?? [];
-          const firstPointTimestamp = trendPoints[0]?.timestamp ?? 0;
-          const lastPointTimestamp = trendPoints[trendPoints.length - 1]?.timestamp ?? Date.now();
-          const totalDurationMs = Math.max(1000, lastPointTimestamp - firstPointTimestamp);
+          const hasTrendData = trendPoints.length >= 2;
+          const firstPointTimestamp = hasTrendData ? trendPoints[0].timestamp : 0;
+          const lastPointTimestamp = hasTrendData ? trendPoints[trendPoints.length - 1].timestamp : 0;
+          const totalDurationMs = hasTrendData
+            ? Math.max(1000, lastPointTimestamp - firstPointTimestamp)
+            : Math.max(1000, checkpointSummaryData.step.steps.length * (beatsPerNote * (60 / metronomeBpm) * 1000));
 
-          // Map scrollable width: 85px per second of duration, min 580px
-          const scrollWidth = Math.max(580, Math.round((totalDurationMs / 1000) * 85));
+          // Map scrollable width: 85px per second of duration, min 580px, max 2000px
+          const scrollWidth = hasTrendData
+            ? Math.min(2000, Math.max(580, Math.round((totalDurationMs / 1000) * 85)))
+            : 580;
 
           const popupLines: Array<{
             lineIndex: number;
