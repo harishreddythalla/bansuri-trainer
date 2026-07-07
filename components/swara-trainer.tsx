@@ -3277,39 +3277,76 @@ export function SwaraTrainer() {
             <div
               className="trainer-checkpoint-notice"
               style={{
-                borderRadius: 24,
-                padding: "14px 16px",
-                background: THEME.card.bg,
-                border: THEME.card.border,
+                borderRadius: 16,
+                padding: "8px 16px",
+                background: "rgba(46, 213, 115, 0.08)",
+                border: "1px solid rgba(46, 213, 115, 0.2)",
                 color: "var(--text)",
-                boxShadow: "0 18px 50px rgba(0,0,0,0.2)",
-                display: "grid",
-                gap: 6,
+                boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+                flexWrap: "wrap",
               }}
             >
-              <div className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
-                Checkpoint cleared
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.3 }}>
-                {checkpointNotice}
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <span className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
-                  Bonus +1 token
-                </span>
-                <span className="pill" style={{ width: "fit-content", padding: "6px 12px", fontSize: 11 }}>
-                  Total tokens {bonusTokens}
-                </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "4px 10px",
+                    borderRadius: 30,
+                    background: "rgba(46, 213, 115, 0.15)",
+                    color: "#2ed573",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "#2ed573" }}></span>
+                  Cleared
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>
+                  {checkpointNotice.replace(/^Checkpoint cleared:\s*/i, "")}
+                </div>
+                <div
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 30,
+                    background: "rgba(255, 255, 255, 0.06)",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "var(--muted)",
+                  }}
+                >
+                  🪙 +1 Token (Total: {bonusTokens})
+                </div>
               </div>
               {clearedCheckpoint?.stepId === selectedStepId ? (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button className="button button-secondary" onClick={retryClearedCheckpoint}>
-                    Retry checkpoint
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button
+                    className="button button-secondary"
+                    onClick={retryClearedCheckpoint}
+                    style={{ padding: "6px 14px", fontSize: 13, height: "auto" }}
+                  >
+                    Retry
                   </button>
                   <button
                     className="button button-primary"
                     onClick={proceedToNextCheckpoint}
                     disabled={!clearedCheckpoint.nextStepId}
+                    style={{
+                      padding: "6px 14px",
+                      fontSize: 13,
+                      height: "auto",
+                      background: "linear-gradient(135deg, #2ed573 0%, #1abc9c 100%)",
+                      border: "none",
+                      color: "#fff",
+                    }}
                   >
                     {clearedCheckpoint.nextStepId ? "Proceed to next" : "Path complete"}
                   </button>
