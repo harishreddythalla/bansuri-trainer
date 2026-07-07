@@ -4051,6 +4051,10 @@ export function SwaraTrainer() {
                         }
                       }}
                       onToggleMic={() => (running ? stopAnalysis() : void startAnalysis())}
+                      sequenceDrill={sequenceDrill}
+                      beatsPerNote={beatsPerNote}
+                      metronomeBpm={metronomeBpm}
+                      fluteViewStartedAt={fluteViewStartedAtRef.current}
                     />
                   </div>
 
@@ -5606,6 +5610,10 @@ function SignalTrace(props: {
   onPitchTrendWindowChange: (value: PitchTrendWindowMs) => void;
   onToggleFullscreen: () => void;
   onToggleMic: () => void;
+  sequenceDrill?: SequenceLessonStep | null;
+  beatsPerNote?: number;
+  metronomeBpm?: number;
+  fluteViewStartedAt?: number;
 }) {
   const width = props.fullscreen ? 1440 : 860;
   const height = props.height ?? (props.fullscreen ? 420 : 132);
@@ -5631,6 +5639,57 @@ function SignalTrace(props: {
   const points = filterTrendWindow(props.points, props.pitchTrendWindowMs);
   const latestTimestamp = points.at(-1)?.timestamp ?? Date.now();
   const traceSilenceGapMs = 2000;
+
+  // Calculate target note timeline segments at the bottom
+  const targetNoteBands: Array<{
+    swara: string;
+    octave: string;
+    startX: number;
+    endX: number;
+    color: ReturnType<typeof noteVisual>;
+  }> = [];
+
+  if (props.sequenceDrill && props.beatsPerNote && props.metronomeBpm && props.fluteViewStartedAt) {
+    const dynamicSustainMs = props.beatsPerNote * (60 / props.metronomeBpm) * 1000;
+    const countdownDelayMs = (60 / props.metronomeBpm) * 1000;
+    const TILE_PX_PER_MS = 0.10;
+    const SPAWN_MARGIN = 58;
+
+    const countdownHeight = Math.max(40, Math.round(countdownDelayMs * TILE_PX_PER_MS));
+    const countdownSpawnY = -countdownHeight - SPAWN_MARGIN;
+    const countdownMsToFlute = Math.round((515 - countdownSpawnY) / TILE_PX_PER_MS);
+
+    const noteHeight = Math.round(dynamicSustainMs * TILE_PX_PER_MS);
+    const noteSpawnY = -noteHeight - SPAWN_MARGIN;
+    const noteMsToFlute = Math.round((515 - noteSpawnY) / TILE_PX_PER_MS);
+
+    const firstNoteArrivalAt = props.fluteViewStartedAt + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
+    let noteCursor = firstNoteArrivalAt - noteMsToFlute;
+
+    props.sequenceDrill.steps.forEach((step) => {
+      const timeArrivalTrailing = noteCursor + noteMsToFlute;
+      const timeArrivalLeading = timeArrivalTrailing - dynamicSustainMs;
+
+      noteCursor += dynamicSustainMs + (step.hasSpaceAfter ? countdownDelayMs : 0);
+
+      const getX = (t: number) => {
+        return leftPad + clamp(1 - (latestTimestamp - t) / props.pitchTrendWindowMs, 0, 1) * usableWidth;
+      };
+
+      const startX = getX(timeArrivalLeading);
+      const endX = getX(timeArrivalTrailing);
+
+      if (endX > 0 && startX < width) {
+        targetNoteBands.push({
+          swara: step.glyph ?? step.target.swara,
+          octave: step.target.octave,
+          startX,
+          endX,
+          color: noteVisual(step.target.swara, step.target.octave),
+        });
+      }
+    });
+  }
   const traceResampleStepPx = props.fullscreen ? 2.4 : 3.4;
   const centsToY = (cents: number) => height - 24 - clamp((cents - minCents) / (maxCents - minCents), 0, 1) * (height - 48);
   const highReleaseY = centsToY(props.pitchReleaseCents);
@@ -6145,6 +6204,42 @@ function SignalTrace(props: {
           <text x={width - 8} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10" textAnchor="end">Now</text>
           <text x="12" y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10">{`${formatPitchWindowLabel(props.pitchTrendWindowMs)} ago`}</text>
           <text x={width / 2 - 16} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10">{`~${props.pitchTrendWindowMs / 2000}s`}</text>
+
+          {/* Target Note Timeline lines and label tags */}
+          {targetNoteBands.map((band, idx) => {
+            const lineY = height - 19;
+            const textY = height - 16;
+            const bandWidth = Math.max(0, band.endX - band.startX);
+            const midX = band.startX + bandWidth / 2;
+
+            return (
+              <g key={`target-note-band-${idx}`}>
+                <line
+                  x1={band.startX}
+                  y1={lineY}
+                  x2={band.endX}
+                  y2={lineY}
+                  stroke={band.color.stroke}
+                  strokeWidth={4.5}
+                  strokeLinecap="round"
+                  opacity={0.88}
+                />
+                {bandWidth > 14 && (
+                  <text
+                    x={midX}
+                    y={textY}
+                    fill="#ffffff"
+                    fontSize="8.5"
+                    fontWeight="800"
+                    textAnchor="middle"
+                    style={{ textShadow: "0px 1px 2px rgba(0, 0, 0, 0.9)" }}
+                  >
+                    {band.swara}
+                  </text>
+                )}
+              </g>
+            );
+          })}
         </svg>
       </div>
     </article>
