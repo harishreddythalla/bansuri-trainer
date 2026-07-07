@@ -238,7 +238,7 @@ const TRAINER_OCTAVE_PALETTE: Record<OctaveName, { fill: string; glow: string; r
     label: "#fbebff",
   },
 };
-const canUsePersistentStorage = process.env.NODE_ENV === "production";
+const canUsePersistentStorage = typeof window !== "undefined";
 
 const pitchDifficultyOptions: Array<{ value: PitchDifficulty; label: string; description: string }> = [
   { value: "easy", label: "Easy", description: "Wider pitch band" },
@@ -3199,7 +3199,8 @@ export function SwaraTrainer() {
   const layoutSvgRenderedHeight = isLiveCardFullscreen
     ? (typeof window !== "undefined" ? window.innerHeight - 120 : 560)
     : Math.min(boardWrapperWidth * (currentBoardMaxHeight / FLUTE_BOARD_WIDTH), currentBoardMaxHeight);
-  const layoutFluteBodyScreenY = FLUTE_BODY_OFFSET_Y * layoutSvgScale;
+  const activeFluteY = fluteRoadMode === "reverse" ? 30 : FLUTE_BODY_OFFSET_Y;
+  const layoutFluteBodyScreenY = activeFluteY * layoutSvgScale;
   const computedOverlayHeight = isLiveCardFullscreen
     ? (typeof window !== "undefined" ? window.innerHeight - 160 : 400)
     : Math.min(layoutFluteBodyScreenY - 15, layoutSvgRenderedHeight - 15);
