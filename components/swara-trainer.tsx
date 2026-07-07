@@ -5920,7 +5920,7 @@ function SignalTrace(props: {
       const noteMsToFlute = Math.round((515 - noteSpawnY) / TILE_PX_PER_MS_S);
       const firstNoteArrivalAt = props.fluteViewStartedAt + countdownMsToFlute + 2 * countdownDelayMs + dynamicSustainMs;
 
-      graphStartTs = firstNoteArrivalAt - noteMsToFlute; // leading edge of first note
+      graphStartTs = firstNoteArrivalAt - dynamicSustainMs; // leading edge of first note's play window
 
       // Accumulate duration across all steps to find last note trailing edge
       let cursorEnd = firstNoteArrivalAt - noteMsToFlute;
