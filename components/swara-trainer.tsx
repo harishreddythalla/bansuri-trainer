@@ -4756,9 +4756,16 @@ function renderSwaraGlyph(glyph: string) {
   const isPaMandra = glyph === "P̣" || glyph === "P\u0323" || glyph === "\u1E56";
   if (isPaMandra) {
     return (
-      <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", position: "relative", width: "1.1em", height: "1.05em", justifyContent: "center", verticalAlign: "middle" }}>
-        <span style={{ position: "absolute", top: "0%" }}>P</span>
-        <span style={{ position: "absolute", bottom: "-30%", fontSize: "14px", fontWeight: "900", lineHeight: 0 }}>.</span>
+      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative", width: "0.85em", height: "100%", verticalAlign: "middle" }}>
+        <span style={{ marginTop: "-2px" }}>P</span>
+        <span style={{
+          position: "absolute",
+          bottom: "0.5px",
+          width: "2.5px",
+          height: "2.5px",
+          borderRadius: "50%",
+          background: "currentColor",
+        }} />
       </span>
     );
   }
