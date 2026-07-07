@@ -1064,7 +1064,7 @@ html.light .site-header {
   font-size: 14px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
   .shell {
     width: min(100% - 12px, 1180px);
   }
