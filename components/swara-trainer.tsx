@@ -4572,45 +4572,43 @@ export function SwaraTrainer() {
                 {/* Row 3: Pitch Trajectory Chart */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <div style={{ fontSize: "9.5px", fontWeight: 700, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Pitch Trajectory (Scroll →)
+                    Pitch Trajectory
                   </div>
                   <div
                     style={{
                       width: "100%",
-                      overflowX: "auto",
                       background: "rgba(0,0,0,0.3)",
                       borderRadius: 14,
                       border: "1px solid rgba(255,255,255,0.06)",
-                      padding: "4px 0"
+                      overflow: "hidden",
                     }}
                   >
-                    <div style={{ width: scrollWidth, height: 110 }}>
-                      <SignalTrace
-                        points={trendPoints}
-                        detected={null}
-                        target={checkpointSummaryData.step.steps[0].target}
-                        pitchToleranceCents={checkpointSummaryData.step.pitchToleranceCents}
-                        pitchReleaseCents={checkpointSummaryData.step.pitchToleranceCents * 1.5}
-                        height={110}
-                        fullscreen={false}
-                        running={false}
-                        pitchTrendWindowMs={totalDurationMs}
-                        pitchDifficulty="medium"
-                        pitchDifficultyOptions={[]}
-                        pitchTrendWindowOptions={[]}
-                        onPitchDifficultyChange={() => {}}
-                        onPitchTrendWindowChange={() => {}}
-                        onToggleFullscreen={() => {}}
-                        onToggleMic={() => {}}
-                        sequenceDrill={checkpointSummaryData.step}
-                        beatsPerNote={beatsPerNote}
-                        metronomeBpm={metronomeBpm}
-                        fluteViewStartedAt={checkpointSummaryData.fluteViewStartedAt}
-                        staticView={true}
-                      />
-                    </div>
+                    <SignalTrace
+                      points={trendPoints}
+                      detected={null}
+                      target={checkpointSummaryData.step.steps[0].target}
+                      pitchToleranceCents={checkpointSummaryData.step.pitchToleranceCents}
+                      pitchReleaseCents={checkpointSummaryData.step.pitchToleranceCents * 1.5}
+                      height={120}
+                      fullscreen={false}
+                      running={false}
+                      pitchTrendWindowMs={15000}
+                      pitchDifficulty="medium"
+                      pitchDifficultyOptions={[]}
+                      pitchTrendWindowOptions={[]}
+                      onPitchDifficultyChange={() => {}}
+                      onPitchTrendWindowChange={() => {}}
+                      onToggleFullscreen={() => {}}
+                      onToggleMic={() => {}}
+                      sequenceDrill={checkpointSummaryData.step}
+                      beatsPerNote={beatsPerNote}
+                      metronomeBpm={metronomeBpm}
+                      fluteViewStartedAt={checkpointSummaryData.fluteViewStartedAt}
+                      staticView={true}
+                    />
                   </div>
                 </div>
+
 
                 {/* Row 4: Sequence Notes Summary */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -5892,199 +5890,179 @@ function SignalTrace(props: {
   );
 
   if (props.staticView) {
+    // Use direct linear time mapping: firstTs → lastTs = left → right
+    const staticPoints = props.points;
+    const firstTs = staticPoints[0]?.timestamp ?? 0;
+    const lastTs = staticPoints[staticPoints.length - 1]?.timestamp ?? (firstTs + 1000);
+    const totalMs = Math.max(1000, lastTs - firstTs);
+
+    const svgW = width;
+    const svgH = height;
+    const padL = 12;
+    const padR = 8;
+    const usableW = svgW - padL - padR;
+    const tsToX = (ts: number) => padL + ((ts - firstTs) / totalMs) * usableW;
+    const centsToYStatic = (cents: number) =>
+      svgH - 24 - clamp((cents - minCents) / (maxCents - minCents), 0, 1) * (svgH - 48);
+
+    const centerYS = centsToYStatic(0);
+    const highLockYS = centsToYStatic(props.pitchToleranceCents);
+    const lowLockYS = centsToYStatic(-props.pitchToleranceCents);
+    const highRelYS = centsToYStatic(props.pitchReleaseCents);
+    const lowRelYS = centsToYStatic(-props.pitchReleaseCents);
+
+    // Build trace path + note band segments directly from trend data
+    type StaticSeg = { points: { x: number; y: number }[]; swara: string; octave: string | null };
+    const staticSegs: StaticSeg[] = [];
+    let curSeg: StaticSeg | null = null;
+
+    // Build swara-labeled note bands from continuous runs in trend data
+    type StaticBand = { swara: string; octave: string | null; x1: number; x2: number };
+    const staticBands: StaticBand[] = [];
+    let curBand: StaticBand | null = null;
+
+    for (const pt of staticPoints) {
+      if (pt.centsOffset == null || !pt.active || pt.swara == null) {
+        curSeg = null;
+        curBand = null;
+        continue;
+      }
+      const x = tsToX(pt.timestamp);
+      const y = centsToYStatic(pt.centsOffset);
+
+      // Trace segments
+      if (!curSeg || curSeg.swara !== pt.swara || curSeg.octave !== pt.octave) {
+        curSeg = { points: [], swara: pt.swara, octave: pt.octave ?? null };
+        staticSegs.push(curSeg);
+      }
+      curSeg.points.push({ x, y });
+
+      // Note bands (merge consecutive same-note)
+      if (!curBand || curBand.swara !== pt.swara || curBand.octave !== pt.octave) {
+        curBand = { swara: pt.swara, octave: pt.octave ?? null, x1: x, x2: x };
+        staticBands.push(curBand);
+      } else {
+        curBand.x2 = x;
+      }
+    }
+
+    // Time axis ticks (up to 6 evenly spaced)
+    const tickCount = Math.min(6, Math.floor(totalMs / 1000));
+    const tickIntervalMs = totalMs / Math.max(1, tickCount);
+    const timeTicks: { x: number; label: string }[] = [];
+    for (let i = 0; i <= tickCount; i++) {
+      const ms = i * tickIntervalMs;
+      const x = tsToX(firstTs + ms);
+      const secs = (ms / 1000).toFixed(0);
+      timeTicks.push({ x, label: i === 0 ? "0s" : i === tickCount ? "End" : `+${secs}s` });
+    }
+
     return (
-      <div
-        style={{
-          borderRadius: 24,
-          background: "transparent",
-          border: "none",
-          padding: 0,
-          width: "100%",
-          height: "100%",
-        }}
-      >
+      <div style={{ width: "100%", height: "100%", borderRadius: 14, overflow: "hidden" }}>
         <svg
-          viewBox={`0 0 ${width} ${height}`}
+          viewBox={`0 0 ${svgW} ${svgH}`}
           width="100%"
-          height={props.fullscreen ? height : undefined}
-          style={props.fullscreen ? undefined : { height: "auto", maxHeight: height, display: "block" }}
+          height={svgH}
+          style={{ display: "block" }}
           aria-hidden="true"
         >
-          {/* Background bands */}
-          <rect x="0" y={highReleaseY} width={width} height={highLockY - highReleaseY} fill={THEME.pitch.releaseZone} />
-          <rect x="0" y={lowLockY} width={width} height={lowReleaseY - lowLockY} fill={THEME.pitch.releaseZone} />
-          <rect x="0" y={highLockY} width={width} height={lowLockY - highLockY} fill={THEME.pitch.targetZone} />
+          {/* Background zones */}
+          <rect x={0} y={highRelYS} width={svgW} height={highLockYS - highRelYS} fill={THEME.pitch.releaseZone} />
+          <rect x={0} y={lowLockYS} width={svgW} height={lowRelYS - lowLockYS} fill={THEME.pitch.releaseZone} />
+          <rect x={0} y={highLockYS} width={svgW} height={lowLockYS - highLockYS} fill={THEME.pitch.targetZone} />
 
-          {/* Dynamic note sections */}
-          {segmentationEnabled
-            ? visibleNoteBands.map((band, index) => {
-              const bandWidth = Math.max(0, band.endX - band.startX);
-              const shouldLabel = props.fullscreen || bandWidth >= labelThresholdPx;
-              const labelX = clamp(band.startX + 8, 16, width - 18);
-              const bandInset = 1;
-              const rectX = clamp(band.startX + bandInset, 0, width);
-              const rectWidth = Math.max(0, bandWidth - bandInset * 2);
-              return (
-                <g key={`${band.key}-${index}`}>
-                  <rect
-                    x={rectX}
-                    y={24}
-                    width={rectWidth}
-                    height={height - 48}
-                    rx={14}
-                    fill={band.color.band}
-                    stroke={band.color.stroke}
-                    strokeWidth={1}
-                    opacity={0.34}
-                  />
-                  <line
-                    x1={rectX}
-                    y1={24}
-                    x2={rectX}
-                    y2={height - 24}
-                    stroke={band.color.stroke}
-                    strokeWidth={1.5}
-                    strokeDasharray="3 4"
-                    opacity={0.7}
-                  />
-                  <line
-                    x1={rectX + rectWidth}
-                    y1={24}
-                    x2={rectX + rectWidth}
-                    y2={height - 24}
-                    stroke={band.color.stroke}
-                    strokeWidth={1.5}
-                    strokeDasharray="3 4"
-                    opacity={0.7}
-                  />
-                  {shouldLabel && (
-                    <text
-                      x={labelX}
-                      y={40}
-                      fill={band.color.stroke}
-                      fontSize="12"
-                      fontWeight="800"
-                      opacity={0.9}
-                      style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.8)" }}
-                    >
-                      {band.swara}
-                    </text>
-                  )}
-                </g>
-              );
-            })
-            : null}
+          {/* Note background columns */}
+          {staticBands.map((band, idx) => {
+            const col = noteVisual(band.swara, band.octave);
+            const bw = Math.max(0, band.x2 - band.x1);
+            return (
+              <g key={idx}>
+                <rect
+                  x={band.x1}
+                  y={24}
+                  width={bw}
+                  height={svgH - 48}
+                  rx={6}
+                  fill={col.band}
+                  stroke={col.stroke}
+                  strokeWidth={0.8}
+                  opacity={0.25}
+                />
+              </g>
+            );
+          })}
 
           {/* Grid lines */}
-          <line x1="0" y1={centerY} x2={width} y2={centerY} stroke={THEME.pitch.gridLine} strokeWidth={1} strokeDasharray="6 8" />
-          <line x1="0" y1={highLockY} x2={width} y2={highLockY} stroke={THEME.pitch.gridLine} strokeWidth={0.8} strokeDasharray="3 4" />
-          <line x1="0" y1={lowLockY} x2={width} y2={lowLockY} stroke={THEME.pitch.gridLine} strokeWidth={0.8} strokeDasharray="3 4" />
-          <line x1="0" y1={highReleaseY} x2={width} y2={highReleaseY} stroke={THEME.pitch.gridLine} strokeWidth={0.8} opacity={0.6} />
-          <line x1="0" y1={lowReleaseY} x2={width} y2={lowReleaseY} stroke={THEME.pitch.gridLine} strokeWidth={0.8} opacity={0.6} />
+          <line x1={padL} y1={centerYS} x2={svgW - padR} y2={centerYS} stroke={THEME.pitch.gridLine} strokeWidth={1} strokeDasharray="5 7" />
+          <line x1={padL} y1={highLockYS} x2={svgW - padR} y2={highLockYS} stroke={THEME.pitch.gridLine} strokeWidth={0.8} strokeDasharray="3 5" />
+          <line x1={padL} y1={lowLockYS} x2={svgW - padR} y2={lowLockYS} stroke={THEME.pitch.gridLine} strokeWidth={0.8} strokeDasharray="3 5" />
 
-          {/* Target & Lock Ranges */}
-          <line x1="12" y1={highLockY} x2={12} y2={lowLockY} stroke="rgba(117,184,255,0.4)" strokeWidth={3} strokeLinecap="round" />
-          <circle cx="12" cy={centerY} r={5} fill="rgba(117,184,255,0.4)" />
-
-          {/* Active curve segments */}
-          {segments.map((segment, index) => {
-            const pathData = segment.points
-              .map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-              .join(" ");
-            const color = noteVisual(segment.swara ?? "Sa", segment.octave);
+          {/* Pitch trace */}
+          {staticSegs.map((seg, idx) => {
+            if (seg.points.length < 2) return null;
+            const d = seg.points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+            const col = noteVisual(seg.swara, seg.octave);
             return (
               <path
-                key={index}
-                d={pathData}
+                key={idx}
+                d={d}
                 fill="none"
-                stroke={color.stroke}
-                strokeWidth={props.fullscreen ? 4.5 : 3.5}
+                stroke={col.stroke}
+                strokeWidth={3}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                style={{
-                  filter: `drop-shadow(0 0 4px ${color.stroke})`,
-                }}
+                style={{ filter: `drop-shadow(0 0 3px ${col.stroke})` }}
               />
             );
           })}
 
-          {/* Real-time lock bubble */}
-          {latest && props.running && (
-            <g transform={`translate(${leftPad + usableWidth - 10}, ${centsToY(latest.centsOffset ?? 0)})`}>
-              <circle cx="0" cy="0" r="7.5" fill="var(--accent)" style={{ filter: "drop-shadow(0 0 8px var(--accent))" }} />
-              <circle cx="0" cy="0" r="3.5" fill="#ffffff" />
-            </g>
-          )}
-
-          {/* Axis Labels */}
-          <text x="8" y="15" fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="start">High</text>
-          <text x="8" y={centerY + 4} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="start">Target zone</text>
-          <text x="8" y={height - 8} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="start">Low</text>
-          <text x={width - 8} y={highLockY - 4} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="end">
-            +{props.pitchToleranceCents}¢
-          </text>
-          <text x={width - 8} y={lowLockY + 12} fill={THEME.pitch.axisLabel} fontSize="10" textAnchor="end">
-            -{props.pitchToleranceCents}¢
-          </text>
-          <text x={width - 8} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10" textAnchor="end">Now</text>
-          <text x={leftPad} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10" textAnchor="start">~15s ago</text>
-          <text x={width / 2 - 16} y={height - 8} fill={THEME.pitch.mutedLabel} fontSize="10">{`~${props.pitchTrendWindowMs / 2000}s`}</text>
-
-          {/* Target Note Timeline lines and label tags */}
-          {targetNoteBands.map((band, idx) => {
-            const lineY = height - 21;
-            const textY = height - 8;
-            const bandWidth = Math.max(0, band.endX - band.startX);
-            const midX = band.startX + bandWidth / 2;
-
-            const isPaMandra = band.swara === "P̣" || band.swara === "P\u0323" || band.swara === "\u1E56";
-            const displaySwara = isPaMandra ? "P" : band.swara;
-
+          {/* Note labels on bands */}
+          {staticBands.map((band, idx) => {
+            const bw = band.x2 - band.x1;
+            if (bw < 18) return null;
+            const col = noteVisual(band.swara, band.octave);
+            const midX = band.x1 + bw / 2;
             return (
-              <g key={`target-note-band-${idx}`}>
-                <line
-                  x1={band.startX}
-                  y1={lineY}
-                  x2={band.endX}
-                  y2={lineY}
-                  stroke={band.color.stroke}
-                  strokeWidth={4}
-                  strokeLinecap="round"
-                  opacity={0.88}
-                />
-                {bandWidth > 14 && (
-                  <>
-                    <text
-                      x={midX}
-                      y={textY}
-                      fill="#ffffff"
-                      fontSize="9"
-                      fontWeight="800"
-                      textAnchor="middle"
-                      style={{ textShadow: "0px 1px 2px rgba(0, 0, 0, 0.9)" }}
-                    >
-                      {displaySwara}
-                    </text>
-                    {isPaMandra && (
-                      <circle
-                        cx={midX}
-                        cy={textY + 2.5}
-                        r={1.15}
-                        fill="#ffffff"
-                        style={{ filter: "drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.9))" }}
-                      />
-                    )}
-                  </>
-                )}
-              </g>
+              <text
+                key={idx}
+                x={midX}
+                y={38}
+                fill={col.stroke}
+                fontSize="11"
+                fontWeight="800"
+                textAnchor="middle"
+                opacity={0.9}
+              >
+                {band.swara}
+              </text>
             );
           })}
+
+          {/* Cents labels */}
+          <text x={svgW - padR - 2} y={highLockYS - 4} fill={THEME.pitch.axisLabel} fontSize="9" textAnchor="end">+{props.pitchToleranceCents}¢</text>
+          <text x={svgW - padR - 2} y={lowLockYS + 10} fill={THEME.pitch.axisLabel} fontSize="9" textAnchor="end">-{props.pitchToleranceCents}¢</text>
+
+          {/* Time axis ticks */}
+          {timeTicks.map((tick, idx) => (
+            <g key={idx}>
+              <line x1={tick.x} y1={svgH - 16} x2={tick.x} y2={svgH - 12} stroke={THEME.pitch.gridLine} strokeWidth={1} />
+              <text x={tick.x} y={svgH - 4} fill={THEME.pitch.mutedLabel} fontSize="9" textAnchor="middle">{tick.label}</text>
+            </g>
+          ))}
+
+          {/* Empty state label */}
+          {staticPoints.filter(p => p.centsOffset != null && p.active).length === 0 && (
+            <text x={svgW / 2} y={svgH / 2} fill={THEME.pitch.mutedLabel} fontSize="11" textAnchor="middle">No pitch data recorded</text>
+          )}
         </svg>
       </div>
     );
   }
 
+
+
   return (
+
     <article
       className={`glass ${props.className ?? ""}`.trim()}
       style={{
