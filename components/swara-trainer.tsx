@@ -180,9 +180,9 @@ type PitchDifficultyConfig = {
 };
 
 const allLessonSteps = foundationModules.flatMap((module) => module.steps);
-// Default to the first checkpoint of the 13th module (index 12)
+// Default to the first checkpoint of the first module (index 0)
 // const firstStep = allLessonSteps[0];
-const firstStep = foundationModules[12]?.steps[0] ?? allLessonSteps[0];
+const firstStep = foundationModules[0]?.steps[0] ?? allLessonSteps[0];
 const FALLBACK_TARGET: SwaraTarget = { swara: "Sa", octave: "Madhya" };
 const UI_REFRESH_MS = 40;
 const SILENCE_HOLD_MS = 320;
@@ -1269,9 +1269,9 @@ export function SwaraTrainer() {
     setPitchTrendWindowMs(readStoredPitchTrendWindow());
   }, []);
 
-  useEffect(() => {
-    setFluteRoadMode(readStoredFluteRoadMode());
-  }, []);
+  // useEffect(() => {
+  //   setFluteRoadMode(readStoredFluteRoadMode());
+  // }, []);
 
   useEffect(() => {
     try {
