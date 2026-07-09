@@ -6136,7 +6136,7 @@ function SignalTrace(props: {
                     <text
                       x={tn.x1 + bw / 2} y={targetTextY}
                       fill={tn.col.stroke}
-                      fontSize="9" fontWeight="800" textAnchor="middle"
+                      fontSize="15" fontWeight="800" textAnchor="middle"
                       style={{ textShadow: "0px 1px 2px rgba(0,0,0,0.9)" }}
                     >
                       {displaySwara}
@@ -6543,7 +6543,7 @@ function SignalTrace(props: {
           {/* Target Note Timeline lines and label tags */}
           {targetNoteBands.map((band, idx) => {
             const lineY = height - 21;
-            const textY = height - 8;
+            const textY = height - 4;
             const bandWidth = Math.max(0, band.endX - band.startX);
             const midX = band.startX + bandWidth / 2;
 
@@ -6568,7 +6568,7 @@ function SignalTrace(props: {
                       x={midX}
                       y={textY}
                       fill="#ffffff"
-                      fontSize="9"
+                      fontSize="14"
                       fontWeight="800"
                       textAnchor="middle"
                       style={{ textShadow: "0px 1px 2px rgba(0, 0, 0, 0.9)" }}

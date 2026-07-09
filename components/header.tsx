@@ -144,7 +144,7 @@ export function Header() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <Button
+          {/* <Button
             variant="ghost"
             onClick={toggleTheme}
             className="rounded-full flex items-center justify-center p-0 h-11 w-11"
@@ -160,7 +160,7 @@ export function Header() {
             ) : (
               <Sun className="h-4.5 w-4.5" style={{ color: "var(--text)" }} />
             )}
-          </Button>
+          </Button> */}
         </nav>
       </div>
     </header>

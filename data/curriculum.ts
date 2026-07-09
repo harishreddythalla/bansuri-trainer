@@ -648,7 +648,7 @@ const alankarPairs: AlankarPairDefinition[] = [
     title: "Note Skipping",
     description: "Skips that test clean lifting and half-hole accuracy.",
     aarohNotation: "P̣ḌS ḌṆR ṆSG SRM RGP GMD MPN PDṠ DNṘ NṠĠ ṠṘṀ ṘĠṖ",
-    avarohNotation: "ṖṀṘ ṀĠṠ ĠṘN ṘṠD ṠNP NDM DPG PMR MGS GRṆ RSD SṆP̣",
+    avarohNotation: "ṖṀṘ ṀĠṠ ĠṘN ṘṠD ṠNP NDM DPG PMR MGS GRṆ RSḌ SṆP̣",
     aarohCoaching: "Practice lifting multiple fingers cleanly. Ensure half-hole microtone accuracy.",
     avarohCoaching: "Keep fingers low and land them together on skipped intervals.",
     aarohMistakes: ["Ghost notes during double finger lifts", "Pitch lag on skip target note"],
